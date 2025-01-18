@@ -1,29 +1,19 @@
-from rich.padding import Padding
+import sys
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.console import Console
+from rich.text import Text
+from rich.console import Group
 
-def print_help():
-    line1 = (
-        "This command creates scaled population files based on real-world population data.\n"
-        "It processes agent information to create multiple scale versions while preserving\n"
-        "geographic distribution and demographic characteristics."
-    )
+def print_population_help(args=None):
+    args = args or sys.argv
+    if not (("--help" in args or "-h" in args) and len(args) > 1 and args[1] == "population"):
+        return ""
+
+    console = Console()
     
-    line2 = (
-        "[bold]Generated Files:[/bold]\n"
-        "  • Population files scaled from 1% to 10% (e.g., population-01.xml through population-10.xml)\n"
-        "  • Each file maintains geographic density and demographic ratios\n\n"
-        "[bold]Directory Structure:[/bold]\n"
-        "  population-inputs/\n"
-        "  ├── population-01.xml\n"
-        "  ├── population-05.xml\n"
-        "  └── population-10.xml"
-    )
-    
-    line3 = "The population files follow this XML structure:"
-    
-    code = '''<?xml version="1.0" encoding="utf-8"?>
+    # Example XML code with syntax highlighting
+    xml_example = '''<?xml version="1.0" encoding="utf-8"?>
 <population>
     <person id="1">
         <attributes>
@@ -31,28 +21,38 @@ def print_help():
             <attribute name="sex" class="java.lang.Integer">1</attribute>
         </attributes>
         <plan selected="yes">
-            <activity type="home" x="322952.87" y="5084462.54" 
-                      end_time="07:00:00"/>
-            <leg mode="pt" dep_time="07:00:00" 
-                 trav_time="00:41:00"/>
+            <activity type="home" x="322952.87" y="5084462.54" end_time="07:00:00"/>
+            <leg mode="pt" dep_time="07:00:00" trav_time="00:41:00"/>
+            <activity type="work" x="323456.78" y="5084789.12"/>
         </plan>
     </person>
 </population>'''
     
-    syntax = Padding(Syntax(code, "xml", theme="native", line_numbers=True), (1, 0))
-    
-    line4 = (
-        "\n[bold]Scaling Logic:[/bold]\n"
-        "1. Read TOTAL_POPULATION from .env\n"
-        "2. Calculate current scale from base population\n"
-        "3. Remove/scale agents to match target percentage\n"
-        "4. Preserve geographic distribution\n\n"
-        "[bold]Required Environment Variables:[/bold]\n"
-        "  • TOTAL_POPULATION: Real-world population size\n"
-        "  • CHUNK_SIZE: Processing batch size\n\n"
-        "[red bold]NOTE:[/red bold] Ensure .env file contains required variables"
+    overview = (
+        "[bold magenta]Overview[/bold magenta]\n"
+        "The Population module processes real-world population data to generate scaled versions for transportation simulations. "
+        "It maintains geographic distribution and demographic characteristics while creating different population sizes, "
+        "enabling efficient simulation testing with [magenta]python main.py population create input.xml -s 2,4,6,8[/magenta] for custom scales.\n\n"
+        "[bold magenta]Expected Output[/bold magenta]\n"
+        "Generates [magenta]population-XX.xml[/magenta] files where XX is the scale percentage (e.g. [magenta]population-05.xml[/magenta] for 5% scale). "
+        "Each file contains scaled population data with preserved geographic and demographic ratios.\n\n"
+        "[bold magenta]Required Input[/bold magenta]\n"
+        "1. [magenta]input.xml[/magenta]: Base population file with format:\n\n"
     )
     
-    help_text = f"{line1}\n\n{line2}\n\n{line3}\n\n{syntax}\n\n{line4}"
-    console = Console()
-    console.print(Panel(help_text, title="[bold magenta]Population[/bold magenta]", border_style="magenta"))
+    env_vars = (
+        "\n[bold magenta]Environment Variables[/bold magenta]\n"
+        "• [magenta]TOTAL_POPULATION[/magenta]: Real-world population size\n"
+        "• [magenta]CHUNK_SIZE[/magenta]: Processing batch size (default: 10000)"
+    )
+    
+    help_content = Group(
+        overview,
+        Syntax(xml_example, "xml", theme="monokai", line_numbers=True),
+        env_vars
+    )
+    
+    console.print(Panel(help_content, title="[bold]Population Module[/bold]", 
+                       border_style="magenta", padding=(1, 2)))
+    
+    return ""

@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 import typer
 from typing_extensions import Annotated
@@ -5,12 +6,17 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskPr
 from rich.console import Console
 from .processors import process_network, create_scaled_network, network_to_xml
 from .utils import validate_network_file, validate_output_dir, parse_scale_list
-from .help import print_help
+from .help import print_network_help
 
 console = Console()
-app = typer.Typer()
+app = typer.Typer(help="Process and scale transportation network data with PostGIS integration")
 
-@app.command("create", help=print_help())
+@app.command(
+    help="Generate scaled network files while maintaining topology and connectivity",
+    name="create",
+    rich_help_panel="Network Commands"
+)
+@app.command(print_network_help(sys.argv))
 def create_network(
     input: Annotated[Path, typer.Argument(help="Input MATSim network XML file containing nodes and links")] = None,
     output: Annotated[Path, typer.Option("--output", "-o", help="Output directory for scaled network files and PostGIS data")] = None,

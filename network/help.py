@@ -1,64 +1,64 @@
-from rich.padding import Padding
+import sys
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.console import Console
+from rich.text import Text
+from rich.console import Group
 
-def print_help():
-    line1 = (
-        "This command generates scaled network files and updates the link_coordinates database table.\n"
-        "It processes network data to create multiple scale versions while maintaining network topology\n"
-        "and updates a PostGIS-enabled database with geometric information for network analysis."
-    )
+def print_network_help(args=None):
+    args = args or sys.argv
+    if not (("--help" in args or "-h" in args) and len(args) > 1 and args[1] == "network"):
+        return ""
+
+    console = Console()
     
-    line2 = (
-        "[bold]Generated Files:[/bold]\n"
-        "  • Network files scaled from 1% to 10% (e.g., network-01.xml through network-10.xml)\n"
-        "  • Each file maintains network connectivity and properties\n\n"
-        "[bold]Directory Structure:[/bold]\n"
-        "  network-inputs/\n"
-        "  ├── network-01.xml\n"
-        "  ├── network-05.xml\n"
-        "  └── network-10.xml"
-    )
-    
-    line3 = "The network files follow this XML structure:"
-    
-    code = '''<?xml version="1.0" encoding="utf-8"?>
+    # Example XML code with syntax highlighting
+    xml_example = '''<?xml version="1.0" encoding="utf-8"?>
 <network>
     <nodes>
         <node id="1" x="346519.0" y="5053098.2"/>
+        <node id="2" x="346620.3" y="5053187.9"/>
     </nodes>
     <links capperiod="01:00:00">
         <link id="1" from="1" to="2" length="100.0"
               freespeed="13.89" capacity="600.0"
               permlanes="1.0" oneway="1"
-              modes="car"/>
+              modes="car,bike"/>
+        <link id="2" from="2" to="1" length="100.0"
+              freespeed="13.89" capacity="600.0"
+              permlanes="1.0" oneway="1"
+              modes="car,bike"/>
     </links>
 </network>'''
     
-    syntax = Padding(Syntax(code, "xml", theme="native", line_numbers=True), (1, 0))
-    
-    line4 = "\n[bold]Database Table Structure:[/bold]"
-    
-    table_sql = '''CREATE TABLE link_coordinates (
-    link_id TEXT PRIMARY KEY,
-    from_node GEOMETRY(Point, 4326) NOT NULL,
-    to_node GEOMETRY(Point, 4326) NOT NULL,
-    length DOUBLE PRECISION,
-    freespeed DOUBLE PRECISION
-);'''
-    
-    sql_syntax = Padding(Syntax(table_sql, "sql", theme="native"), (1, 0))
-    
-    line5 = (
-        "\n[bold]Processing Steps:[/bold]\n"
-        "1. Parse and validate network XML\n"
-        "2. Process nodes and create geometry\n"
-        "3. Process links and attributes\n"
-        "4. Update database with geometric data\n\n"
-        "[red bold]NOTE:[/red bold] Requires PostGIS extension and valid database credentials in [bright_cyan].env[/bright_cyan]"
+    overview = (
+        "[bold green]Overview[/bold green]\n"
+        "The Network module manages transportation network data for simulation environments. "
+        "It processes and scales network files while maintaining topology and connectivity, "
+        "enabling efficient simulation testing with [green]python main.py network create input.xml -s 2,4,6,8[/green] for custom scales.\n\n"
+        "[bold green]Expected Output[/bold green]\n"
+        "Generates [green]network-XX.xml[/green] files where XX is the scale percentage (e.g. [green]network-05.xml[/green] for 5% scale). "
+        "Each file maintains topology and connectivity while scaling network properties.\n\n"
+        "[bold green]Required Input[/bold green]\n"
+        "1. [green]input.xml[/green]: Base network file with format:\n\n"
     )
     
-    help_text = f"{line1}\n\n{line2}\n\n{line3}\n\n{syntax}\n\n{line4}\n\n{sql_syntax}\n\n{line5}"
-    console = Console()
-    console.print(Panel(help_text, title="[bold green]Network[/bold green]", border_style="green"))
+    env_vars = (
+        "\n[bold green]Environment Variables[/bold green]\n"
+        "• [green]DB_HOST[/green]: PostGIS database host\n"
+        "• [green]DB_PORT[/green]: Database port (default: 5432)\n"
+        "• [green]DB_NAME[/green]: Database name\n"
+        "• [green]DB_USER[/green]: Database username\n"
+        "• [green]DB_PASS[/green]: Database password"
+    )
+    
+    help_content = Group(
+        overview,
+        Syntax(xml_example, "xml", theme="monokai", line_numbers=True),
+        env_vars
+    )
+    
+    console.print(Panel(help_content, title="[bold]Network Module[/bold]", 
+                       border_style="green", padding=(1, 2)))
+    
+    return ""

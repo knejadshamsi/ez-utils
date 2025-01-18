@@ -1,15 +1,21 @@
+import sys
 from pathlib import Path
 import typer
 from typing_extensions import Annotated
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.console import Console
 from .processors import process_gtfs_data, create_transit_schedule, create_vehicles
-from .help import print_help
+from .help import print_pt_help
 
 console = Console()
-app = typer.Typer()
+app = typer.Typer(help="Process GTFS data to create standardized public transportation schedules")
 
-@app.command("create-from-gtfs", help=print_help())
+@app.command(
+    help="Create public transportation schedules and vehicle configurations from GTFS data",
+    name="create-from-gtfs",
+    rich_help_panel="Public Transportation Commands"
+)
+@app.command(print_pt_help(sys.argv))
 def create_pt_from_gtfs(
     gtfs_path: Annotated[Path, typer.Argument(help="Path to GTFS directory containing routes.txt, trips.txt, stops.txt, etc.")] = None,
     output: Annotated[Path, typer.Option("--output", "-o", help="Output directory for generated schedule and vehicle files")] = None,

@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 import typer
 from typing_extensions import Annotated
@@ -5,12 +6,17 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskPr
 from rich.console import Console
 from .processors import process_population, create_scaled_population, population_to_xml
 from .utils import validate_population_file, validate_output_dir, parse_scale_list
-from .help import print_help
+from .help import print_population_help
 
 console = Console()
-app = typer.Typer()
+app = typer.Typer(help="Create and manage scaled population files for transportation simulations")
 
-@app.command("create", help=print_help())
+@app.command(
+    help="Generate scaled population files while preserving geographic and demographic distributions",
+    name="create",
+    rich_help_panel="Population Commands"
+)
+@app.command(print_population_help(sys.argv))
 def create_population(
     input: Annotated[Path, typer.Argument(help="Input MATSim population XML file with agent plans and attributes")] = None,
     output: Annotated[Path, typer.Option("--output", "-o", help="Output directory for scaled population files")] = None,

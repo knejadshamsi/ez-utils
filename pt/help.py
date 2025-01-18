@@ -1,28 +1,19 @@
-from rich.padding import Padding
+import sys
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.console import Console
+from rich.text import Text
+from rich.console import Group
 
-def print_help():
-    line1 = (
-        "This command creates standardized public transportation schedule files for both bus and metro services.\n"
-        "The generated XML files follow the MATSim public transportation format and are organized in the pt/ directory.\n"
-        "The schedules include detailed route information, stop locations, departure times, and service frequencies."
-    )
+def print_pt_help(args=None):
+    args = args or sys.argv
+    if not (("--help" in args or "-h" in args) and len(args) > 1 and args[1] == "pt"):
+        return ""
+
+    console = Console()
     
-    line2 = (
-        "[bold]Generated Files:[/bold]\n"
-        "  • [yellow]bus_schedule.xml[/yellow]: Contains bus routes, stops, schedules, and frequencies\n"
-        "  • [yellow]metro_schedule.xml[/yellow]: Contains metro lines, stations, schedules, and service patterns\n\n"
-        "[bold]Directory Structure:[/bold]\n"
-        "  pt/\n"
-        "  ├── bus_schedule.xml\n"
-        "  └── metro_schedule.xml"
-    )
-    
-    line3 = "The schedule files follow this XML structure:"
-    
-    code = '''<?xml version="1.0" encoding="utf-8"?>
+    # Example XML code with syntax highlighting
+    xml_example = '''<?xml version="1.0" encoding="utf-8"?>
 <transitSchedule>
     <transitStops>
         <stopFacility id="stop1" x="346519.0" y="5053098.2">
@@ -42,15 +33,37 @@ def print_help():
     </transitLine>
 </transitSchedule>'''
     
-    syntax = Padding(Syntax(code, "xml", theme="native", line_numbers=True), (1, 0))
-    
-    line4 = (
-        "\n[bold]Required Environment Variables:[/bold]\n"
-        "  • Database connection details in [bright_cyan].env[/bright_cyan] file\n"
-        "  • City-specific configuration settings\n\n"
-        "[red bold]NOTE:[/red bold] Ensure all required shapefiles and route data are available for the target city."
+    overview = (
+        "[bold cyan]Overview[/bold cyan]\n"
+        "The Public Transportation (PT) module processes GTFS data to create standardized schedule files for bus and metro services. "
+        "It enables realistic public transit modeling with accurate routes, schedules, and vehicle configurations, "
+        "with quick setup using [cyan]python main.py pt create-from-gtfs ./gtfs_data -o ./transit_files[/cyan].\n\n"
+        "[bold cyan]Expected Output[/bold cyan]\n"
+        "Generates four XML files:\n"
+        "• [cyan]bus_schedule.xml[/cyan]: Bus routes, stops, and schedules\n"
+        "• [cyan]metro_schedule.xml[/cyan]: Metro lines, stations, and schedules\n"
+        "• [cyan]bus_vehicles.xml[/cyan]: Bus types and capacities\n"
+        "• [cyan]metro_vehicles.xml[/cyan]: Metro types and capacities\n\n"
+        "[bold cyan]Required Input[/bold cyan]\n"
+        "1. [cyan]GTFS Data[/cyan]: Standard transit files with format:\n\n"
     )
     
-    help_text = f"{line1}\n\n{line2}\n\n{line3}\n\n{syntax}\n\n{line4}"
-    console = Console()
-    console.print(Panel(help_text, title="[bold cyan]Public Transportation[/bold cyan]", border_style="cyan"))
+    env_vars = (
+        "\n[bold cyan]Environment Variables[/bold cyan]\n"
+        "• [cyan]DB_HOST[/cyan]: Database server hostname\n"
+        "• [cyan]DB_PORT[/cyan]: Database server port\n"
+        "• [cyan]DB_NAME[/cyan]: Transit database name\n"
+        "• [cyan]DB_USER[/cyan]: Database username\n"
+        "• [cyan]DB_PASS[/cyan]: Database password"
+    )
+    
+    help_content = Group(
+        overview,
+        Syntax(xml_example, "xml", theme="monokai", line_numbers=True),
+        env_vars
+    )
+    
+    console.print(Panel(help_content, title="[bold]Public Transportation Module[/bold]", 
+                       border_style="cyan", padding=(1, 2)))
+    
+    return ""

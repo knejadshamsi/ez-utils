@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 import typer
 from typing_extensions import Annotated
@@ -11,12 +12,17 @@ from .utils import (
     parse_scale_list,
     write_index_file
 )
-from .help import print_help
+from .help import print_index_help
 
 console = Console()
-app = typer.Typer()
+app = typer.Typer(help="Create and manage optimized lookup indexes for agent-network relationships")
 
-@app.command("create", help=print_help())
+@app.command(
+    help="Generate index files mapping relationships between agents and network elements",
+    name="create",
+    rich_help_panel="Index Commands"
+)
+@app.command(print_index_help(sys.argv))
 def create_index(
     network_dir: Annotated[Path, typer.Argument(help="Directory containing scaled network XML files (network-XX.xml)")] = None,
     population_dir: Annotated[Path, typer.Argument(help="Directory containing scaled population XML files (population-XX.xml)")] = None,
