@@ -12,14 +12,9 @@ def print_population_help(args=None):
 
     console = Console()
     
-    # Example XML code with syntax highlighting
     xml_example = '''<?xml version="1.0" encoding="utf-8"?>
 <population>
     <person id="1">
-        <attributes>
-            <attribute name="age" class="java.lang.Integer">30</attribute>
-            <attribute name="sex" class="java.lang.Integer">1</attribute>
-        </attributes>
         <plan selected="yes">
             <activity type="home" x="322952.87" y="5084462.54" end_time="07:00:00"/>
             <leg mode="pt" dep_time="07:00:00" trav_time="00:41:00"/>
@@ -30,26 +25,29 @@ def print_population_help(args=None):
     
     overview = (
         "[bold magenta]Overview[/bold magenta]\n"
-        "The Population module processes real-world population data to generate scaled versions for transportation simulations. "
-        "It maintains geographic distribution and demographic characteristics while creating different population sizes, "
-        "enabling efficient simulation testing with [magenta]python main.py population create input.xml -s 2,4,6,8[/magenta] for custom scales.\n\n"
-        "[bold magenta]Expected Output[/bold magenta]\n"
-        "Generates [magenta]population-XX.xml[/magenta] files where XX is the scale percentage (e.g. [magenta]population-05.xml[/magenta] for 5% scale). "
-        "Each file contains scaled population data with preserved geographic and demographic ratios.\n\n"
+        "The Population module scales down population data while preserving geographic density. "
+        "It analyzes first activity locations to maintain relative population distribution across areas. "
+        "Scales range from 1-10 (representing 1% to 10% of original). "
+        "Use [magenta]python main.py population create input.xml --scales 2,4,6[/magenta] for specific scales, "
+        "or omit --scales for all possible scales.\n\n"
         "[bold magenta]Required Input[/bold magenta]\n"
-        "1. [magenta]input.xml[/magenta]: Base population file with format:\n\n"
-    )
-    
-    env_vars = (
-        "\n[bold magenta]Environment Variables[/bold magenta]\n"
-        "• [magenta]TOTAL_POPULATION[/magenta]: Real-world population size\n"
-        "• [magenta]CHUNK_SIZE[/magenta]: Processing batch size (default: 10000)"
+        "1. [magenta]input.xml[/magenta]: Base population file (format shown below)\n\n"
+        "[bold magenta]Expected Output[/bold magenta]\n"
+        "Generates [magenta]population/population-XX.xml[/magenta] files where XX is the scale (01-10). "
+        "Population is reduced while maintaining geographic density distribution.\n\n"
+        "[bold magenta]Scale Behavior[/bold magenta]\n"
+        "• Only scales down (1-10)\n"
+        "• Preserves population density\n"
+        "• Maintains activity patterns\n"
+        "• Uses first activity location for density calculation\n\n"
+        "[bold magenta]Environment Variables[/bold magenta]\n"
+        "• [magenta]TOTAL_POPULATION[/magenta]: Real-world total population size\n\n"
+        "[bold magenta]Population File Format[/bold magenta]\n"
     )
     
     help_content = Group(
         overview,
-        Syntax(xml_example, "xml", theme="monokai", line_numbers=True),
-        env_vars
+        Syntax(xml_example, "xml", theme="monokai", line_numbers=True)
     )
     
     console.print(Panel(help_content, title="[bold]Population Module[/bold]", 

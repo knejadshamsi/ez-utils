@@ -12,7 +12,6 @@ def print_network_help(args=None):
 
     console = Console()
     
-    # Example XML code with syntax highlighting
     xml_example = '''<?xml version="1.0" encoding="utf-8"?>
 <network>
     <nodes>
@@ -33,29 +32,28 @@ def print_network_help(args=None):
     
     overview = (
         "[bold green]Overview[/bold green]\n"
-        "The Network module manages transportation network data for simulation environments. "
-        "It processes and scales network files while maintaining topology and connectivity, "
-        "enabling efficient simulation testing with [green]python main.py network create input.xml -s 2,4,6,8[/green] for custom scales.\n\n"
-        "[bold green]Expected Output[/bold green]\n"
-        "Generates [green]network-XX.xml[/green] files where XX is the scale percentage (e.g. [green]network-05.xml[/green] for 5% scale). "
-        "Each file maintains topology and connectivity while scaling network properties.\n\n"
+        "The Network module scales down transportation networks while preserving traffic behavior. "
+        "It analyzes traffic flow and adjusts link speeds to maintain similar travel times across different scales. "
+        "Scales range from 1-10 (representing 1% to 10% of original). "
+        "Use [green]python main.py network create input.xml --scales 2,4,6[/green] for specific scales, "
+        "or omit --scales for all possible scales.\n\n"
         "[bold green]Required Input[/bold green]\n"
-        "1. [green]input.xml[/green]: Base network file with format:\n\n"
-    )
-    
-    env_vars = (
-        "\n[bold green]Environment Variables[/bold green]\n"
-        "• [green]DB_HOST[/green]: PostGIS database host\n"
-        "• [green]DB_PORT[/green]: Database port (default: 5432)\n"
-        "• [green]DB_NAME[/green]: Database name\n"
-        "• [green]DB_USER[/green]: Database username\n"
-        "• [green]DB_PASS[/green]: Database password"
+        "1. [green]input.xml[/green]: Base network file (format shown below)\n"
+        "2. [green]events.xml[/green]: Optional MATSim events file for traffic analysis\n\n"
+        "[bold green]Expected Output[/bold green]\n"
+        "Generates [green]network/network-XX.xml[/green] files where XX is the scale (01-10). "
+        "Link speeds are adjusted based on traffic density to maintain similar travel times.\n\n"
+        "[bold green]Scale Behavior[/bold green]\n"
+        "• Only scales down (1-10)\n"
+        "• Adjusts link speeds based on traffic density\n"
+        "• Preserves network topology\n"
+        "• Maintains relative travel times\n\n"
+        "[bold green]Network File Format[/bold green]\n"
     )
     
     help_content = Group(
         overview,
-        Syntax(xml_example, "xml", theme="monokai", line_numbers=True),
-        env_vars
+        Syntax(xml_example, "xml", theme="monokai", line_numbers=True)
     )
     
     console.print(Panel(help_content, title="[bold]Network Module[/bold]", 

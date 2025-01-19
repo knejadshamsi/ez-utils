@@ -1,16 +1,20 @@
 from .cli import app as pt_cli
-from .models import GTFSData, TransitSchedule, VehicleDefinition
-from .processors import process_gtfs_data, create_transit_schedule, create_vehicles
-from .utils import parse_gtfs_time, validate_gtfs_files
+from .processors import process_file
+from .models import GTFSData, TransitSchedule, TransitStop, TransitRoute, VehicleDefinition, TransportMode
+from .service_processor import process_gtfs_data
+from .schedule_generator import generate_transit_schedule
+from .vehicle_generator import generate_vehicles
 
 __all__ = [
     'pt_cli',
+    'process_file',
     'GTFSData',
     'TransitSchedule',
+    'TransitStop',
+    'TransitRoute',
     'VehicleDefinition',
+    'TransportMode',
     'process_gtfs_data',
-    'create_transit_schedule',
-    'create_vehicles',
-    'parse_gtfs_time',
-    'validate_gtfs_files'
+    'generate_transit_schedule',
+    'generate_vehicles'
 ]
