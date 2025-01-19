@@ -9,6 +9,7 @@ from pt import pt_cli
 from network import network_cli
 from population import population_cli
 from index import index_cli
+from all import app as all_cli
 
 console = Console()
 app = typer.Typer(rich_markup_mode="rich", no_args_is_help=True)
@@ -19,7 +20,8 @@ def print_root_help():
         "  [cyan]pt[/cyan]         Public transportation commands for processing GTFS data\n"
         "  [cyan]network[/cyan]    Network commands for processing and scaling network data\n"
         "  [cyan]population[/cyan] Population commands for processing and scaling population data\n"
-        "  [cyan]index[/cyan]      Index commands for creating agent-network relationships\n\n"
+        "  [cyan]index[/cyan]      Index commands for creating agent-network relationships\n"
+        "  [cyan]all[/cyan]        Process files using all modules together\n\n"
         "[bold]Usage:[/bold]\n"
         "  ez-utils [command] --help     Show help for specific command\n"
         "  ez-utils [command] [options]  Run command with options"
@@ -37,6 +39,7 @@ app.add_typer(pt_cli, name="pt", help="Public transportation commands for proces
 app.add_typer(network_cli, name="network", help="Network commands for processing and scaling network data")
 app.add_typer(population_cli, name="population", help="Population commands for processing and scaling population data")
 app.add_typer(index_cli, name="index", help="Index commands for creating agent-network relationships")
+app.add_typer(all_cli, name="all", help="Process files using all modules together")
 
 if __name__ == "__main__":
     app()

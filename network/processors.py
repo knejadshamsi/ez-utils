@@ -1,8 +1,10 @@
 from bs4 import BeautifulSoup
 import pandas as pd
+from pathlib import Path
 from typing import Dict, Tuple, List
 from .models import NetworkData, ScaledNetwork, Node, Link
 from .utils import create_point_from_coordinates
+from .base_processor import BaseProcessor
 
 def process_nodes(nodes_soup: BeautifulSoup) -> pd.DataFrame:
     nodes_list = []
@@ -89,3 +91,23 @@ def network_to_xml(network: ScaledNetwork) -> str:
         root.append(link_tag)
     
     return str(soup)
+
+class NetworkProcessor(BaseProcessor):
+    def process_chunk(self, chunk_file: Path) -> Path:
+        output_chunk = self.temp_dir / f"output_{chunk_file.name}"
+        
+        with open(chunk_file, 'r') as f:
+            soup = BeautifulSoup(f, 'lxml-xml')
+        
+        network_data = process_network(soup)
+        scaled_network = create_scaled_network(network_data, scale=100)  # Default no scaling
+        output_xml = network_to_xml(scaled_network)
+        
+        with open(output_chunk, 'w') as f:
+            f.write(output_xml)
+        
+        return output_chunk
+
+def process_file(input_file: Path, output_file: Path):
+    processor = NetworkProcessor()
+    processor.process_file(input_file, output_file)

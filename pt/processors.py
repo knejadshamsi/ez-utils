@@ -4,6 +4,7 @@ import pandas as pd
 from typing import Dict
 from .models import GTFSData, TransitSchedule, VehicleDefinition
 from .utils import validate_gtfs_files, parse_gtfs_time
+from .base_processor import BaseProcessor
 
 def process_gtfs_data(gtfs_path: Path) -> GTFSData:
     dfs = validate_gtfs_files(gtfs_path)
@@ -158,3 +159,26 @@ def create_vehicle_type(soup: BeautifulSoup, mode: str) -> BeautifulSoup:
     vehicle_type.append(max_speed)
     
     return vehicle_type
+
+class PtProcessor(BaseProcessor):
+    def __init__(self, mode: str = 'bus'):
+        super().__init__()
+        self.mode = mode
+
+    def process_chunk(self, chunk_file: Path) -> Path:
+        output_chunk = self.temp_dir / f"output_{chunk_file.name}"
+        
+        gtfs_data = process_gtfs_data(chunk_file)
+        schedule = create_transit_schedule(gtfs_data, self.mode)
+        vehicles = create_vehicles(gtfs_data, self.mode)
+        
+        with open(output_chunk, 'w') as f:
+            f.write(schedule)
+            f.write('\n')
+            f.write(vehicles)
+        
+        return output_chunk
+
+def process_file(input_file: Path, output_file: Path, mode: str = 'bus'):
+    processor = PtProcessor(mode=mode)
+    processor.process_file(input_file, output_file)

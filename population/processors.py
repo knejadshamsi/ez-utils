@@ -1,9 +1,11 @@
 from bs4 import BeautifulSoup
 import pandas as pd
 import numpy as np
+from pathlib import Path
 from typing import List, Dict, Tuple
 from .models import Activity, Person, PopulationData, ScaledPopulation
 from .utils import create_point_from_coordinates, parse_time, get_total_population
+from .base_processor import BaseProcessor
 
 def process_activities(person_soup: BeautifulSoup) -> Tuple[List[Activity], pd.Series]:
     activities = []
@@ -114,3 +116,23 @@ def population_to_xml(population: ScaledPopulation) -> str:
         root.append(person_tag)
     
     return str(soup)
+
+class PopulationProcessor(BaseProcessor):
+    def process_chunk(self, chunk_file: Path) -> Path:
+        output_chunk = self.temp_dir / f"output_{chunk_file.name}"
+        
+        with open(chunk_file, 'r') as f:
+            soup = BeautifulSoup(f, 'lxml-xml')
+        
+        population_data = process_population(soup)
+        scaled_population = create_scaled_population(population_data, target_scale=100)  # Default no scaling
+        output_xml = population_to_xml(scaled_population)
+        
+        with open(output_chunk, 'w') as f:
+            f.write(output_xml)
+        
+        return output_chunk
+
+def process_file(input_file: Path, output_file: Path):
+    processor = PopulationProcessor()
+    processor.process_file(input_file, output_file)
