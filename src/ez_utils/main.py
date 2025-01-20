@@ -5,11 +5,11 @@ from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
 
-from pt import pt_cli
-from network import network_cli
-from population import population_cli
-from index import index_cli
-from all import app as all_cli
+from .pt import pt_cli
+from .network import network_cli
+from .population import population_cli
+from .index import index_cli
+from .all import app as all_cli
 
 console = Console()
 app = typer.Typer(rich_markup_mode="rich", no_args_is_help=True)
@@ -29,8 +29,11 @@ def print_root_help():
     console.print(Panel(help_text, title="[bold magenta]EZ-Utils CLI[/bold magenta]", border_style="magenta"))
     raise typer.Exit()
 
+def main():
+    app()
+
 @app.callback(invoke_without_command=True)
-def main(ctx: typer.Context):
+def callback(ctx: typer.Context):
     if ctx.invoked_subcommand is None:
         print_root_help()
 

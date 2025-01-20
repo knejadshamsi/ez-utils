@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ez-utils"
+version = "0.1.0"
+description = "CLI tool with 5 modules for various utilities"
+authors = [
+    {name = "k_nejads"}
+]
+readme = "README.md"
+requires-python = ">=3.6"
+dependencies = [
+    "typer>=0.12.5",
+    "rich>=13.7.1",
+    "typing_extensions>=4.11.0",
+    "pandas>=2.2.2",
+    "numpy>=2.0.1",
+    "beautifulsoup4>=4.12.3",
+    "pyproj>=3.6.1",
+    "shapely>=2.0.4",
+    "lxml>=4.9.0"
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.scripts]
+ez-utils = "ez_utils.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = [
+    "ez_utils",
+    "ez_utils.all",
+    "ez_utils.index",
+    "ez_utils.network",
+    "ez_utils.population",
+    "ez_utils.pt"
+]
