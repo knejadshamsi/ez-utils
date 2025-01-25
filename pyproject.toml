@@ -20,7 +20,10 @@ dependencies = [
     "beautifulsoup4>=4.12.3",
     "pyproj>=3.6.1",
     "shapely>=2.0.4",
-    "lxml>=4.9.0"
+    "lxml>=4.9.0",
+    "psycopg2-binary>=2.9.9",
+    "geoalchemy2>=0.14.2",
+    "python-dotenv>=1.0.0"
 ]
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -39,5 +42,6 @@ packages = [
     "ez_utils.index",
     "ez_utils.network",
     "ez_utils.population",
-    "ez_utils.pt"
+    "ez_utils.pt",
+    "ez_utils.set"
 ]
