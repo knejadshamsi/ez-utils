@@ -5,24 +5,22 @@ import (
 	"os"
 	"strconv"
 
+	"ez-utils/src/help"
 	"ez-utils/src/population"
 )
 
-// TODO: Move help functionality to a dedicated file and implement styled output
 func printUsage() {
 	fmt.Println("Usage: ez-utils <command> [arguments]")
 	fmt.Println("\nAvailable commands:")
-	fmt.Println("  population <file> [--db]    Process a population XML file")
-	fmt.Println("\nFlags:")
-	fmt.Println("  --db                        Store data in PostgreSQL database")
-	fmt.Println("\nExamples:")
-	fmt.Println("  ez-utils population population.xml")
-	fmt.Println("  ez-utils population population.xml --db")
+	fmt.Println("  population    Process population data")
+	fmt.Println("  network       Analyze network connections")
+	fmt.Println("  pt           Process public transit data")
+	fmt.Println("\nFor detailed help on each command, use:")
+	fmt.Println("  <command> --help")
+	fmt.Println("\nExample:")
+	fmt.Println("  ez-utils population --help")
 }
 
-// Handles CLI argument parsing and routes commands to appropriate handlers.
-// TODO: Add more commands
-// TODO: Add more error handling
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
@@ -30,6 +28,22 @@ func main() {
 	}
 
 	command := os.Args[1]
+
+	// Handle help requests
+	if len(os.Args) == 3 && os.Args[2] == "--help" {
+		switch command {
+		case "population":
+			help.PrintPopulationHelp()
+		case "network":
+			help.PrintNetworkHelp()
+		case "pt":
+			help.PrintPTHelp()
+		default:
+			fmt.Printf("Unknown command: %s\n", command)
+			printUsage()
+		}
+		os.Exit(0)
+	}
 
 	switch command {
 	case "population":
@@ -50,7 +64,6 @@ func main() {
 			}
 		}
 
-		// POPULATION_CHUNK_SIZE env var controls the batch size for processing
 		chunkSize := 2000
 		if envSize := os.Getenv("POPULATION_CHUNK_SIZE"); envSize != "" {
 			if size, err := strconv.Atoi(envSize); err == nil && size > 0 {
