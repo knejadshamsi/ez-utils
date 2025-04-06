@@ -9,21 +9,9 @@ import (
 	"ez-utils/src/population"
 )
 
-func printUsage() {
-	fmt.Println("Usage: ez-utils <command> [arguments]")
-	fmt.Println("\nAvailable commands:")
-	fmt.Println("  population    Process population data")
-	fmt.Println("  network       Analyze network connections")
-	fmt.Println("  pt           Process public transit data")
-	fmt.Println("\nFor detailed help on each command, use:")
-	fmt.Println("  <command> --help")
-	fmt.Println("\nExample:")
-	fmt.Println("  ez-utils population --help")
-}
-
 func main() {
 	if len(os.Args) < 2 {
-		printUsage()
+		help.PrintDefaultHelp()
 		os.Exit(1)
 	}
 
@@ -40,7 +28,7 @@ func main() {
 			help.PrintPTHelp()
 		default:
 			fmt.Printf("Unknown command: %s\n", command)
-			printUsage()
+			help.PrintDefaultHelp()
 		}
 		os.Exit(0)
 	}
@@ -78,11 +66,11 @@ func main() {
 		}
 
 	case "help":
-		printUsage()
+		help.PrintDefaultHelp()
 
 	default:
 		fmt.Printf("Unknown command: %s\n", command)
-		printUsage()
+		help.PrintDefaultHelp()
 		os.Exit(1)
 	}
 }
