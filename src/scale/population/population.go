@@ -1,6 +1,7 @@
 package population
 
 import (
+	"ez-utils/src/config"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,7 +13,14 @@ import (
 
 // ProcessPopulation orchestrates the XML population processing workflow
 func ProcessPopulation(inputPath, outputDir string, flagDB bool, chunkSize int) error {
-	display.InitDisplay("POPULATION", false, flagDB)
+	// Get language from config for display initialization
+	cfg := config.GetConfig()
+	language := "en" // default
+	if cfg != nil {
+		language = cfg.Language
+	}
+	
+	display.InitDisplay("POPULATION", false, flagDB, language)
 
 	// Step 1: Create Population Chunks
 	display.SetStep(1)

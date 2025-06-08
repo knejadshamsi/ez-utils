@@ -1,0 +1,60 @@
+{
+  "modules": {
+    "population": {
+      "steps": {
+        "0": "Create Population Chunks",
+        "1": "Fix XML Structure",
+        "2": "Extract Agent Locations",
+        "3": "Store Agent Data in Database",
+        "4": "Create Network",
+        "5": "Analyze Network",
+        "6": "Create Boundary Polygon",
+        "7": "Divide into Bins",
+        "8": "Load Bin Configuration",
+        "9": "Assign Agents to Bins",
+        "10": "Validate Bins",
+        "11": "Calculate Bin Statistics",
+        "12": "Determine Scale Requirements",
+        "13": "Create Scaled Selection",
+        "14": "Create Scale Index",
+        "15": "Process Scaled Chunks",
+        "16": "Generate Final Files",
+        "17": "Update Database Scale Records",
+        "18": "Clean Temporary Files",
+        "default": "Processing Step"
+      },
+      "counters": {
+        "creating_chunks": "1. Creating {count} smaller chunks: [{persons} persons found] [{mb} MB read]",
+        "fixing_structure_no_status": "2. Fixing XML structure",
+        "fixing_structure_with_status": "2. Fixing XML structure: [{status} fixed]",
+        "extracting_locations": "3. Extracting location from {persons} persons: [{current}/{total}]",
+        "create_area_zones": "4. Create Area Zones [{coordinates} coordinates]",
+        "coordinates_only": "[{coordinates} coordinates]",
+        "bins_progress": "[{current}/{total} bins]",
+        "agents_count": "[{agents} agents]",
+        "scales_progress": "[{current}/{total} scales]",
+        "scale_value": "[scale {scale}]",
+        "files_progress": "[{current}/{total} files]",
+        "cleanup_stats": "[{files} files] [{dirs} dirs] [{mb} MB]"
+      }
+    }
+  },
+  "ui": {
+    "title_prefix": "[EZ-UTILS]",
+    "title_description": ": Scaling down MATSim population ",
+    "time_format": "[TIME {minutes:02d}:{seconds:02d}]",
+    "abort_hint": " [Press q to abort]",
+    "process_complete": "Process completed successfully!",
+    "currently_prefix": "Currently"
+  },
+  "system": {
+    "label": "SYSTEM: ",
+    "cpu_format": "[CPU: {value}]",
+    "ram_format": "[RAM: {value}]"
+  },
+  "status": {
+    "first_chunk": "first chunk",
+    "last_chunk": "last chunk",
+    "fixed": "fixed"
+  }
+}

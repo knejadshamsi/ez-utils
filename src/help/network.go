@@ -43,7 +43,7 @@ var (
 func PrintNetworkHelp() {
 	sections := []string{
 		makeNetworkCombinedSection(),
-		makeNetworkEnvVarsSection(),
+		makeNetworkConfigSection(),
 		makeNetworkExamplesSection(),
 	}
 	fmt.Println(strings.Join(sections, "\n"))
@@ -74,18 +74,30 @@ func makeNetworkCombinedSection() string {
 	)
 }
 
-func makeNetworkEnvVarsSection() string {
-	envVars := []string{
-		networkFlagStyle.Render("DB_HOST") + ": Database host address",
-		networkFlagStyle.Render("DB_PORT") + ": Database port",
-		networkFlagStyle.Render("DB_NAME") + ": Database name",
-		networkFlagStyle.Render("DB_USER") + ": Database username",
-		networkFlagStyle.Render("DB_PASSWORD") + ": Database password",
+func makeNetworkConfigSection() string {
+	configInfo := []string{
+		"Configuration is managed through a YAML file. Priority order:",
+		"  1. Local: ./config.yaml (project-specific)",
+		"  2. Global: Standard OS location (shared across projects)",
+		"",
+		"Global config locations:",
+		"  • Linux/Unix: ~/.config/ez-utils/config.yaml",
+		"  • Windows: %APPDATA%/ez-utils/config.yaml",
+		"  • macOS: ~/Library/Application Support/ez-utils/config.yaml",
+		"",
+		"Use " + networkFlagStyle.Render("--new-config") + " to create a new config file interactively",
+		"",
+		"Database settings (required for network analysis):",
+		networkFlagStyle.Render("database.host") + ": Database host address",
+		networkFlagStyle.Render("database.port") + ": Database port (default: 5432)",
+		networkFlagStyle.Render("database.name") + ": Database name",
+		networkFlagStyle.Render("database.user") + ": Database username",
+		networkFlagStyle.Render("database.password") + ": Database password",
 	}
 
 	return networkSectionStyle.Render(
-		networkHeaderStyle.Render("ENVIRONMENT VARIABLES") + "\n\n" +
-			networkDescStyle.Render(strings.Join(envVars, "\n")),
+		networkHeaderStyle.Render("CONFIGURATION") + "\n\n" +
+			networkDescStyle.Render(strings.Join(configInfo, "\n")),
 	)
 }
 

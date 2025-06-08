@@ -48,7 +48,7 @@ var (
 func PrintPopulationHelp() {
 	sections := []string{
 		makeCombinedSection(),
-		makeEnvVarsSection(),
+		makeConfigSection(),
 		makeExamplesSection(),
 	}
 	fmt.Println(strings.Join(sections, "\n"))
@@ -80,19 +80,35 @@ func makeCombinedSection() string {
 	)
 }
 
-func makeEnvVarsSection() string {
-	envVars := []string{
-		envVarStyle.Render("POPULATION_CHUNK_SIZE") + ": Defines the size of XML chunks for processing (default: 2000)",
-		envVarStyle.Render("DB_HOST") + ": Database host address",
-		envVarStyle.Render("DB_PORT") + ": Database port",
-		envVarStyle.Render("DB_NAME") + ": Database name",
-		envVarStyle.Render("DB_USER") + ": Database username",
-		envVarStyle.Render("DB_PASSWORD") + ": Database password",
+func makeConfigSection() string {
+	configInfo := []string{
+		"Configuration is managed through a YAML file. Priority order:",
+		"  1. Local: ./config.yaml (project-specific)",
+		"  2. Global: Standard OS location (shared across projects)",
+		"",
+		"Global config locations:",
+		"  • Linux/Unix: ~/.config/ez-utils/config.yaml",
+		"  • Windows: %APPDATA%/ez-utils/config.yaml",
+		"  • macOS: ~/Library/Application Support/ez-utils/config.yaml",
+		"",
+		"Use " + flagStyle.Render("--new-config") + " to create a new config file interactively",
+		"",
+		"Key settings for population processing:",
+		envVarStyle.Render("chunk_size") + ": Size of XML chunks for processing (default: 2000)",
+		envVarStyle.Render("output_dir") + ": Directory for output files (default: output)",
+		envVarStyle.Render("language") + ": UI language - en or fr (default: en)",
+		"",
+		"Database settings (required when using --db):",
+		envVarStyle.Render("database.host") + ": Database host address",
+		envVarStyle.Render("database.port") + ": Database port (default: 5432)",
+		envVarStyle.Render("database.name") + ": Database name",
+		envVarStyle.Render("database.user") + ": Database username",
+		envVarStyle.Render("database.password") + ": Database password",
 	}
 
 	return sectionStyle.Render(
-		headerStyle.Render("ENVIRONMENT VARIABLES") + "\n\n" +
-			descStyle.Render(strings.Join(envVars, "\n")),
+		headerStyle.Render("CONFIGURATION") + "\n\n" +
+			descStyle.Render(strings.Join(configInfo, "\n")),
 	)
 }
 

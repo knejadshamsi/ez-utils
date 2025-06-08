@@ -6,11 +6,16 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"ez-utils/src/scale/display/i18n"
 )
 
 // Handles the UI rendering
 func (m Model) View() string {
 	if m.processComplete {
+		tm := GetTextManager()
+		if tm != nil {
+			return lipglossStyle.processComplete.Render(tm.GetUIText("process_complete")) + "\n"
+		}
 		return lipglossStyle.processComplete.Render("Process completed successfully!") + "\n"
 	}
 
@@ -31,10 +36,23 @@ func (m Model) View() string {
 }
 
 func createTitleSection(m Model) string {
-	ezPart := "[EZ-UTILS]"
-	descPart := ": Scaling down MATSim population "
-	timeStr := fmt.Sprintf("[TIME %02d:%02d]", int(m.totalElapsedTime.Minutes()), int(m.totalElapsedTime.Seconds())%60)
-	abortStr := " [Press q to abort]"
+	tm := GetTextManager()
+	if tm == nil {
+		// Fallback if text manager not initialized
+		ezPart := "[EZ-UTILS]"
+		descPart := ": Scaling down MATSim population "
+		timeStr := fmt.Sprintf("[TIME %02d:%02d]", int(m.totalElapsedTime.Minutes()), int(m.totalElapsedTime.Seconds())%60)
+		abortStr := " [Press q to abort]"
+		
+		titleContent := lipglossStyle.titleEZ.Render(ezPart) + lipglossStyle.titleText.Render(descPart)
+		rightContent := lipglossStyle.timeInfo.Render(timeStr) + lipglossStyle.titleEZ.Render(abortStr)
+		return titleContent + rightContent
+	}
+
+	ezPart := tm.GetUIText("title_prefix")
+	descPart := tm.GetUIText("title_description")
+	timeStr := tm.FormatTimeText(int(m.totalElapsedTime.Minutes()), int(m.totalElapsedTime.Seconds())%60)
+	abortStr := tm.GetUIText("abort_hint")
 
 	titleContent := lipglossStyle.titleEZ.Render(ezPart) + lipglossStyle.titleText.Render(descPart)
 	rightContent := lipglossStyle.timeInfo.Render(timeStr) + lipglossStyle.titleEZ.Render(abortStr)
@@ -72,7 +90,15 @@ func createPreviousStepsSection(m Model) string {
 }
 
 func createCurrentStepSection(m Model) string {
-	currentlyPrefix := lipglossStyle.spinner.Render(m.spinner.View()) + " " + lipglossStyle.currentlyPrefix.Render("Currently")
+	tm := GetTextManager()
+	var currentlyText string
+	if tm != nil {
+		currentlyText = tm.GetUIText("currently_prefix")
+	} else {
+		currentlyText = "Currently"
+	}
+	
+	currentlyPrefix := lipglossStyle.spinner.Render(m.spinner.View()) + " " + lipglossStyle.currentlyPrefix.Render(currentlyText)
 
 	counters := getStepCounters(m)
 
@@ -97,13 +123,103 @@ func createCurrentStepSection(m Model) string {
 }
 
 func getStepCounters(m Model) string {
+	tm := GetTextManager()
+	if tm == nil {
+		// Fallback to hardcoded text if text manager not available
+		return getStepCountersFallback(m)
+	}
+
+	moduleKey := strings.ToLower(m.moduleName)
+	
+	switch m.stepNumber {
+	case 0:
+		vars := i18n.CreateTemplateVars().
+			SetString("count", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.chunkCount))).
+			SetString("persons", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.personsFound))).
+			SetString("mb", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.bytesReadMB)))
+		return tm.GetCounterText(moduleKey, "creating_chunks", vars)
+
+	case 1:
+		var statusParts []string
+		if m.firstChunkFixed {
+			statusParts = append(statusParts, tm.GetStatusText("first_chunk"))
+		}
+		if m.lastChunkFixed {
+			statusParts = append(statusParts, tm.GetStatusText("last_chunk"))
+		}
+		if len(statusParts) > 0 {
+			vars := i18n.CreateTemplateVars().
+				SetString("status", strings.Join(statusParts, ", "))
+			return tm.GetCounterText(moduleKey, "fixing_structure_with_status", vars)
+		}
+		return tm.GetCounterText(moduleKey, "fixing_structure_no_status", nil)
+
+	case 2:
+		vars := i18n.CreateTemplateVars().
+			SetString("persons", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.personsFound))).
+			SetString("current", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.chunkCounter.Current))).
+			SetString("total", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.chunkCount)))
+		return tm.GetCounterText(moduleKey, "extracting_locations", vars)
+
+	case 3:
+		vars := i18n.CreateTemplateVars().
+			SetString("coordinates", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.coordinateCount)))
+		return tm.GetCounterText(moduleKey, "create_area_zones", vars)
+
+	case 6:
+		vars := i18n.CreateTemplateVars().
+			SetString("coordinates", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.coordinateCount)))
+		return tm.GetCounterText(moduleKey, "coordinates_only", vars)
+
+	case 7:
+		vars := i18n.CreateTemplateVars().
+			SetString("current", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.binCounter.Current))).
+			SetString("total", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.binCounter.Total)))
+		return tm.GetCounterText(moduleKey, "bins_progress", vars)
+
+	case 9:
+		vars := i18n.CreateTemplateVars().
+			SetString("agents", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.agentBinCount)))
+		return tm.GetCounterText(moduleKey, "agents_count", vars)
+
+	case 13:
+		vars := i18n.CreateTemplateVars().
+			SetString("current", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.scaleCounter.Current))).
+			SetString("total", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.scaleCounter.Total)))
+		return tm.GetCounterText(moduleKey, "scales_progress", vars)
+
+	case 15:
+		vars := i18n.CreateTemplateVars().
+			SetString("scale", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.outputScale)))
+		return tm.GetCounterText(moduleKey, "scale_value", vars)
+
+	case 16:
+		vars := i18n.CreateTemplateVars().
+			SetString("current", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.outputCounter.Current))).
+			SetString("total", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.outputCounter.Total)))
+		return tm.GetCounterText(moduleKey, "files_progress", vars)
+
+	case 18:
+		if m.flagClean {
+			vars := i18n.CreateTemplateVars().
+				SetString("files", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.cleanupFiles))).
+				SetString("dirs", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.cleanupDirs))).
+				SetString("mb", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.cleanupBytes)))
+			return tm.GetCounterText(moduleKey, "cleanup_stats", vars)
+		}
+	}
+
+	return "" // Default empty string if no counters for this step
+}
+
+// Fallback function for when text manager is not available
+func getStepCountersFallback(m Model) string {
 	switch m.stepNumber {
 	case 0:
 		return fmt.Sprintf("1. Creating %s smaller chunks: [%s persons found] [%s MB read]",
 			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.chunkCount)),
 			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.personsFound)),
 			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.bytesReadMB)))
-
 	case 1:
 		var statusParts []string
 		if m.firstChunkFixed {
@@ -116,54 +232,13 @@ func getStepCounters(m Model) string {
 			return fmt.Sprintf("2. Fixing XML structure: [%s fixed]", strings.Join(statusParts, ", "))
 		}
 		return "2. Fixing XML structure"
-
 	case 2:
 		return fmt.Sprintf("3. Extracting location from %s persons: [%s/%s]",
 			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.personsFound)),
 			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.chunkCounter.Current)),
 			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.chunkCount)))
-
-	case 3:
-		return fmt.Sprintf("4. Create Area Zones [%s coordinates]",
-			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.coordinateCount)))
-
-	case 6:
-		return fmt.Sprintf("[%s coordinates]",
-			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.coordinateCount)))
-
-	case 7:
-		return fmt.Sprintf("[%s/%s bins]",
-			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.binCounter.Current)),
-			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.binCounter.Total)))
-
-	case 9:
-		return fmt.Sprintf("[%s agents]",
-			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.agentBinCount)))
-
-	case 13:
-		return fmt.Sprintf("[%s/%s scales]",
-			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.scaleCounter.Current)),
-			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.scaleCounter.Total)))
-
-	case 15:
-		return fmt.Sprintf("[scale %s]",
-			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.outputScale)))
-
-	case 16:
-		return fmt.Sprintf("[%s/%s files]",
-			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.outputCounter.Current)),
-			lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.outputCounter.Total)))
-
-	case 18:
-		if m.flagClean {
-			return fmt.Sprintf("[%s files] [%s dirs] [%s MB]",
-				lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.cleanupFiles)),
-				lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.cleanupDirs)),
-				lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.cleanupBytes)))
-		}
 	}
-
-	return "" // Default empty string if no counters for this step
+	return ""
 }
 
 func createSystemInfoSection(m Model) string {
@@ -174,16 +249,34 @@ func createSystemInfoSection(m Model) string {
 		statusIndicator = lipglossStyle.dimIndicator.Render("●")
 	}
 
-	cpuValue := fmt.Sprintf("%.1f%%", m.cpuUsage)
-	cpuText := lipglossStyle.cpuInfo.Render(fmt.Sprintf("[CPU: %s]", cpuValue))
+	tm := GetTextManager()
+	var cpuText, ramText, systemLabel string
+	
+	if tm != nil {
+		cpuValue := fmt.Sprintf("%.1f%%", m.cpuUsage)
+		cpuVars := i18n.CreateTemplateVars().SetString("value", cpuValue)
+		cpuText = lipglossStyle.cpuInfo.Render(tm.GetSystemText("cpu_format", cpuVars))
 
-	// Converting RAM from MB to GB for better readability
-	ramValueGB := m.ramUsage / 1024.0
-	ramValue := fmt.Sprintf("%.2f GB", ramValueGB)
-	ramText := lipglossStyle.ramInfo.Render(fmt.Sprintf("[RAM: %s]", ramValue))
+		// Converting RAM from MB to GB for better readability
+		ramValueGB := m.ramUsage / 1024.0
+		ramValue := fmt.Sprintf("%.2f GB", ramValueGB)
+		ramVars := i18n.CreateTemplateVars().SetString("value", ramValue)
+		ramText = lipglossStyle.ramInfo.Render(tm.GetSystemText("ram_format", ramVars))
 
-	systemInfo := lipglossStyle.systemLabel.Render("SYSTEM: ") + cpuText + ramText
+		systemLabel = lipglossStyle.systemLabel.Render(tm.GetSystemText("label", nil))
+	} else {
+		// Fallback
+		cpuValue := fmt.Sprintf("%.1f%%", m.cpuUsage)
+		cpuText = lipglossStyle.cpuInfo.Render(fmt.Sprintf("[CPU: %s]", cpuValue))
 
+		ramValueGB := m.ramUsage / 1024.0
+		ramValue := fmt.Sprintf("%.2f GB", ramValueGB)
+		ramText = lipglossStyle.ramInfo.Render(fmt.Sprintf("[RAM: %s]", ramValue))
+
+		systemLabel = lipglossStyle.systemLabel.Render("SYSTEM: ")
+	}
+
+	systemInfo := systemLabel + cpuText + ramText
 	content := fmt.Sprintf("%s%s", statusIndicator, systemInfo)
 
 	return lipglossStyle.footerContainer.Render(content)

@@ -4,44 +4,57 @@ import (
 	"bytes"
 	"compress/gzip"
 	"database/sql"
+	"ez-utils/src/config"
 	"fmt"
-	"os"
-	"time"
 
 	_ "github.com/lib/pq"
 )
 
 func ConnectToDatabase() (*sql.DB, error) {
-	host := getEnvWithDefault("DB_HOST", "localhost")
-	port := getEnvWithDefault("DB_PORT", "5432")
-	user := getEnvWithDefault("DB_USER", "postgres")
-	password := getEnvWithDefault("DB_PASSWORD", "postgres")
-	dbname := getEnvWithDefault("DB_NAME", "simulation")
+	// Get configuration
+	cfg := config.GetConfig()
+	if cfg == nil {
+		return nil, fmt.Errorf("configuration not loaded - please ensure config.yaml is properly configured")
+	}
 
-	pgConnStr := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		host, port, user, password, dbname,
-	)
+	// Validate database configuration
+	if cfg.Database.Host == "" {
+		return nil, fmt.Errorf("database host not configured in config.yaml")
+	}
+	if cfg.Database.User == "" {
+		return nil, fmt.Errorf("database user not configured in config.yaml")
+	}
+	if cfg.Database.Password == "" {
+		return nil, fmt.Errorf("database password not configured in config.yaml")
+	}
+	if cfg.Database.Name == "" {
+		return nil, fmt.Errorf("database name not configured in config.yaml")
+	}
+
+	// Use config values
+	pgConnStr := cfg.Database.GetConnectionString()
 
 	db, err := sql.Open("postgres", pgConnStr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	// Configure pool settings from config
+	db.SetMaxOpenConns(cfg.Database.MaxConnections)
+	db.SetMaxIdleConns(cfg.Database.MaxConnections)
+
+	timeout, err := cfg.Database.GetConnectionTimeout()
+	if err != nil {
+		return nil, fmt.Errorf("invalid connection timeout in config: %w", err)
+	}
+	db.SetConnMaxLifetime(timeout)
+
+	// Test the connection
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
 
 	return db, nil
-}
-
-// Helper function to get environment variable with default value
-func getEnvWithDefault(key, defaultValue string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	return value
 }
 
 func CreateAgentsTable(db *sql.DB) error {

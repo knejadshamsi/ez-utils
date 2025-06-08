@@ -35,7 +35,7 @@ func PrintPTHelp() {
 	sections := []string{
 		makePTUsageSection(),
 		makePTDescriptionSection(),
-		makePTEnvVarsSection(),
+		makePTConfigSection(),
 		makePTTimePeriodsSection(),
 		makePTExamplesSection(),
 	}
@@ -64,18 +64,30 @@ func makePTDescriptionSection() string {
 	)
 }
 
-func makePTEnvVarsSection() string {
-	envVars := []string{
-		ptFlagStyle.Render("DB_HOST") + ": Database host address",
-		ptFlagStyle.Render("DB_PORT") + ": Database port",
-		ptFlagStyle.Render("DB_NAME") + ": Database name",
-		ptFlagStyle.Render("DB_USER") + ": Database username",
-		ptFlagStyle.Render("DB_PASSWORD") + ": Database password",
+func makePTConfigSection() string {
+	configInfo := []string{
+		"Configuration is managed through a YAML file. Priority order:",
+		"  1. Local: ./config.yaml (project-specific)",
+		"  2. Global: Standard OS location (shared across projects)",
+		"",
+		"Global config locations:",
+		"  • Linux/Unix: ~/.config/ez-utils/config.yaml",
+		"  • Windows: %APPDATA%/ez-utils/config.yaml",
+		"  • macOS: ~/Library/Application Support/ez-utils/config.yaml",
+		"",
+		"Use " + ptFlagStyle.Render("--new-config") + " to create a new config file interactively",
+		"",
+		"Database settings (required for PT analysis):",
+		ptFlagStyle.Render("database.host") + ": Database host address",
+		ptFlagStyle.Render("database.port") + ": Database port (default: 5432)",
+		ptFlagStyle.Render("database.name") + ": Database name",
+		ptFlagStyle.Render("database.user") + ": Database username",
+		ptFlagStyle.Render("database.password") + ": Database password",
 	}
 
 	return ptSectionStyle.Render(
-		ptHeaderStyle.Render("ENVIRONMENT VARIABLES") + "\n\n" +
-			ptTextStyle.Render(strings.Join(envVars, "\n")),
+		ptHeaderStyle.Render("CONFIGURATION") + "\n\n" +
+			ptTextStyle.Render(strings.Join(configInfo, "\n")),
 	)
 }
 

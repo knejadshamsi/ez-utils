@@ -13,7 +13,12 @@ var p *tea.Program
 var model Model
 
 // InitDisplay sets up the TUI with system monitoring and non-blocking operation
-func InitDisplay(moduleName string, flagClean bool, flagDB bool) {
+func InitDisplay(moduleName string, flagClean bool, flagDB bool, language string) {
+	// Initialize text manager with specified language
+	if err := InitializeTextManager(language); err != nil {
+		// Log error but continue with fallback behavior
+		// fmt.Printf("Warning: Failed to initialize text manager: %v\n", err)
+	}
 	spn := spinner.New()
 	spn.Spinner = spinner.Line
 	spn.Style = lipgloss.NewStyle().Foreground(colorMagenta)

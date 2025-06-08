@@ -1,0 +1,74 @@
+# ================================================================
+# EZ-UTILS CONFIGURATION FILE
+# ================================================================
+# This file was automatically generated on first run.
+# Please review and update the settings below before using ez-utils.
+# ================================================================
+
+# ----------------------------------------------------------------
+# GLOBAL SETTINGS
+# ----------------------------------------------------------------
+# Language for user interface and messages
+# Supported values: en (English), fr (French)
+language: en
+
+# ----------------------------------------------------------------
+# DATABASE CONFIGURATION
+# ----------------------------------------------------------------
+# PostgreSQL connection settings for storing population data
+# These settings are only used when the --db flag is provided
+database:
+  # Database server hostname or IP address
+  host: localhost
+  
+  # PostgreSQL port (default: 5432)
+  port: 5432
+  
+  # Database username
+  user: postgres
+  
+  # Database password
+  # NOTE: This is stored in plain text. Ensure appropriate
+  # file permissions (600) to protect sensitive information
+  password: postgres
+  
+  # Name of the database to connect to
+  # This database must already exist
+  name: simulation
+  
+  # Maximum number of open connections to the database
+  # Increase for better performance with large datasets
+  max_connections: 25
+  
+  # Connection timeout duration
+  # Format: 30s, 1m, 5m, etc.
+  connection_timeout: 30s
+
+# ----------------------------------------------------------------
+# POPULATION MODULE SETTINGS
+# ----------------------------------------------------------------
+# Configuration for the population scaling operations
+population:
+  # Number of persons to process per chunk
+  # Lower values use less memory but take more time
+  # Recommended: 1000-5000 depending on available RAM
+  chunk_size: 2000
+  
+  # Directory for output files
+  # Can be absolute or relative to current directory
+  output_dir: "output"
+
+# ----------------------------------------------------------------
+# PATH OVERRIDES (Optional)
+# ----------------------------------------------------------------
+# Custom paths for various operations
+# Leave empty to use defaults
+paths:
+  # Temporary directory for intermediate files
+  # Default: system temp directory
+  temp_dir: ""
+
+# ================================================================
+# For more information, visit:
+# https://github.com/knejadshamsi/ez-utils
+# ================================================================

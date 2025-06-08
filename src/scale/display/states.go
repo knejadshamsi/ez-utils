@@ -1,35 +1,36 @@
 package display
 
-// Population module step labels
-var PopulationStepLabels = map[int]string{
-	1:  "Create Population Chunks",
-	2:  "Fix XML Structure",
-	3:  "Extract Agent Locations",
-	4:  "Store Agent Data in Database",
-	5:  "Create Network",
-	6:  "Analyze Network",
-	7:  "Create Boundary Polygon",
-	8:  "Divide into Bins",
-	9:  "Load Bin Configuration",
-	10: "Assign Agents to Bins",
-	11: "Validate Bins",
-	12: "Calculate Bin Statistics",
-	13: "Determine Scale Requirements",
-	14: "Create Scaled Selection",
-	15: "Create Scale Index",
-	16: "Process Scaled Chunks",
-	17: "Generate Final Files",
-	18: "Update Database Scale Records",
-	19: "Clean Temporary Files",
+import (
+	"strings"
+
+	"ez-utils/src/scale/display/i18n"
+)
+
+// Global text manager instance
+var textManager *i18n.TextManager
+
+// InitializeTextManager initializes the global text manager with the specified language
+func InitializeTextManager(language string) error {
+	tm, err := i18n.NewTextManager(language)
+	if err != nil {
+		return err
+	}
+	textManager = tm
+	return nil
+}
+
+// GetTextManager returns the global text manager instance
+func GetTextManager() *i18n.TextManager {
+	return textManager
 }
 
 func GetStepLabel(module string, step int) string {
-	switch module {
-	case "POPULATION":
-		if label, exists := PopulationStepLabels[step]; exists {
-			return label
-		}
-		// TODO:  impliment addtional modules here
+	if textManager == nil {
+		// Fallback if text manager not initialized
+		return "Processing Step"
 	}
-	return "Processing Step"
+	
+	// Convert module name to lowercase for consistency with JSON keys
+	moduleKey := strings.ToLower(module)
+	return textManager.GetStepLabel(moduleKey, step)
 }
