@@ -43,7 +43,7 @@ func makeDefaultSection() string {
 
 	// Style the available commands section
 	commands := []string{
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9900")).Render("population") + defaultDescStyle.Render("    Process population data"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9900")).Render("scale") + defaultDescStyle.Render("         Scale down MATSim data"),
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9900")).Render("network") + defaultDescStyle.Render("       Analyze network connections"),
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9900")).Render("pt") + defaultDescStyle.Render("           Process public transit data"),
 	}
@@ -56,8 +56,9 @@ func makeDefaultSection() string {
 		defaultDescStyle.Render("  <command> --help")
 
 	// Style the example section
-	example := defaultHeaderStyle.Render("EXAMPLE") + "\n\n" +
-		defaultDescStyle.Render("  ez-utils population --help")
+	example := defaultHeaderStyle.Render("EXAMPLES") + "\n\n" +
+		defaultDescStyle.Render("  ez-utils scale population --help") + "\n" +
+		defaultDescStyle.Render("  ez-utils scale population population.xml")
 
 	// Combine all sections
 	return defaultSectionStyle.Render(

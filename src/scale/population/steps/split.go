@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"ez-utils/src/display"
+	"ez-utils/src/scale/display"
 
 	"github.com/ncw/directio"
 	"golang.org/x/exp/mmap"

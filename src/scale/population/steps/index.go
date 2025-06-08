@@ -14,8 +14,8 @@ import (
 "sync"
 "sync/atomic"
 
-"ez-utils/src/display"
-"ez-utils/src/population/types"
+"ez-utils/src/scale/display"
+"ez-utils/src/scale/population/types"
 )
 
 // Use type aliases for better readability

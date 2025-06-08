@@ -1,6 +1,6 @@
 package population
 
-import "ez-utils/src/population/types"
+import "ez-utils/src/scale/population/types"
 
 // Re-export types for backward compatibility
 type Population = types.Population

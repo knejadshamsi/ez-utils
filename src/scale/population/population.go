@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"ez-utils/src/display"
-	"ez-utils/src/population/steps"
+	"ez-utils/src/scale/display"
+	"ez-utils/src/scale/population/steps"
 )
 
 // ProcessPopulation orchestrates the XML population processing workflow
