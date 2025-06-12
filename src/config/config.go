@@ -7,27 +7,59 @@ import (
 
 // Config represents the main configuration structure
 type Config struct {
-	Language   string             `yaml:"language"`
-	Database   DatabaseConfig     `yaml:"database"`
-	Population PopulationConfig   `yaml:"population"`
-	Paths      PathsConfig        `yaml:"paths"`
+	Language   string           `yaml:"language"`
+	Database   DatabaseConfig   `yaml:"database"`
+	Population PopulationConfig `yaml:"population"`
+	Workers    WorkersConfig    `yaml:"workers"`
+	Paths      PathsConfig      `yaml:"paths"`
 }
 
 // DatabaseConfig holds PostgreSQL connection settings
 type DatabaseConfig struct {
-	Host               string        `yaml:"host"`
-	Port               int           `yaml:"port"`
-	User               string        `yaml:"user"`
-	Password           string        `yaml:"password"`
-	Name               string        `yaml:"name"`
-	MaxConnections     int           `yaml:"max_connections"`
-	ConnectionTimeout  string        `yaml:"connection_timeout"`
+	Host              string `yaml:"host"`
+	Port              int    `yaml:"port"`
+	User              string `yaml:"user"`
+	Password          string `yaml:"password"`
+	Name              string `yaml:"name"`
+	MaxConnections    int    `yaml:"max_connections"`
+	ConnectionTimeout string `yaml:"connection_timeout"`
 }
 
 // PopulationConfig holds population module settings
 type PopulationConfig struct {
-	ChunkSize  int    `yaml:"chunk_size"`
-	OutputDir  string `yaml:"output_dir"`
+	ChunkSize int    `yaml:"chunk_size"`
+	OutputDir string `yaml:"output_dir"`
+}
+
+// WorkersConfig holds worker configuration settings
+type WorkersConfig struct {
+	// Phase One Workers
+	Readers    int `yaml:"readers"`
+	Extractors int `yaml:"extractors"`
+	Hashmap    int `yaml:"hashmap"`
+
+	// Phase Two Workers
+	Reducers    int `yaml:"reducers"`
+	FileWriters int `yaml:"file_writers"`
+	Database    int `yaml:"database"`
+
+	// Safe point discovery settings
+	SafePointInterval int64 `yaml:"safe_point_interval"`
+
+	// Grid expansion settings
+	GridExpansionBatch int `yaml:"grid_expansion_batch"`
+
+	// Queue sizes
+	QueueSizes QueueSizesConfig `yaml:"queue_sizes"`
+}
+
+// QueueSizesConfig holds queue buffer sizes
+type QueueSizesConfig struct {
+	Extractor  int `yaml:"extractor"`
+	Hashmap    int `yaml:"hashmap"`
+	Reducer    int `yaml:"reducer"`
+	FileWriter int `yaml:"file_writer"`
+	Database   int `yaml:"database"`
 }
 
 // PathsConfig holds optional path overrides
@@ -82,6 +114,35 @@ func (c *Config) Validate() error {
 
 	if c.Population.OutputDir == "" {
 		return fmt.Errorf("output_dir cannot be empty")
+	}
+
+	if c.Workers.SafePointInterval <= 0 {
+		c.Workers.SafePointInterval = 10000 // Default to 10,000 lines
+	}
+	if c.Workers.GridExpansionBatch < 1 {
+		c.Workers.GridExpansionBatch = 1000 // Default batch size
+	}
+
+	// Validate workers config using centralized validator
+	if err := c.ValidatePopulationConfig(); err != nil {
+		return fmt.Errorf("population config validation failed: %w", err)
+	}
+
+	// Validate queue sizes
+	if c.Workers.QueueSizes.Extractor < 1 {
+		return fmt.Errorf("extractor queue size must be at least 1")
+	}
+	if c.Workers.QueueSizes.Hashmap < 1 {
+		return fmt.Errorf("hashmap queue size must be at least 1")
+	}
+	if c.Workers.QueueSizes.Reducer < 1 {
+		return fmt.Errorf("reducer queue size must be at least 1")
+	}
+	if c.Workers.QueueSizes.FileWriter < 1 {
+		return fmt.Errorf("file_writer queue size must be at least 1")
+	}
+	if c.Workers.QueueSizes.Database < 1 {
+		return fmt.Errorf("database queue size must be at least 1")
 	}
 
 	return nil

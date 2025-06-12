@@ -19,7 +19,7 @@ func GetConfigDir() (string, error) {
 			return "", fmt.Errorf("APPDATA environment variable not set")
 		}
 		configDir = filepath.Join(appData, "ez-utils")
-	
+
 	case "darwin":
 		// macOS: ~/Library/Application Support/ez-utils
 		homeDir, err := os.UserHomeDir()
@@ -27,7 +27,7 @@ func GetConfigDir() (string, error) {
 			return "", err
 		}
 		configDir = filepath.Join(homeDir, "Library", "Application Support", "ez-utils")
-	
+
 	default:
 		// Linux and other Unix-like systems: ~/.config/ez-utils
 		// First try XDG_CONFIG_HOME
@@ -67,12 +67,12 @@ func GetConfigPath() (string, error) {
 // GetConfigPaths returns both local and global config paths with their display locations
 func GetConfigPaths() (localPath string, globalPath string, globalDisplay string, err error) {
 	localPath = GetLocalConfigPath()
-	
+
 	globalPath, err = GetGlobalConfigPath()
 	if err != nil {
 		return "", "", "", err
 	}
-	
+
 	// Get user-friendly display path for global config
 	switch runtime.GOOS {
 	case "windows":
@@ -86,7 +86,7 @@ func GetConfigPaths() (localPath string, globalPath string, globalDisplay string
 			globalDisplay = "~/.config/ez-utils/config.yaml"
 		}
 	}
-	
+
 	return localPath, globalPath, globalDisplay, nil
 }
 
@@ -96,33 +96,121 @@ func EnsureConfigDir() error {
 	if err != nil {
 		return err
 	}
-	
+
 	return os.MkdirAll(configDir, 0755)
 }
 
-// GetTemplatePath returns the path to the embedded template file
-func GetTemplatePath() string {
-	// Get the directory of the current executable
-	exePath, err := os.Executable()
-	if err != nil {
-		// Fallback to relative path during development
-		return "src/config/template.yaml"
-	}
-	
-	exeDir := filepath.Dir(exePath)
-	// Try common locations relative to executable
-	possiblePaths := []string{
-		filepath.Join(exeDir, "src", "config", "template.yaml"),
-		filepath.Join(exeDir, "..", "src", "config", "template.yaml"),
-		"src/config/template.yaml", // Development fallback
-	}
-	
-	for _, path := range possiblePaths {
-		if _, err := os.Stat(path); err == nil {
-			return path
-		}
-	}
-	
-	// Final fallback
-	return "src/config/template.yaml"
+// Embedded template configuration
+func GetEmbeddedTemplate() string {
+	return `# ================================================================
+# EZ-UTILS CONFIGURATION FILE
+# ================================================================
+# This file was automatically generated on first run.
+# Please review and update the settings below before using ez-utils.
+# ================================================================
+
+# ----------------------------------------------------------------
+# GLOBAL SETTINGS
+# ----------------------------------------------------------------
+# Language for user interface and messages
+# Supported values: en (English), fr (French)
+language: en
+
+# ----------------------------------------------------------------
+# DATABASE CONFIGURATION
+# ----------------------------------------------------------------
+# PostgreSQL connection settings for storing population data
+# These settings are only used when the --db flag is provided
+database:
+  # Database server hostname or IP address
+  host: localhost
+  
+  # PostgreSQL port (default: 5432)
+  port: 5432
+  
+  # Database username
+  user: postgres
+  
+  # Database password
+  # NOTE: This is stored in plain text. Ensure appropriate
+  # file permissions (600) to protect sensitive information
+  password: postgres
+  
+  # Name of the database to connect to
+  # This database must already exist
+  name: simulation
+  
+  # Maximum number of open connections to the database
+  # Increase for better performance with large datasets
+  max_connections: 25
+  
+  # Connection timeout duration
+  # Format: 30s, 1m, 5m, etc.
+  connection_timeout: 30s
+
+# ----------------------------------------------------------------
+# POPULATION MODULE SETTINGS
+# ----------------------------------------------------------------
+# Configuration for the population scaling operations
+population:
+  # Number of persons to process per chunk for Phase Two parallel processing
+  # Lower values create more chunks but allow better parallelization
+  # Recommended: 1000-5000 depending on available RAM and number of reducers
+  chunk_size: 1000
+  
+  # Directory for output files
+  # Can be absolute or relative to current directory
+  output_dir: "output"
+  
+  # Scales to generate (1-10% only)
+  # If not specified, defaults to all scales: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  # scales: [2, 5, 8, 10]
+  
+# ----------------------------------------------------------------
+# WORKER CONFIGURATION
+# ----------------------------------------------------------------
+# Configuration for parallel processing workers
+workers:
+  # Phase One Workers
+  readers: 4           # Parallel file reading workers
+  extractors: 4        # Parallel XML parsing workers
+  hashmap: 3           # Coordinate processing workers
+  
+  # Phase Two Workers  
+  reducers: 8          # Parallel file processing workers
+  file_writers: 4      # Chunk writing workers
+  database: 4          # Database insertion workers (if --db flag used)
+  
+  # Safe point discovery settings
+  safe_point_interval: 10000   # Lines between safe points for parallel processing
+  
+  # Grid expansion settings
+  grid_expansion_batch: 1000   # Coordinates per HashMap worker before expansion
+  
+  # Queue sizes for buffering between workers
+  queue_sizes:
+    extractor: 100     # Buffer size for each Extractor worker
+    hashmap: 500       # Buffer size for each HashMap worker
+    reducer: 200       # Buffer size for each Reducer worker
+    file_writer: 150   # Buffer size for each File Writer worker
+    database: 300      # Buffer size for each Database worker
+
+# ----------------------------------------------------------------
+# PATH OVERRIDES (Optional)
+# ----------------------------------------------------------------
+# Custom paths for various operations
+# Leave empty to use defaults
+paths:
+  # Temporary directory for intermediate files and chunk files
+  # Default: system temp directory
+  temp_dir: ""
+  
+  # Directory for chunk files during processing
+  # Default: temp_dir/chunks
+  chunks_dir: ""
+
+# ================================================================
+# For more information, visit:
+# https://github.com/knejadshamsi/ez-utils
+# ================================================================`
 }

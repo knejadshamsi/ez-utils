@@ -4,8 +4,11 @@ import (
 	"ez-utils/src/config"
 	"ez-utils/src/help"
 	"ez-utils/src/scale/population"
+	"ez-utils/src/scale/population/processing"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 )
 
 func main() {
@@ -94,24 +97,71 @@ func main() {
 			}
 
 			populationFile := os.Args[3]
-			outputDir := cfg.Population.OutputDir
 
-			flagDB := false
-			for i := 4; i < len(os.Args); i++ {
-				if os.Args[i] == "--db" {
-					flagDB = true
-					break
-				}
-			}
-
-			// Use chunk size from config
-			chunkSize := cfg.Population.ChunkSize
-
-			err := population.ProcessPopulation(populationFile, outputDir, flagDB, chunkSize)
-			if err != nil {
-				fmt.Printf("Error processing population: %v\n", err)
+			// Validate input file exists
+			if !population.FileExists(populationFile) {
+				fmt.Printf("Error: Input file does not exist: %s\n", populationFile)
 				os.Exit(1)
 			}
+			// fmt.Printf("DEBUG: Input file validated and exists\n")
+
+			// Create Phase One configuration from loaded config
+			phaseOneConfig := cfg.ToPhaseOneConfig()
+			// fmt.Printf("DEBUG: Phase One config created - Extractors: %d, Mappers: %d\n",
+			//	phaseOneConfig.ExtractorCount, phaseOneConfig.HashMapCount)
+
+			// Queue configuration is now handled internally by PopulationProcessor
+
+			// Create the simplified population processor
+			processor := processing.NewPopulationProcessor(phaseOneConfig)
+
+			// Disable TUI in non-interactive environments
+			if os.Getenv("TERM") == "" || os.Getenv("CI") != "" {
+				processor.DisableTUI()
+			}
+
+			// Set up signal handling for graceful shutdown
+			sigChan := make(chan os.Signal, 1)
+			signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+			go func() {
+				<-sigChan
+				fmt.Println("\nShutting down gracefully...")
+				os.Exit(0)
+			}()
+
+			// Process the population file (all phases handled internally)
+			if err := processor.Process(populationFile); err != nil {
+				fmt.Printf("Population processing failed: %v\n", err)
+				os.Exit(1)
+			}
+
+			fmt.Println("Phase One completed successfully!")
+
+			// Start Phase Two processing
+			fmt.Println("\nStarting Phase Two...")
+
+			// Create Phase Two configuration
+			phaseTwoConfig := cfg.ToPhaseTwoConfig()
+
+			// Create Phase Two processor with proper parallel architecture
+			phaseTwoProcessor := processing.NewPhaseTwoProcessor(
+				phaseTwoConfig,
+				populationFile,
+			)
+
+			// Disable TUI in non-interactive environments
+			if os.Getenv("TERM") == "" || os.Getenv("CI") != "" {
+				phaseTwoProcessor.DisableTUI()
+			}
+
+			// Process Phase Two
+			if err := phaseTwoProcessor.Process(); err != nil {
+				fmt.Printf("Phase Two failed: %v\n", err)
+				os.Exit(1)
+			}
+
+			fmt.Println("Phase Two completed successfully!")
 
 		default:
 			fmt.Printf("Unknown scale subcommand: %s\n", subcommand)
@@ -154,7 +204,7 @@ func isHelpCommand() bool {
 		return false
 	}
 	command := os.Args[1]
-	return command == "help" || command == "--help" || 
+	return command == "help" || command == "--help" ||
 		(len(os.Args) >= 2 && os.Args[len(os.Args)-1] == "--help")
 }
 

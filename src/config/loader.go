@@ -87,7 +87,7 @@ func createConfigInteractively() error {
 	fmt.Printf("  vim %s\n", targetPath)
 	fmt.Printf("  code %s\n", targetPath)
 	fmt.Println("\nThe configuration file contains detailed comments explaining each setting.")
-	
+
 	os.Exit(0) // Exit with success since this is expected behavior
 	return nil // This line will never be reached, but Go requires it
 }
@@ -101,12 +101,8 @@ func createConfigAt(configPath string, isLocal bool) error {
 		}
 	}
 
-	// Read template file
-	templatePath := GetTemplatePath()
-	templateData, err := os.ReadFile(templatePath)
-	if err != nil {
-		return fmt.Errorf("failed to read template file: %v", err)
-	}
+	// Get embedded template configuration
+	templateData := []byte(GetEmbeddedTemplate())
 
 	// Write to target location
 	if err := os.WriteFile(configPath, templateData, 0644); err != nil {
