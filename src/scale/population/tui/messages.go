@@ -2,80 +2,89 @@ package tui
 
 import (
 	"time"
-
-	"ez-utils/src/scale/population"
 )
 
-// TUI message types for Bubble Tea
-type AgentUpdateMsg struct {
-	AgentType  string
-	AgentID    string
-	State      population.AgentState
-	Timestamp  time.Time
-	Details    map[string]interface{}
-}
+// Message types for the TUI system
 
-type ResourceUpdateMsg struct {
-	CPU        float64
-	RAM        float64
-	Disk       float64
+// UnifiedWorkerUpdateMsg updates workers of a specific type
+type UnifiedWorkerUpdateMsg struct {
+	WorkerType WorkerType
+	Workers    []WorkerData
 	Timestamp  time.Time
 }
 
-type PhaseUpdateMsg struct {
-	Phase           string
-	InputFile       string
-	InputFileSizeMB float64
-	GridDimensions  population.GridBounds
-	BinCount        int
-	DensityMapSize  int
-	SafePointsCount int
+// UnifiedPhaseUpdateMsg updates the current phase and action
+type UnifiedPhaseUpdateMsg struct {
+	Phase     int
+	Action    string
+	Timestamp time.Time
+}
+
+// UnifiedSystemUpdateMsg updates system metrics
+type UnifiedSystemUpdateMsg struct {
+	CPU       float64
+	RAM       float64
+	Disk      float64
+	Timestamp time.Time
+}
+
+// UnifiedShutdownMsg signals the TUI to shutdown
+type UnifiedShutdownMsg struct{}
+
+
+// Helper functions to create messages
+
+// NewWorkerUpdateMsg creates a new worker update message
+func NewWorkerUpdateMsg(workerType WorkerType, workers []WorkerData) UnifiedWorkerUpdateMsg {
+	return UnifiedWorkerUpdateMsg{
+		WorkerType: workerType,
+		Workers:    workers,
+		Timestamp:  time.Now(),
+	}
+}
+
+// NewPhaseUpdateMsg creates a new phase update message
+func NewPhaseUpdateMsg(phase int, action string) UnifiedPhaseUpdateMsg {
+	return UnifiedPhaseUpdateMsg{
+		Phase:     phase,
+		Action:    action,
+		Timestamp: time.Now(),
+	}
+}
+
+// NewSystemUpdateMsg creates a new system update message
+func NewSystemUpdateMsg(cpu, ram, disk float64) UnifiedSystemUpdateMsg {
+	return UnifiedSystemUpdateMsg{
+		CPU:       cpu,
+		RAM:       ram,
+		Disk:      disk,
+		Timestamp: time.Now(),
+	}
+}
+
+// NewShutdownMsg creates a new shutdown message
+func NewShutdownMsg() UnifiedShutdownMsg {
+	return UnifiedShutdownMsg{}
+}
+
+// UnifiedWorkerMetricUpdateMsg updates only metrics for a specific worker
+type UnifiedWorkerMetricUpdateMsg struct {
+	WorkerID        string
+	WorkerType      WorkerType
+	PrimaryMetric   string
+	SecondaryMetric string
+	Status          WorkerStatus
 	Timestamp       time.Time
 }
 
-type ReaderAgentMsg struct {
-	AgentID           string
-	State             population.AgentState
-	TotalLinesRead    int64
-	TotalPersonsFound int64
-	DataProcessedMB   float64
-	SafePointsWritten int64
-	Timestamp         time.Time
+// NewWorkerMetricUpdateMsg creates a new worker metric update message
+func NewWorkerMetricUpdateMsg(workerID, primary, secondary string, workerType WorkerType, status WorkerStatus) UnifiedWorkerMetricUpdateMsg {
+	return UnifiedWorkerMetricUpdateMsg{
+		WorkerID:        workerID,
+		WorkerType:      workerType,
+		PrimaryMetric:   primary,
+		SecondaryMetric: secondary,
+		Status:          status,
+		Timestamp:       time.Now(),
+	}
 }
-
-type ExtractorAgentMsg struct {
-	AgentID          string
-	State            population.AgentState
-	PersonsProcessed int64
-	PersonsSkipped   int64
-	Timestamp        time.Time
-}
-
-type HashMapAgentMsg struct {
-	AgentID               string
-	State                 population.AgentState
-	QueueSize             int
-	QueueFillPercentage   float64
-	CoordinatesProcessed  int64
-	ExpansionRequests     int64
-	Timestamp             time.Time
-}
-
-type GridHandlerMsg struct {
-	CurrentBounds     population.GridBounds
-	BinCount          int
-	ExpansionRequests int64
-	LastExpansion     time.Time
-	Timestamp         time.Time
-}
-
-// Command messages
-type PauseResumeMsg struct {
-	AgentType string
-	AgentID   string
-	Command   string // "pause" or "resume"
-}
-
-type ShutdownMsg struct{}
-
-type TickMsg time.Time

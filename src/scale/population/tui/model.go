@@ -4,251 +4,233 @@ import (
 	"fmt"
 	"time"
 
-	"ez-utils/src/scale/population"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
-// Model represents the main TUI state
-type Model struct {
-	// Core state
+// UnifiedModel represents the main TUI state for all phases
+type UnifiedModel struct {
+	// Core phase tracking
+	currentPhase    int    // 1-5
+	currentAction   string
 	startTime       time.Time
-	currentPhase    string
 	
 	// System metrics
 	cpuUsage        float64
 	ramUsage        float64
 	diskUsage       float64
-	lastUpdate      time.Time
 	
-	// Phase information
-	inputFile       string
-	inputFileSizeMB float64
-	gridBounds      population.GridBounds
-	binCount        int
-	densityMapSize  int
-	safePointsCount int
-	
-	// Agent states
-	readerAgent     ReaderAgentState
-	extractorAgents map[string]ExtractorAgentState
-	hashmapAgents   map[string]HashMapAgentState
-	gridHandler     GridHandlerState
+	// Phase-specific worker data
+	readerWorkers     []WorkerData
+	extractorWorkers  []WorkerData
+	mapperWorkers     []WorkerData
+	reducerWorkers    []WorkerData
+	writerWorkers     []WorkerData
 	
 	// UI state
-	styles          StyleDefinitions
 	width           int
 	height          int
-	paused          bool
+	quitting        bool
 	
-	// Channels for updates
-	updateChan      chan interface{}
+	// Styles
+	styles          UnifiedStyles
 }
 
-// Agent state structures
-type ReaderAgentState struct {
-	ID               string
-	State            population.AgentState
-	TotalLinesRead   int64
-	TotalPersonsFound int64
-	DataProcessedMB  float64
-	SafePointsWritten int64
-	LastUpdate       time.Time
+// WorkerData represents worker information across all types
+type WorkerData struct {
+	Name            string
+	Status          WorkerStatus
+	PrimaryMetric   string
+	SecondaryMetric string
+	WorkerType      WorkerType
 }
 
-type ExtractorAgentState struct {
-	ID               string
-	State            population.AgentState
-	PersonsProcessed int64
-	PersonsSkipped   int64
-	LastUpdate       time.Time
-}
+// WorkerStatus represents the status of a worker
+type WorkerStatus int
 
-type HashMapAgentState struct {
-	ID                   string
-	State                population.AgentState
-	QueueSize            int
-	QueueFillPercentage  float64
-	CoordinatesProcessed int64
-	ExpansionRequests    int64
-	LastUpdate           time.Time
-}
+const (
+	StatusActive WorkerStatus = iota
+	StatusCompleted
+	StatusIdle
+)
 
-type GridHandlerState struct {
-	CurrentBounds     population.GridBounds
-	BinCount          int
-	ExpansionRequests int64
-	LastExpansion     time.Time
-	LastUpdate        time.Time
-}
+// WorkerType represents the type of worker
+type WorkerType int
+
+const (
+	TypeReader WorkerType = iota
+	TypeExtractor
+	TypeMapper
+	TypeReducer
+	TypeWriter
+)
 
 // NewModel creates a new TUI model
-func NewModel() Model {
-	return Model{
-		startTime:       time.Now(),
-		currentPhase:    "Phase One",
-		extractorAgents: make(map[string]ExtractorAgentState),
-		hashmapAgents:   make(map[string]HashMapAgentState),
-		styles:          NewStyleDefinitions(),
-		updateChan:      make(chan interface{}, 100),
+func NewModel() UnifiedModel {
+	return UnifiedModel{
+		startTime:        time.Now(),
+		currentPhase:     1,
+		currentAction:    "Validating Configuration and User Input",
+		readerWorkers:    make([]WorkerData, 0),
+		extractorWorkers: make([]WorkerData, 0),
+		mapperWorkers:    make([]WorkerData, 0),
+		reducerWorkers:   make([]WorkerData, 0),
+		writerWorkers:    make([]WorkerData, 0),
+		width:           80,  // Default minimum width
+		height:          24,  // Default minimum height
+		styles:           NewStyles(),
 	}
 }
 
-// Update methods for different agent types
-func (m *Model) UpdateReaderAgent(msg ReaderAgentMsg) {
-	m.readerAgent = ReaderAgentState{
-		ID:                msg.AgentID,
-		State:             msg.State,
-		TotalLinesRead:    msg.TotalLinesRead,
-		TotalPersonsFound: msg.TotalPersonsFound,
-		DataProcessedMB:   msg.DataProcessedMB,
-		SafePointsWritten: msg.SafePointsWritten,
-		LastUpdate:        msg.Timestamp,
-	}
+// Init initializes the model
+func (m UnifiedModel) Init() tea.Cmd {
+	return m.tick()
 }
 
-func (m *Model) UpdateExtractorAgent(msg ExtractorAgentMsg) {
-	m.extractorAgents[msg.AgentID] = ExtractorAgentState{
-		ID:               msg.AgentID,
-		State:            msg.State,
-		PersonsProcessed: msg.PersonsProcessed,
-		PersonsSkipped:   msg.PersonsSkipped,
-		LastUpdate:       msg.Timestamp,
-	}
+// tick returns a command that sends a tick message after a delay
+func (m UnifiedModel) tick() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return TickMessage(t)
+	})
 }
 
-func (m *Model) UpdateHashMapAgent(msg HashMapAgentMsg) {
-	m.hashmapAgents[msg.AgentID] = HashMapAgentState{
-		ID:                   msg.AgentID,
-		State:                msg.State,
-		QueueSize:            msg.QueueSize,
-		QueueFillPercentage:  msg.QueueFillPercentage,
-		CoordinatesProcessed: msg.CoordinatesProcessed,
-		ExpansionRequests:    msg.ExpansionRequests,
-		LastUpdate:           msg.Timestamp,
-	}
-}
-
-func (m *Model) UpdateGridHandler(msg GridHandlerMsg) {
-	m.gridHandler = GridHandlerState{
-		CurrentBounds:     msg.CurrentBounds,
-		BinCount:          msg.BinCount,
-		ExpansionRequests: msg.ExpansionRequests,
-		LastExpansion:     msg.LastExpansion,
-		LastUpdate:        msg.Timestamp,
-	}
-}
-
-func (m *Model) UpdateSystemMetrics(msg ResourceUpdateMsg) {
-	m.cpuUsage = msg.CPU
-	m.ramUsage = msg.RAM
-	m.diskUsage = msg.Disk
-	m.lastUpdate = msg.Timestamp
-}
-
-func (m *Model) UpdatePhaseInfo(msg PhaseUpdateMsg) {
-	m.currentPhase = msg.Phase
-	m.inputFile = msg.InputFile
-	m.inputFileSizeMB = msg.InputFileSizeMB
-	m.gridBounds = msg.GridDimensions
-	m.binCount = msg.BinCount
-	m.densityMapSize = msg.DensityMapSize
-	m.safePointsCount = msg.SafePointsCount
-}
+// TickMessage represents a timer tick
+type TickMessage time.Time
 
 // Helper methods
-func (m *Model) GetElapsedTime() time.Duration {
-	return time.Since(m.startTime)
-}
-
-func (m *Model) FormatElapsedTime() string {
-	elapsed := m.GetElapsedTime()
-	hours := int(elapsed.Hours())
-	minutes := int(elapsed.Minutes()) % 60
+func (m *UnifiedModel) GetElapsedTime() string {
+	elapsed := time.Since(m.startTime)
+	minutes := int(elapsed.Minutes())
 	seconds := int(elapsed.Seconds()) % 60
-	return m.styles.timeInfo.Render(fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds))
+	return fmt.Sprintf("%02d:%02d", minutes, seconds)
 }
 
-func (m *Model) GetActiveExtractorCount() int {
-	count := 0
-	for _, agent := range m.extractorAgents {
-		if agent.State == population.Busy || agent.State == population.Available {
-			count++
-		}
+func (m *UnifiedModel) GetPhase() string {
+	phaseNames := []string{"ONE", "TWO", "THREE", "FOUR", "FIVE"}
+	if m.currentPhase > 0 && m.currentPhase <= 5 {
+		return fmt.Sprintf("= PHASE %s OF FIVE =", phaseNames[m.currentPhase-1])
 	}
-	return count
+	return "= PHASE ONE OF FIVE ="
 }
 
-func (m *Model) GetTotalExtractorCount() int {
-	return len(m.extractorAgents)
-}
+// TUI sizing constants
+const (
+	MinTerminalWidth  = 40  // Minimum usable terminal width
+	MinTerminalHeight = 10  // Minimum usable terminal height
+	DefaultWidth      = 120 // Reasonable default width
+	DefaultHeight     = 30  // Reasonable default height
+	BorderPadding     = 2   // Space used by borders
+	TablePadding      = 4   // Space used by table formatting
+)
 
-func (m *Model) GetActiveHashMapCount() int {
-	count := 0
-	for _, agent := range m.hashmapAgents {
-		if agent.State == population.Busy || agent.State == population.Available {
-			count++
-		}
+// safeWidth returns a safe width value that prevents negative calculations
+func (m *UnifiedModel) safeWidth() int {
+	if m.width < MinTerminalWidth {
+		return DefaultWidth
 	}
-	return count
+	return m.width
 }
 
-func (m *Model) GetTotalHashMapCount() int {
-	return len(m.hashmapAgents)
-}
-
-func (m *Model) GetTotalPersonsProcessed() int64 {
-	total := int64(0)
-	for _, agent := range m.extractorAgents {
-		total += agent.PersonsProcessed
+// safeHeight returns a safe height value
+func (m *UnifiedModel) safeHeight() int {
+	if m.height < MinTerminalHeight {
+		return DefaultHeight
 	}
-	return total
+	return m.height
 }
 
-func (m *Model) GetTotalPersonsSkipped() int64 {
-	total := int64(0)
-	for _, agent := range m.extractorAgents {
-		total += agent.PersonsSkipped
+// safeBorderWidth returns a safe width for border strings.Repeat()
+func (m *UnifiedModel) safeBorderWidth() int {
+	width := m.safeWidth() - BorderPadding
+	if width < 1 {
+		return 1 // Minimum border width
 	}
-	return total
+	return width
 }
 
-func (m *Model) GetTotalCoordinatesProcessed() int64 {
-	total := int64(0)
-	for _, agent := range m.hashmapAgents {
-		total += agent.CoordinatesProcessed
+// safeTableWidth returns a safe width for tables
+func (m *UnifiedModel) safeTableWidth() int {
+	width := m.safeWidth() - TablePadding
+	if width < MinTerminalWidth/2 {
+		return MinTerminalWidth / 2 // Minimum table width
 	}
-	return total
+	return width
 }
 
-func (m *Model) GetTotalExpansionRequests() int64 {
-	total := int64(0)
-	for _, agent := range m.hashmapAgents {
-		total += agent.ExpansionRequests
-	}
-	return total
-}
-
-func (m *Model) GetAverageQueueFill() float64 {
-	if len(m.hashmapAgents) == 0 {
-		return 0.0
-	}
+func (m *UnifiedModel) GetSystemMetrics() SystemMetrics {
+	// Get real-time metrics from system monitor
+	cpu, ram, disk := GetCurrentSystemMetrics()
 	
-	total := 0.0
-	for _, agent := range m.hashmapAgents {
-		total += agent.QueueFillPercentage
+	// Don't modify state in getter - return current metrics
+	return SystemMetrics{
+		CPU:  int(cpu),
+		RAM:  int(ram),
+		DISK: int(disk),
 	}
-	return total / float64(len(m.hashmapAgents))
 }
 
-// State conversion helpers
-func (m *Model) GetAgentStateString(state population.AgentState) string {
-	switch state {
-	case population.Available:
-		return "AVAILABLE"
-	case population.Busy:
-		return "BUSY"
-	case population.Paused:
-		return "PAUSED"
+// SystemMetrics represents system resource usage
+type SystemMetrics struct {
+	CPU  int
+	RAM  int
+	DISK int
+}
+
+// Update worker data methods
+func (m *UnifiedModel) UpdateReaderWorkers(workers []WorkerData) {
+	m.readerWorkers = workers
+}
+
+func (m *UnifiedModel) UpdateExtractorWorkers(workers []WorkerData) {
+	m.extractorWorkers = workers
+}
+
+func (m *UnifiedModel) UpdateMapperWorkers(workers []WorkerData) {
+	m.mapperWorkers = workers
+}
+
+func (m *UnifiedModel) UpdateReducerWorkers(workers []WorkerData) {
+	m.reducerWorkers = workers
+}
+
+func (m *UnifiedModel) UpdateWriterWorkers(workers []WorkerData) {
+	m.writerWorkers = workers
+}
+
+func (m *UnifiedModel) UpdateSystemMetrics(cpu, ram, disk float64) {
+	m.cpuUsage = cpu
+	m.ramUsage = ram
+	m.diskUsage = disk
+}
+
+func (m *UnifiedModel) UpdatePhase(phase int, action string) {
+	m.currentPhase = phase
+	m.currentAction = action
+}
+
+// GetActiveWorkers returns workers for the current phase
+func (m *UnifiedModel) GetActiveWorkers() []WorkerData {
+	switch m.currentPhase {
+	case 1:
+		return []WorkerData{} // No workers in phase 1
+	case 2:
+		// Return readers, extractors, and mappers
+		workers := make([]WorkerData, 0)
+		workers = append(workers, m.readerWorkers...)
+		workers = append(workers, m.extractorWorkers...)
+		workers = append(workers, m.mapperWorkers...)
+		return workers
+	case 3:
+		return []WorkerData{} // No active workers in phase 3
+	case 4:
+		// Return readers, reducers, and writers
+		workers := make([]WorkerData, 0)
+		workers = append(workers, m.readerWorkers...)
+		workers = append(workers, m.reducerWorkers...)
+		workers = append(workers, m.writerWorkers...)
+		return workers
+	case 5:
+		return []WorkerData{} // No workers in phase 5
 	default:
-		return "UNKNOWN"
+		return []WorkerData{}
 	}
 }

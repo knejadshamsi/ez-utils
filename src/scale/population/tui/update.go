@@ -1,193 +1,214 @@
 package tui
 
 import (
-	"time"
-
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Update handles all incoming messages and updates the model
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m UnifiedModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	
 	// Handle window size changes
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		// Ensure minimum safe dimensions
+		if msg.Width < 10 {
+			m.width = 80
+		} else {
+			m.width = msg.Width
+		}
+		if msg.Height < 5 {
+			m.height = 24
+		} else {
+			m.height = msg.Height
+		}
 		return m, nil
 	
 	// Handle keyboard input
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
+			m.quitting = true
 			return m, tea.Quit
-		case "p":
-			m.paused = !m.paused
-			return m, nil
-		case "r":
-			// Reset/refresh display
-			return m, nil
 		}
 	
-	// Handle agent updates
-	case ReaderAgentMsg:
-		m.UpdateReaderAgent(msg)
+	// Handle worker updates
+	case UnifiedWorkerUpdateMsg:
+		m.updateWorkers(msg)
 		return m, nil
 	
-	case ExtractorAgentMsg:
-		m.UpdateExtractorAgent(msg)
+	// Handle incremental worker metric updates
+	case UnifiedWorkerMetricUpdateMsg:
+		(&m).updateWorkerMetrics(msg)
 		return m, nil
 	
-	case HashMapAgentMsg:
-		m.UpdateHashMapAgent(msg)
+	// Handle phase updates
+	case UnifiedPhaseUpdateMsg:
+		m.UpdatePhase(msg.Phase, msg.Action)
 		return m, nil
 	
-	case GridHandlerMsg:
-		m.UpdateGridHandler(msg)
-		return m, nil
-	
-	// Handle system updates
-	case ResourceUpdateMsg:
-		m.UpdateSystemMetrics(msg)
-		return m, nil
-	
-	case PhaseUpdateMsg:
-		m.UpdatePhaseInfo(msg)
+	// Handle system metrics updates
+	case UnifiedSystemUpdateMsg:
+		m.UpdateSystemMetrics(msg.CPU, msg.RAM, msg.Disk)
 		return m, nil
 	
 	// Handle timer ticks
-	case TickMsg:
+	case TickMessage:
 		return m, m.tick()
 	
 	// Handle shutdown
-	case ShutdownMsg:
+	case UnifiedShutdownMsg:
+		m.quitting = true
 		return m, tea.Quit
-	
-	// Handle pause/resume commands
-	case PauseResumeMsg:
-		// This would send commands back to the manager
-		return m, nil
 	}
 	
 	return m, nil
 }
 
-// tick returns a command that sends a TickMsg after a short delay
-func (m Model) tick() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
-		return TickMsg(t)
-	})
-}
-
-// Init initializes the model and starts the tick timer
-func (m Model) Init() tea.Cmd {
-	return m.tick()
-}
-
-// Batch updates for efficiency
-func BatchUpdates(updates ...tea.Cmd) tea.Cmd {
-	return tea.Batch(updates...)
-}
-
-// Helper commands for sending messages
-func SendReaderUpdate(agentID string, state interface{}, details map[string]interface{}) tea.Cmd {
-	return func() tea.Msg {
-		return ReaderAgentMsg{
-			AgentID:           agentID,
-			TotalLinesRead:    getInt64FromDetails(details, "lines_read"),
-			TotalPersonsFound: getInt64FromDetails(details, "persons_found"),
-			DataProcessedMB:   getFloat64FromDetails(details, "data_mb"),
-			SafePointsWritten: getInt64FromDetails(details, "safe_points"),
-			Timestamp:         time.Now(),
-		}
+// updateWorkers updates workers based on message type (maintains full replacement for initial setup)
+func (m *UnifiedModel) updateWorkers(msg UnifiedWorkerUpdateMsg) {
+	switch msg.WorkerType {
+	case TypeReader:
+		m.UpdateReaderWorkers(msg.Workers)
+	case TypeExtractor:
+		m.UpdateExtractorWorkers(msg.Workers)
+	case TypeMapper:
+		m.UpdateMapperWorkers(msg.Workers)
+	case TypeReducer:
+		m.UpdateReducerWorkers(msg.Workers)
+	case TypeWriter:
+		m.UpdateWriterWorkers(msg.Workers)
 	}
 }
 
-func SendExtractorUpdate(agentID string, details map[string]interface{}) tea.Cmd {
-	return func() tea.Msg {
-		return ExtractorAgentMsg{
-			AgentID:          agentID,
-			PersonsProcessed: getInt64FromDetails(details, "persons_processed"),
-			PersonsSkipped:   getInt64FromDetails(details, "persons_skipped"),
-			Timestamp:        time.Now(),
+// updateWorkerMetrics updates only the metrics for a specific worker (in-place)
+func (m *UnifiedModel) updateWorkerMetrics(msg UnifiedWorkerMetricUpdateMsg) {
+	// Try to find and update existing worker
+	workerArrays := [](*[]WorkerData){
+		&m.readerWorkers, &m.extractorWorkers, &m.mapperWorkers, &m.reducerWorkers, &m.writerWorkers,
+	}
+	
+	for _, workers := range workerArrays {
+		for i := range *workers {
+			if (*workers)[i].Name == msg.WorkerID {
+				(*workers)[i].PrimaryMetric = msg.PrimaryMetric
+				(*workers)[i].SecondaryMetric = msg.SecondaryMetric
+				(*workers)[i].Status = msg.Status
+				return
+			}
 		}
+	}
+	
+	// Worker not found - create new worker in appropriate array
+	newWorker := WorkerData{
+		Name:            msg.WorkerID,
+		Status:          msg.Status,
+		PrimaryMetric:   msg.PrimaryMetric,
+		SecondaryMetric: msg.SecondaryMetric,
+		WorkerType:      msg.WorkerType,
+	}
+	
+	switch msg.WorkerType {
+	case TypeReader:
+		m.readerWorkers = append(m.readerWorkers, newWorker)
+	case TypeExtractor:
+		m.extractorWorkers = append(m.extractorWorkers, newWorker)
+	case TypeMapper:
+		m.mapperWorkers = append(m.mapperWorkers, newWorker)
+	case TypeReducer:
+		m.reducerWorkers = append(m.reducerWorkers, newWorker)
+	case TypeWriter:
+		m.writerWorkers = append(m.writerWorkers, newWorker)
 	}
 }
 
-func SendHashMapUpdate(agentID string, details map[string]interface{}) tea.Cmd {
-	return func() tea.Msg {
-		return HashMapAgentMsg{
-			AgentID:               agentID,
-			QueueSize:             getIntFromDetails(details, "queue_size"),
-			QueueFillPercentage:   getFloat64FromDetails(details, "queue_fill"),
-			CoordinatesProcessed:  getInt64FromDetails(details, "coords_processed"),
-			ExpansionRequests:     getInt64FromDetails(details, "expansions"),
-			Timestamp:             time.Now(),
+// nextAction advances to the next action in the current phase
+func (m UnifiedModel) nextAction() tea.Cmd {
+	actions := getPhaseActions(m.currentPhase)
+	if len(actions) == 0 {
+		return nil
+	}
+	
+	// Find current action and advance
+	for i, action := range actions {
+		if action == m.currentAction {
+			if i < len(actions)-1 {
+				return func() tea.Msg {
+					return UnifiedPhaseUpdateMsg{
+						Phase:  m.currentPhase,
+						Action: actions[i+1],
+					}
+				}
+			} else {
+				// Last action, advance to next phase
+				return m.nextPhase()
+			}
 		}
 	}
+	
+	return nil
 }
 
-func SendResourceUpdate(cpu, ram, disk float64) tea.Cmd {
-	return func() tea.Msg {
-		return ResourceUpdateMsg{
-			CPU:       cpu,
-			RAM:       ram,
-			Disk:      disk,
-			Timestamp: time.Now(),
+// nextPhase advances to the next phase
+func (m UnifiedModel) nextPhase() tea.Cmd {
+	if m.currentPhase < 5 {
+		nextPhase := m.currentPhase + 1
+		actions := getPhaseActions(nextPhase)
+		firstAction := "Initializing..."
+		if len(actions) > 0 {
+			firstAction = actions[0]
+		}
+		
+		return func() tea.Msg {
+			return UnifiedPhaseUpdateMsg{
+				Phase:  nextPhase,
+				Action: firstAction,
+			}
 		}
 	}
+	
+	return nil
 }
 
-func SendPhaseUpdate(phase, inputFile string, fileSizeMB float64) tea.Cmd {
-	return func() tea.Msg {
-		return PhaseUpdateMsg{
-			Phase:           phase,
-			InputFile:       inputFile,
-			InputFileSizeMB: fileSizeMB,
-			Timestamp:       time.Now(),
+// getPhaseActions returns the actions for a given phase
+func getPhaseActions(phase int) []string {
+	switch phase {
+	case 1:
+		return []string{
+			"Validating Configuration and User Input",
+			"Loading Population File",
+			"Studying the File",
 		}
-	}
-}
-
-// Helper functions to extract values from details map
-func getInt64FromDetails(details map[string]interface{}, key string) int64 {
-	if val, ok := details[key]; ok {
-		switch v := val.(type) {
-		case int64:
-			return v
-		case int:
-			return int64(v)
-		case float64:
-			return int64(v)
+	case 2:
+		return []string{
+			"Starting Reader Workers",
+			"Starting Extractor Workers",
+			"Starting Mapper Workers",
+			"Processing Population Data",
+			"Mapping Complete",
 		}
-	}
-	return 0
-}
-
-func getIntFromDetails(details map[string]interface{}, key string) int {
-	if val, ok := details[key]; ok {
-		switch v := val.(type) {
-		case int:
-			return v
-		case int64:
-			return int(v)
-		case float64:
-			return int(v)
+	case 3:
+		return []string{
+			"Combining Local Grids",
+			"Removing Empty Bins",
+			"Calculating Retention Ratio",
+			"Retention Calculation Complete",
 		}
-	}
-	return 0
-}
-
-func getFloat64FromDetails(details map[string]interface{}, key string) float64 {
-	if val, ok := details[key]; ok {
-		switch v := val.(type) {
-		case float64:
-			return v
-		case int:
-			return float64(v)
-		case int64:
-			return float64(v)
+	case 4:
+		return []string{
+			"Starting Reader Workers",
+			"Starting Reducer Workers",
+			"Starting Writer Workers",
+			"Processing Scale Selection",
+			"Population Scaling Complete",
 		}
+	case 5:
+		return []string{
+			"Combining Part Files",
+			"Validating Output Files",
+			"Cleaning Temporary Files",
+			"Process Complete",
+		}
+	default:
+		return []string{}
 	}
-	return 0.0
 }

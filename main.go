@@ -112,12 +112,19 @@ func main() {
 
 			// Queue configuration is now handled internally by PopulationProcessor
 
-			// Create the simplified population processor
-			processor := processing.NewPopulationProcessor(phaseOneConfig)
+			// Create Phase Two configuration
+			phaseTwoConfig := cfg.ToPhaseTwoConfig()
+
+			// Create the 5-phase population scaling orchestrator
+			orchestrator := processing.NewPopulationScalingOrchestrator(
+				phaseOneConfig,
+				phaseTwoConfig,
+				populationFile,
+			)
 
 			// Disable TUI in non-interactive environments
 			if os.Getenv("TERM") == "" || os.Getenv("CI") != "" {
-				processor.DisableTUI()
+				orchestrator.DisableTUI()
 			}
 
 			// Set up signal handling for graceful shutdown
@@ -130,38 +137,13 @@ func main() {
 				os.Exit(0)
 			}()
 
-			// Process the population file (all phases handled internally)
-			if err := processor.Process(populationFile); err != nil {
-				fmt.Printf("Population processing failed: %v\n", err)
+			// Process all 5 phases
+			if err := orchestrator.Process(); err != nil {
+				fmt.Printf("Population scaling failed: %v\n", err)
 				os.Exit(1)
 			}
 
-			fmt.Println("Phase One completed successfully!")
 
-			// Start Phase Two processing
-			fmt.Println("\nStarting Phase Two...")
-
-			// Create Phase Two configuration
-			phaseTwoConfig := cfg.ToPhaseTwoConfig()
-
-			// Create Phase Two processor with proper parallel architecture
-			phaseTwoProcessor := processing.NewPhaseTwoProcessor(
-				phaseTwoConfig,
-				populationFile,
-			)
-
-			// Disable TUI in non-interactive environments
-			if os.Getenv("TERM") == "" || os.Getenv("CI") != "" {
-				phaseTwoProcessor.DisableTUI()
-			}
-
-			// Process Phase Two
-			if err := phaseTwoProcessor.Process(); err != nil {
-				fmt.Printf("Phase Two failed: %v\n", err)
-				os.Exit(1)
-			}
-
-			fmt.Println("Phase Two completed successfully!")
 
 		default:
 			fmt.Printf("Unknown scale subcommand: %s\n", subcommand)
@@ -213,8 +195,7 @@ func showConfigSource(source string) {
 	if source == "local" {
 		fmt.Println("Using local config: ./config.yaml")
 	} else if source == "global" {
-		localPath, _, globalDisplay, err := config.GetConfigPaths()
-		_ = localPath // Avoid unused variable warning
+		_, _, globalDisplay, err := config.GetConfigPaths()
 		if err == nil {
 			fmt.Printf("Using global config: %s\n", globalDisplay)
 		} else {

@@ -2,243 +2,220 @@ package tui
 
 import (
 	"fmt"
-	"path/filepath"
+	"sort"
 	"strings"
-
+	
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 )
 
-// View renders the complete TUI
-func (m Model) View() string {
-	if m.width == 0 || m.height == 0 {
-		return "Initializing..."
+// View renders the complete TUI according to design specification
+func (m UnifiedModel) View() string {
+	if m.quitting {
+		return "Goodbye!\n"
 	}
 	
-	// Build the complete view
-	header := m.renderHeader()
-	systemMetrics := m.renderSystemMetrics()
-	phaseInfo := m.renderPhaseInfo()
-	agentSections := m.renderAgentSections()
-	footer := m.renderFooter()
+	var sections []string
 	
-	// Combine all sections
-	content := lipgloss.JoinVertical(
-		lipgloss.Left,
-		header,
-		systemMetrics,
-		phaseInfo,
-		agentSections,
-		footer,
-	)
+	// Header Section
+	sections = append(sections, m.renderHeader())
 	
-	return m.styles.mainContainer.Render(content)
+	// Active Workers Section
+	sections = append(sections, m.renderActiveWorkers())
+	
+	// Controls
+	sections = append(sections, m.renderControls())
+	
+	return strings.Join(sections, "\n")
 }
 
-// renderHeader renders the title and elapsed time
-func (m Model) renderHeader() string {
-	title := lipgloss.JoinHorizontal(
-		lipgloss.Center,
-		m.styles.titleEZ.Render("EZ"),
-		m.styles.titleText.Render("Population Scaling"),
-		m.styles.phaseInfo.Render(fmt.Sprintf("| %s", m.currentPhase)),
-		m.FormatElapsedTime(),
-	)
+// renderHeader renders the header section according to design specification
+func (m UnifiedModel) renderHeader() string {
+	var lines []string
 	
-	return m.styles.sectionContainer.Render(title)
+	// Create dynamic title style based on safe terminal width
+	safeWidth := m.safeWidth()
+	dynamicTitleStyle := m.styles.titleStyle.Copy().Width(safeWidth)
+	
+	// Create border that fits the terminal width with safe calculation
+	borderWidth := m.safeBorderWidth()
+	topBorder := strings.Repeat("═", borderWidth)
+	
+	// 1. Top border
+	lines = append(lines, dynamicTitleStyle.Render(topBorder))
+	
+	// 2. Title
+	lines = append(lines, dynamicTitleStyle.Render("EZ-UTILS MATSim Population Scaling Pipeline"))
+	
+	// 3. Elapsed Time - centered, orange
+	dynamicTimeStyle := m.styles.timeStyle.Copy().Width(safeWidth)
+	lines = append(lines, dynamicTimeStyle.Render(fmt.Sprintf("[ELAPSED TIME: %s]", m.GetElapsedTime())))
+	
+	// 4. System Resources - colored individually
+	metrics := m.GetSystemMetrics()
+	cpuText := m.styles.cpuStyle.Render(fmt.Sprintf("[CPU %d%%]", metrics.CPU))
+	ramText := m.styles.ramStyle.Render(fmt.Sprintf("[RAM %dMB]", metrics.RAM))
+	diskText := m.styles.diskStyle.Render(fmt.Sprintf("[DISK %d%%]", metrics.DISK))
+	systemLabel := m.styles.headerStyle.Copy().Bold(true).Render("SYSTEM:")
+	systemLine := fmt.Sprintf("%s %s %s %s", systemLabel, cpuText, ramText, diskText)
+	systemStyle := m.styles.headerStyle.Copy().Width(safeWidth).Align(lipgloss.Center)
+	lines = append(lines, systemStyle.Render(systemLine))
+	
+	// 5. Bottom border (reuse same border string)
+	lines = append(lines, dynamicTitleStyle.Render(topBorder))
+	
+	// 6. Phase - outside border, centered, white
+	dynamicPhaseStyle := m.styles.phaseStyle.Copy().Width(safeWidth)
+	lines = append(lines, dynamicPhaseStyle.Render(m.GetPhase()))
+	
+	// 7. Current Action - outside border, centered, yellow
+	dynamicActionStyle := m.styles.actionStyle.Copy().Width(safeWidth)
+	lines = append(lines, dynamicActionStyle.Render(fmt.Sprintf("[ACTION: %s]", m.currentAction)))
+	
+	return strings.Join(lines, "\n")
 }
 
-// renderSystemMetrics renders CPU, RAM, and disk usage
-func (m Model) renderSystemMetrics() string {
-	cpu := m.styles.FormatSystemMetric("CPU", fmt.Sprintf("%.1f%%", m.cpuUsage), m.styles.cpuInfo)
-	ram := m.styles.FormatSystemMetric("RAM", fmt.Sprintf("%.1f%%", m.ramUsage), m.styles.ramInfo)
-	disk := m.styles.FormatSystemMetric("DISK", fmt.Sprintf("%.1f MB/s", m.diskUsage), m.styles.diskInfo)
+// renderActiveWorkers renders active workers according to design specification
+func (m UnifiedModel) renderActiveWorkers() string {
+	workers := m.GetActiveWorkers()
 	
-	metrics := lipgloss.JoinHorizontal(
-		lipgloss.Left,
-		cpu, "  ", ram, "  ", disk,
-	)
-	
-	return m.styles.sectionContainer.Render(metrics)
-}
-
-// renderPhaseInfo renders phase-specific information
-func (m Model) renderPhaseInfo() string {
-	var info strings.Builder
-	
-	// Input file information
-	if m.inputFile != "" {
-		fileName := filepath.Base(m.inputFile)
-		info.WriteString(m.styles.FormatCounter("Input File", fileName))
-		info.WriteString("  ")
-		info.WriteString(m.styles.FormatCounter("Size", fmt.Sprintf("%.1f MB", m.inputFileSizeMB)))
-		info.WriteString("\n")
+	if len(workers) == 0 {
+		return ""
 	}
 	
-	// Grid information
-	if m.gridHandler.BinCount > 0 {
-		gridDims := fmt.Sprintf("%.0fx%.0f", 
-			m.gridBounds.MaxX-m.gridBounds.MinX, 
-			m.gridBounds.MaxY-m.gridBounds.MinY)
-		info.WriteString(m.styles.FormatCounter("Grid", gridDims))
-		info.WriteString("  ")
-		info.WriteString(m.styles.FormatCounter("Bins", m.gridHandler.BinCount))
-		info.WriteString("  ")
-		info.WriteString(m.styles.FormatCounter("Density Map", m.densityMapSize))
-		info.WriteString("  ")
-		info.WriteString(m.styles.FormatCounter("Safe Points", m.safePointsCount))
+	// Group workers by type
+	workerGroups := make(map[WorkerType][]WorkerData)
+	for _, worker := range workers {
+		workerGroups[worker.WorkerType] = append(workerGroups[worker.WorkerType], worker)
 	}
 	
-	return m.styles.sectionContainer.Render(info.String())
-}
-
-// renderAgentSections renders all agent information
-func (m Model) renderAgentSections() string {
-	sections := []string{
-		m.renderReaderAgent(),
-		m.renderExtractorAgents(),
-		m.renderHashMapAgents(),
+	var result []string
+	
+	// Get sorted worker types for deterministic ordering
+	var workerTypes []WorkerType
+	for workerType := range workerGroups {
+		workerTypes = append(workerTypes, workerType)
 	}
+	sort.Slice(workerTypes, func(i, j int) bool {
+		return int(workerTypes[i]) < int(workerTypes[j])
+	})
 	
-	return lipgloss.JoinVertical(lipgloss.Left, sections...)
-}
-
-// renderReaderAgent renders the reader agent status
-func (m Model) renderReaderAgent() string {
-	var content strings.Builder
-	
-	content.WriteString(m.styles.systemLabel.Render("Reader Agent"))
-	content.WriteString("\n")
-	
-	if m.readerAgent.ID != "" {
-		stateStyle := m.styles.GetAgentStateStyle(m.GetAgentStateString(m.readerAgent.State))
-		content.WriteString(fmt.Sprintf("  Status: %s", stateStyle.Render(m.GetAgentStateString(m.readerAgent.State))))
-		content.WriteString(fmt.Sprintf("  Lines: %s", m.styles.counterInfo.Render(formatNumber(m.readerAgent.TotalLinesRead))))
-		content.WriteString(fmt.Sprintf("  Persons: %s", m.styles.counterInfo.Render(formatNumber(m.readerAgent.TotalPersonsFound))))
-		content.WriteString(fmt.Sprintf("  Data: %s MB", m.styles.counterInfo.Render(fmt.Sprintf("%.1f", m.readerAgent.DataProcessedMB))))
-		content.WriteString(fmt.Sprintf("  Safe Points: %s", m.styles.counterInfo.Render(formatNumber(m.readerAgent.SafePointsWritten))))
-	} else {
-		content.WriteString("  " + m.styles.warningText.Render("Not started"))
-	}
-	
-	return m.styles.sectionContainer.Render(content.String())
-}
-
-// renderExtractorAgents renders all extractor agents
-func (m Model) renderExtractorAgents() string {
-	var content strings.Builder
-	
-	activeCount := m.GetActiveExtractorCount()
-	totalCount := m.GetTotalExtractorCount()
-	
-	content.WriteString(m.styles.systemLabel.Render(fmt.Sprintf("Extractor Agents (%d/%d)", activeCount, totalCount)))
-	content.WriteString("\n")
-	
-	if totalCount > 0 {
-		// Summary statistics
-		totalProcessed := m.GetTotalPersonsProcessed()
-		totalSkipped := m.GetTotalPersonsSkipped()
-		
-		content.WriteString(fmt.Sprintf("  Status: %s", m.styles.successText.Render("ACTIVE")))
-		content.WriteString(fmt.Sprintf("  Processed: %s", m.styles.counterInfo.Render(formatNumber(totalProcessed))))
-		content.WriteString(fmt.Sprintf("  Skipped: %s", m.styles.counterInfo.Render(formatNumber(totalSkipped))))
-		content.WriteString("\n")
-		
-		// Individual agent details (if space allows)
-		if len(m.extractorAgents) <= 5 {
-			for id, agent := range m.extractorAgents {
-				stateStyle := m.styles.GetAgentStateStyle(m.GetAgentStateString(agent.State))
-				content.WriteString(fmt.Sprintf("  %s: %s  Processed: %s  Skipped: %s\n",
-					id,
-					stateStyle.Render(m.GetAgentStateString(agent.State)),
-					m.styles.counterInfo.Render(formatNumber(agent.PersonsProcessed)),
-					m.styles.counterInfo.Render(formatNumber(agent.PersonsSkipped))))
-			}
-		}
-	} else {
-		content.WriteString("  " + m.styles.warningText.Render("Not started"))
-	}
-	
-	return m.styles.sectionContainer.Render(content.String())
-}
-
-// renderHashMapAgents renders all hashmap agents
-func (m Model) renderHashMapAgents() string {
-	var content strings.Builder
-	
-	activeCount := m.GetActiveHashMapCount()
-	totalCount := m.GetTotalHashMapCount()
-	
-	content.WriteString(m.styles.systemLabel.Render(fmt.Sprintf("HashMap Agents (%d/%d)", activeCount, totalCount)))
-	content.WriteString("\n")
-	
-	if totalCount > 0 {
-		// Summary statistics
-		totalCoords := m.GetTotalCoordinatesProcessed()
-		totalExpansions := m.GetTotalExpansionRequests()
-		avgQueueFill := m.GetAverageQueueFill()
-		
-		queueStyle := m.styles.counterInfo
-		if avgQueueFill > 80 {
-			queueStyle = m.styles.warningText
-		} else if avgQueueFill > 95 {
-			queueStyle = m.styles.errorText
+	// Create tables for each worker type in deterministic order
+	for _, workerType := range workerTypes {
+		typeWorkers := workerGroups[workerType]
+		if len(typeWorkers) == 0 {
+			continue
 		}
 		
-		content.WriteString(fmt.Sprintf("  Status: %s", m.styles.successText.Render("ACTIVE")))
-		content.WriteString(fmt.Sprintf("  Queue: %s", queueStyle.Render(fmt.Sprintf("%.1f%%", avgQueueFill))))
-		content.WriteString(fmt.Sprintf("  Coords: %s", m.styles.counterInfo.Render(formatNumber(totalCoords))))
-		content.WriteString(fmt.Sprintf("  Expansions: %s", m.styles.counterInfo.Render(formatNumber(totalExpansions))))
-		content.WriteString("\n")
+		// Sort workers within each type by name for consistent ordering
+		sort.Slice(typeWorkers, func(i, j int) bool {
+			return typeWorkers[i].Name < typeWorkers[j].Name
+		})
 		
-		// Individual agent details (if space allows)
-		if len(m.hashmapAgents) <= 5 {
-			for id, agent := range m.hashmapAgents {
-				stateStyle := m.styles.GetAgentStateStyle(m.GetAgentStateString(agent.State))
-				queueStyle := m.styles.counterInfo
-				if agent.QueueFillPercentage > 80 {
-					queueStyle = m.styles.warningText
+		// Get headers and description for this worker type
+		headers := getWorkerHeaders(workerType)
+		description := getWorkerDescription(workerType)
+		typeName := getWorkerTypeName(workerType)
+		
+		// Prepare table rows
+		var rows [][]string
+		for _, worker := range typeWorkers {
+			rows = append(rows, []string{
+				worker.Name,
+				m.styles.GetStatusSymbol(worker.Status),
+				worker.PrimaryMetric,
+				worker.SecondaryMetric,
+			})
+		}
+		
+		// Create lipgloss table
+		t := table.New().
+			Border(lipgloss.NormalBorder()).
+			BorderStyle(lipgloss.NewStyle().Foreground(colorWhite)).
+			StyleFunc(func(row, col int) lipgloss.Style {
+				if row == 0 {
+					return lipgloss.NewStyle().Foreground(colorWhite).Bold(true)
 				}
-				
-				content.WriteString(fmt.Sprintf("  %s: %s  Queue: %s  Coords: %s  Exp: %s\n",
-					id,
-					stateStyle.Render(m.GetAgentStateString(agent.State)),
-					queueStyle.Render(fmt.Sprintf("%.0f%%", agent.QueueFillPercentage)),
-					m.styles.counterInfo.Render(formatNumber(agent.CoordinatesProcessed)),
-					m.styles.counterInfo.Render(formatNumber(agent.ExpansionRequests))))
-			}
-		}
-	} else {
-		content.WriteString("  " + m.styles.warningText.Render("Not started"))
+				return lipgloss.NewStyle().Foreground(colorWhite)
+			}).
+			Headers(headers...).
+			Rows(rows...).
+			Width(m.safeTableWidth()) // Account for padding with safe width
+		
+		result = append(result, "")
+		result = append(result, m.styles.tableHeaderStyle.Render(fmt.Sprintf("%s Workers:", typeName)))
+		
+		// Add description for this worker type
+		descStyle := m.styles.headerStyle.Copy().Width(m.safeTableWidth()).Italic(true)
+		result = append(result, descStyle.Render(description))
+		result = append(result, "")
+		
+		result = append(result, t.String())
 	}
 	
-	return m.styles.sectionContainer.Render(content.String())
+	return strings.Join(result, "\n")
 }
 
-// renderFooter renders control instructions
-func (m Model) renderFooter() string {
-	controls := []string{
-		m.styles.systemLabel.Render("Controls:"),
-		"q/Ctrl+C: Quit",
-		"p: Pause/Resume",
-		"r: Refresh",
-	}
-	
-	footer := lipgloss.JoinHorizontal(lipgloss.Left, controls...)
-	return m.styles.sectionContainer.Render(footer)
+// renderControls renders control instructions
+func (m UnifiedModel) renderControls() string {
+	// Only show quit control for production use
+	return m.styles.headerStyle.Render("Press [q] to quit")
 }
 
-// Helper function to render progress bars
-func (m Model) renderProgressBar(current, total int64, width int) string {
-	if total == 0 {
-		return m.styles.progressEmpty.Render(strings.Repeat(" ", width))
+// WorkerTypeInfo contains display information for each worker type
+type WorkerTypeInfo struct {
+	Name        string
+	Headers     []string
+	Description string
+}
+
+// Worker type configuration map
+var workerTypeConfig = map[WorkerType]WorkerTypeInfo{
+	TypeReader: {
+		Name:        "Reader",
+		Headers:     []string{"Name", "Status", "Persons Found", "Lines Read"},
+		Description: "Parse and read MATSim population XML files line by line. Extract raw person and activity data from the XML structure. Monitor file processing progress and data integrity during initial population loading.",
+	},
+	TypeExtractor: {
+		Name:        "Extractor",
+		Headers:     []string{"Name", "Status", "Persons Processed", "Persons Skipped"},
+		Description: "Process parsed XML data to extract individual person records with their attributes and activities. Filter and validate person data quality, skipping malformed or incomplete records. Transform raw XML data into structured person objects for further processing.",
+	},
+	TypeMapper: {
+		Name:        "Mapper",
+		Headers:     []string{"Name", "Status", "Coords Processed", "Grid Bins"},
+		Description: "Map person home coordinates to spatial grid bins for geographic distribution analysis. Create and maintain spatial indices for efficient location-based processing. Generate grid-based population density maps for scaling calculations.",
+	},
+	TypeReducer: {
+		Name:        "Reducer",
+		Headers:     []string{"Name", "Status", "Persons Processed", "Total Selected"},
+		Description: "Apply scaling algorithms to select representative population subsets at target percentages. Process spatial and demographic criteria to maintain population representativeness. Generate final selection lists for each requested scale factor.",
+	},
+	TypeWriter: {
+		Name:        "Writer",
+		Headers:     []string{"Name", "Status", "Persons Written", "Scale Target"},
+		Description: "Generate final scaled population XML files for each target percentage. Write properly formatted MATSim population files with selected persons and their complete activity chains. Validate output file structure and data completeness.",
+	},
+}
+
+// Helper functions for worker type information
+func getWorkerHeaders(workerType WorkerType) []string {
+	if info, exists := workerTypeConfig[workerType]; exists {
+		return info.Headers
 	}
-	
-	percentage := float64(current) / float64(total)
-	filled := int(percentage * float64(width))
-	empty := width - filled
-	
-	filledBar := m.styles.progressFilled.Render(strings.Repeat("█", filled))
-	emptyBar := m.styles.progressEmpty.Render(strings.Repeat("░", empty))
-	
-	return m.styles.progressBar.Render(filledBar + emptyBar)
+	return []string{"Name", "Status", "Primary Metric", "Secondary Metric"}
+}
+
+func getWorkerDescription(workerType WorkerType) string {
+	if info, exists := workerTypeConfig[workerType]; exists {
+		return info.Description
+	}
+	return "Generic worker performing data processing tasks."
+}
+
+func getWorkerTypeName(workerType WorkerType) string {
+	if info, exists := workerTypeConfig[workerType]; exists {
+		return info.Name
+	}
+	return "Unknown"
 }

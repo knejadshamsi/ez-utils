@@ -9,6 +9,20 @@ import (
 	"time"
 )
 
+// logWriterErrorToFile logs writer error messages to a unique log file
+func logWriterErrorToFile(message string) {
+	timestamp := time.Now().Format("20060102-150405-000000")
+	filename := fmt.Sprintf("writer-error-%s.log", timestamp)
+	
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return // Silently fail to avoid stdout pollution
+	}
+	defer file.Close()
+	
+	file.WriteString(fmt.Sprintf("[%s] %s\n", time.Now().Format("2006-01-02 15:04:05"), message))
+}
+
 // WriterWorker handles writing selected persons to output files
 type WriterWorker struct {
 	// Identity
@@ -79,7 +93,7 @@ func (ww *WriterWorker) Process() {
 	// Process all selected persons from input channel
 	for selectedPerson := range ww.inputChannel {
 		if err := ww.writePerson(selectedPerson); err != nil {
-			fmt.Printf("Writer %s: Error writing person %s: %v\n", ww.id, selectedPerson.PersonID, err)
+			logWriterErrorToFile(fmt.Sprintf("Writer %s: Error writing person %s: %v", ww.id, selectedPerson.PersonID, err))
 			continue
 		}
 		

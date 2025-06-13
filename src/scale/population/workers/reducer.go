@@ -106,6 +106,7 @@ func (rw *ReducerWorker) Process() {
 		chunkID := fmt.Sprintf("line_%d", personXML.LineNumber) // Use line number as chunk ID
 		if err := rw.processPerson(personXML.XML, chunkID); err != nil {
 			// Skip person on error (continue processing)
+			continue
 		}
 		atomic.AddInt64(&rw.personsProcessed, 1)
 	}

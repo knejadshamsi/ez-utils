@@ -18,6 +18,7 @@ type ExtractorWorker struct {
 	activityPattern *regexp.Regexp
 	coordPattern    *regexp.Regexp
 	personIDPattern *regexp.Regexp
+	selectedPattern *regexp.Regexp
 	
 	// Metrics
 	personsProcessed int64
@@ -34,6 +35,7 @@ func NewExtractorWorker(id string, inputQueue <-chan PersonXML, outputQueue chan
 		activityPattern: regexp.MustCompile(`<activity[^>]*>`),
 		coordPattern:    regexp.MustCompile(`x="([^"]*)"[^>]*y="([^"]*)"`),
 		personIDPattern: regexp.MustCompile(`<person[^>]*id="([^"]*)"`),
+		selectedPattern: regexp.MustCompile(`selected="yes"`),
 	}
 }
 
@@ -74,9 +76,8 @@ func (e *ExtractorWorker) extractCoordinates(personXML PersonXML) (*Coordinates,
 	
 	// Look for selected plan first
 	var selectedPlan string
-	selectedPattern := regexp.MustCompile(`selected="yes"`)
 	for _, plan := range planMatches {
-		if selectedPattern.MatchString(plan) {
+		if e.selectedPattern.MatchString(plan) {
 			selectedPlan = plan
 			break
 		}

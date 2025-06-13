@@ -2,9 +2,25 @@ package functions
 
 import (
 	"fmt"
+	"os"
+	"time"
 
 	"ez-utils/src/scale/population"
 )
+
+// logWarningToFile logs warning messages to a unique log file
+func logWarningToFile(message string) {
+	timestamp := time.Now().Format("20060102-150405-000000")
+	filename := fmt.Sprintf("config-validation-warning-%s.log", timestamp)
+	
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return // Silently fail to avoid stdout pollution
+	}
+	defer file.Close()
+	
+	file.WriteString(fmt.Sprintf("[%s] %s\n", time.Now().Format("2006-01-02 15:04:05"), message))
+}
 
 // ConfigValidator validates population processing configuration
 type ConfigValidator interface {
@@ -145,10 +161,9 @@ func (v *configValidator) ValidateSafePointSettings(interval int64, numReaders i
 	// Warn if interval is too small for effective parallelization
 	const recommendedMinInterval = 10000
 	if interval < recommendedMinInterval && numReaders > 2 {
-		// This is a warning, not an error
-		// In practice, you might want to log this instead of returning an error
-		fmt.Printf("Warning: safe point interval %d may be too small for %d readers (recommended: >= %d)\n", 
-			interval, numReaders, recommendedMinInterval)
+		// Log warning to file instead of stdout to avoid interfering with TUI
+		logWarningToFile(fmt.Sprintf("Warning: safe point interval %d may be too small for %d readers (recommended: >= %d)", 
+			interval, numReaders, recommendedMinInterval))
 	}
 
 	return nil
