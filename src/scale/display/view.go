@@ -12,11 +12,8 @@ import (
 // Handles the UI rendering
 func (m Model) View() string {
 	if m.processComplete {
-		tm := GetTextManager()
-		if tm != nil {
-			return lipglossStyle.processComplete.Render(tm.GetUIText("process_complete")) + "\n"
-		}
-		return lipglossStyle.processComplete.Render("Process completed successfully!") + "\n"
+		// Process complete - return empty string to hide display
+		return ""
 	}
 
 	titleSection := createTitleSection(m)
@@ -38,24 +35,23 @@ func (m Model) View() string {
 func createTitleSection(m Model) string {
 	tm := GetTextManager()
 	if tm == nil {
-		// Fallback if text manager not initialized
+		// Use configured process title instead of hardcoded text
 		ezPart := "[EZ-UTILS]"
-		descPart := ": Scaling down MATSim population "
-		timeStr := fmt.Sprintf("[TIME %02d:%02d]", int(m.totalElapsedTime.Minutes()), int(m.totalElapsedTime.Seconds())%60)
-		abortStr := " [Press q to abort]"
+		descPart := ": " + m.processTitle + " "
+		timeStr := fmt.Sprintf("[ELAPSED TIME %02d:%02d]", int(m.totalElapsedTime.Minutes()), int(m.totalElapsedTime.Seconds())%60)
 		
 		titleContent := lipglossStyle.titleEZ.Render(ezPart) + lipglossStyle.titleText.Render(descPart)
-		rightContent := lipglossStyle.timeInfo.Render(timeStr) + lipglossStyle.titleEZ.Render(abortStr)
+		rightContent := lipglossStyle.timeInfo.Render(timeStr)
 		return titleContent + rightContent
 	}
 
 	ezPart := tm.GetUIText("title_prefix")
-	descPart := tm.GetUIText("title_description")
+	// Use configured process title instead of locale hardcoded text
+	descPart := ": " + m.processTitle + " "
 	timeStr := tm.FormatTimeText(int(m.totalElapsedTime.Minutes()), int(m.totalElapsedTime.Seconds())%60)
-	abortStr := tm.GetUIText("abort_hint")
 
 	titleContent := lipglossStyle.titleEZ.Render(ezPart) + lipglossStyle.titleText.Render(descPart)
-	rightContent := lipglossStyle.timeInfo.Render(timeStr) + lipglossStyle.titleEZ.Render(abortStr)
+	rightContent := lipglossStyle.timeInfo.Render(timeStr)
 
 	return titleContent + rightContent
 }
@@ -64,7 +60,7 @@ func createPreviousStepsSection(m Model) string {
 	var lines []string
 
 	for i := 0; i < m.stepNumber; i++ {
-		stepLabel := GetStepLabel(m.moduleName, i)
+		stepLabel := GetStepLabelFromConfig(m.steps, m.moduleName, i)
 
 		completedText := fmt.Sprintf("%d. %s", i+1, stepLabel)
 
@@ -72,7 +68,7 @@ func createPreviousStepsSection(m Model) string {
 		if duration, ok := m.stepDurations[i]; ok {
 			durationStr = formatDuration(duration)
 		} else {
-			durationStr = "00:00" // Default if no duration stored
+			durationStr = "less than a second" // Default if no duration stored
 		}
 
 		completedTaskText := lipglossStyle.completedTask.Render(completedText)
@@ -95,29 +91,27 @@ func createCurrentStepSection(m Model) string {
 	if tm != nil {
 		currentlyText = tm.GetUIText("currently_prefix")
 	} else {
-		currentlyText = "Currently"
+		currentlyText = "ACTION"
 	}
 	
-	currentlyPrefix := lipglossStyle.spinner.Render(m.spinner.View()) + " " + lipglossStyle.currentlyPrefix.Render(currentlyText)
-
+	actionPrefix := lipglossStyle.currentlyPrefix.Render(currentlyText)
+	spinnerView := lipglossStyle.spinner.Render(m.spinner.View())
+	
 	counters := getStepCounters(m)
 
-	var stepDetails string
-
+	var stepLabel string
 	// Special case: First 4 steps have counter text that includes step number and description
 	if m.stepNumber == 0 || m.stepNumber == 1 || m.stepNumber == 2 || m.stepNumber == 3 {
-		stepDetails = counters
+		stepLabel = counters
 	} else {
 		// For other steps, add the numbered step label plus the counters
-		currentStepLabel := GetStepLabel(m.moduleName, m.stepNumber)
+		currentStepLabel := GetStepLabelFromConfig(m.steps, m.moduleName, m.stepNumber)
 		numberedStepLabel := fmt.Sprintf("%d. %s", m.stepNumber+1, currentStepLabel)
-		stepDetails = fmt.Sprintf("%s %s", numberedStepLabel, counters)
+		stepLabel = fmt.Sprintf("%s %s", numberedStepLabel, counters)
 	}
 
-	content := lipgloss.JoinVertical(lipgloss.Left,
-		currentlyPrefix,
-		stepDetails,
-	)
+	// Combine all elements in a single line: ACTION [spinner] Step Title + counters
+	content := fmt.Sprintf("%s %s %s", actionPrefix, spinnerView, stepLabel)
 
 	return lipglossStyle.currentStepContainer.Render(content)
 }
@@ -200,7 +194,7 @@ func getStepCounters(m Model) string {
 		return tm.GetCounterText(moduleKey, "files_progress", vars)
 
 	case 18:
-		if m.flagClean {
+		if getModelFlag(m, "clean") {
 			vars := i18n.CreateTemplateVars().
 				SetString("files", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.cleanupFiles))).
 				SetString("dirs", lipglossStyle.counterValue.Render(fmt.Sprintf("%d", m.cleanupDirs))).
@@ -250,7 +244,7 @@ func createSystemInfoSection(m Model) string {
 	}
 
 	tm := GetTextManager()
-	var cpuText, ramText, systemLabel string
+	var cpuText, ramText, diskText, systemLabel, abortText string
 	
 	if tm != nil {
 		cpuValue := fmt.Sprintf("%.1f%%", m.cpuUsage)
@@ -263,7 +257,13 @@ func createSystemInfoSection(m Model) string {
 		ramVars := i18n.CreateTemplateVars().SetString("value", ramValue)
 		ramText = lipglossStyle.ramInfo.Render(tm.GetSystemText("ram_format", ramVars))
 
+		// Disk usage in GB
+		diskValue := fmt.Sprintf("%.1f GB", m.diskUsage)
+		diskVars := i18n.CreateTemplateVars().SetString("value", diskValue)
+		diskText = lipglossStyle.diskInfo.Render(tm.GetSystemText("disk_format", diskVars))
+
 		systemLabel = lipglossStyle.systemLabel.Render(tm.GetSystemText("label", nil))
+		abortText = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Render(tm.GetUIText("abort_hint"))
 	} else {
 		// Fallback
 		cpuValue := fmt.Sprintf("%.1f%%", m.cpuUsage)
@@ -273,11 +273,19 @@ func createSystemInfoSection(m Model) string {
 		ramValue := fmt.Sprintf("%.2f GB", ramValueGB)
 		ramText = lipglossStyle.ramInfo.Render(fmt.Sprintf("[RAM: %s]", ramValue))
 
+		diskValue := fmt.Sprintf("%.1f GB", m.diskUsage)
+		diskText = lipglossStyle.diskInfo.Render(fmt.Sprintf("[DISK: %s]", diskValue))
+
 		systemLabel = lipglossStyle.systemLabel.Render("SYSTEM: ")
+		abortText = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Render("[Press q to abort]")
 	}
 
-	systemInfo := systemLabel + cpuText + ramText
-	content := fmt.Sprintf("%s%s", statusIndicator, systemInfo)
+	systemInfo := systemLabel + cpuText + ramText + diskText
+	// Create a layout that places abort text on the right
+	leftContent := fmt.Sprintf("%s%s", statusIndicator, systemInfo)
+	
+	// Use lipgloss to create a justified layout
+	content := lipgloss.JoinHorizontal(lipgloss.Left, leftContent, " ", abortText)
 
 	return lipglossStyle.footerContainer.Render(content)
 }
@@ -285,18 +293,24 @@ func createSystemInfoSection(m Model) string {
 func createUpcomingStepsSection(m Model) string {
 	var lines []string
 
-	// Step count hardcoded to 18 based on current workflow implementation
-	maxStep := 18
-	for i := m.stepNumber + 1; i <= maxStep; i++ {
-		if i == 3 && !m.flagDB {
+	// Use configurable max steps
+	maxStep := m.maxSteps
+	if maxStep <= 0 {
+		// Invalid configuration, skip upcoming steps
+		return ""
+	}
+
+	for i := m.stepNumber + 1; i < maxStep; i++ {
+		// Check flags dynamically using the new flags map
+		if i == 3 && !getModelFlag(m, "db") {
 			continue
 		}
 
-		if i == 18 && !m.flagClean {
+		if i == 18 && !getModelFlag(m, "clean") {
 			continue
 		}
 
-		stepLabel := GetStepLabel(m.moduleName, i)
+		stepLabel := GetStepLabelFromConfig(m.steps, m.moduleName, i)
 		upcomingText := fmt.Sprintf("%d. %s", i+1, stepLabel)
 		upcomingTask := lipglossStyle.upcomingTask.Render(upcomingText)
 		lines = append(lines, upcomingTask)
@@ -310,7 +324,24 @@ func createUpcomingStepsSection(m Model) string {
 }
 
 func formatDuration(d time.Duration) string {
-	minutes := int(d.Minutes())
-	seconds := int(d.Seconds()) % 60
-	return fmt.Sprintf("%02d:%02d", minutes, seconds)
+	totalSeconds := int(d.Seconds())
+	
+	if totalSeconds < 1 {
+		return "less than a second"
+	} else if totalSeconds < 5 {
+		return "few seconds"
+	} else {
+		minutes := int(d.Minutes())
+		seconds := totalSeconds % 60
+		return fmt.Sprintf("%02d:%02d", minutes, seconds)
+	}
+}
+
+// getModelFlag safely retrieves a flag value from the model's flags map
+func getModelFlag(m Model, flag string) bool {
+	if m.flags == nil {
+		return false
+	}
+	value, exists := m.flags[flag]
+	return exists && value
 }

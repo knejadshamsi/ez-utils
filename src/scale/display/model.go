@@ -16,10 +16,12 @@ type Counter struct {
 // Model represents the state of the TUI
 type Model struct {
 	// Core configuration
-	moduleName string
-	stepNumber int
-	flagClean  bool
-	flagDB     bool
+	moduleName   string
+	processTitle string      // Configured process title/description
+	stepNumber   int
+	maxSteps     int
+	flags        map[string]bool
+	steps        []StepConfig // Configured step titles and descriptions
 
 	// Timing information
 	startTime        time.Time
@@ -34,12 +36,16 @@ type Model struct {
 	statusBlink bool
 
 	// System monitoring
-	cpuUsage float64
-	ramUsage float64
+	cpuUsage  float64
+	ramUsage  float64
+	diskUsage float64
 
 	// Status
 	processComplete bool
 	err             error
+	
+	// Theme support
+	themeColors map[string]string
 
 	// Step counters by logical group
 	// XML Processing (Steps 0-1)
@@ -89,4 +95,13 @@ func blinkCmd() tea.Cmd {
 	return tea.Tick(800*time.Millisecond, func(time.Time) tea.Msg {
 		return blinkMsg{}
 	})
+}
+
+// getFlag safely retrieves a flag value from the flags map
+func (m Model) getFlag(flag string) bool {
+	if m.flags == nil {
+		return false
+	}
+	value, exists := m.flags[flag]
+	return exists && value
 }

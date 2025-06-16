@@ -1,5 +1,30 @@
 {
   "modules": {
+    "pt": {
+      "steps": {
+        "0": "Validate GTFS Files",
+        "1": "Identify Service Patterns", 
+        "2": "Map Service Routes",
+        "3": "Select Services",
+        "4": "Collect Trips",
+        "5": "Extract Stop Sequences",
+        "6": "Gather Stop Details",
+        "7": "Generate XML",
+        "8": "Cleanup Files",
+        "default": "Processing Step"
+      },
+      "counters": {
+        "validating_files": "Validating {file}: {status} [{size}]",
+        "service_patterns": "Found {services} service patterns [{progress}%]",
+        "route_mapping": "Mapped {routes} routes with {mappings} service links", 
+        "service_selection": "Selected {selected} of {total} services",
+        "trip_collection": "Collected {trips} trips [{progress}%]",
+        "stop_sequences": "Processed {sequences} sequences with {stops} stops",
+        "stop_details": "Gathered details for {stops} stops",
+        "xml_generation": "Generated XML [{progress}%] [{size}]",
+        "cleanup": "Cleaned {files} files, {dirs} directories [{bytes} MB]"
+      }
+    },
     "population": {
       "steps": {
         "0": "Create Population Chunks",
@@ -42,15 +67,16 @@
   "ui": {
     "title_prefix": "[EZ-UTILS]",
     "title_description": ": Scaling down MATSim population ",
-    "time_format": "[TIME {minutes:02d}:{seconds:02d}]",
-    "abort_hint": " [Press q to abort]",
+    "time_format": "[ELAPSED TIME {minutes:02d}:{seconds:02d}]",
+    "abort_hint": "[Press q to abort]",
     "process_complete": "Process completed successfully!",
-    "currently_prefix": "Currently"
+    "currently_prefix": "ACTION"
   },
   "system": {
     "label": "SYSTEM: ",
     "cpu_format": "[CPU: {value}]",
-    "ram_format": "[RAM: {value}]"
+    "ram_format": "[RAM: {value}]",
+    "disk_format": "[DISK: {value}]"
   },
   "status": {
     "first_chunk": "first chunk",

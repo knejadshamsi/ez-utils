@@ -5,17 +5,51 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
+)
+
+// TemplateCache represents a cached template result
+type TemplateCache struct {
+	result   string
+	expiry   time.Time
+}
+
+// Template cache with expiry
+var (
+	templateCache = make(map[string]*TemplateCache)
+	templateMutex sync.RWMutex
+	templateCacheExpiry = 2 * time.Minute
 )
 
 // TemplateVars represents variables that can be substituted in templates
 type TemplateVars map[string]interface{}
 
 // ProcessTemplate processes a template string with variable substitution
+// Uses caching for performance when the same template is used repeatedly
 func ProcessTemplate(template string, vars TemplateVars) string {
 	if vars == nil {
 		return template
 	}
+
+	// Create cache key based on template and variables
+	cacheKey := createCacheKey(template, vars)
 	
+	// Check cache first
+	if cached := getCachedTemplate(cacheKey); cached != "" {
+		return cached
+	}
+	
+	result := processTemplateInternal(template, vars)
+	
+	// Cache the result
+	cacheTemplate(cacheKey, result)
+	
+	return result
+}
+
+// processTemplateInternal performs the actual template processing
+func processTemplateInternal(template string, vars TemplateVars) string {
 	result := template
 	
 	// Regular expression to find placeholders like {variable} or {variable:format}
@@ -101,4 +135,49 @@ func (tv TemplateVars) SetString(key string, value string) TemplateVars {
 func (tv TemplateVars) SetFloat(key string, value float64) TemplateVars {
 	tv[key] = value
 	return tv
+}
+
+// createCacheKey creates a cache key from template and variables
+func createCacheKey(template string, vars TemplateVars) string {
+	key := template
+	for k, v := range vars {
+		key += fmt.Sprintf("_%s:%v", k, v)
+	}
+	return key
+}
+
+// getCachedTemplate retrieves a cached template result
+func getCachedTemplate(key string) string {
+	templateMutex.RLock()
+	defer templateMutex.RUnlock()
+
+	cached, exists := templateCache[key]
+	if !exists {
+		return ""
+	}
+
+	if time.Now().After(cached.expiry) {
+		// Cache expired
+		return ""
+	}
+
+	return cached.result
+}
+
+// cacheTemplate stores a template result in cache
+func cacheTemplate(key, result string) {
+	templateMutex.Lock()
+	defer templateMutex.Unlock()
+
+	templateCache[key] = &TemplateCache{
+		result: result,
+		expiry: time.Now().Add(templateCacheExpiry),
+	}
+}
+
+// ClearTemplateCache clears all cached template results
+func ClearTemplateCache() {
+	templateMutex.Lock()
+	defer templateMutex.Unlock()
+	templateCache = make(map[string]*TemplateCache)
 }

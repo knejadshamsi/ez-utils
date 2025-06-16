@@ -14,6 +14,7 @@ var (
 	colorOrange     = lipgloss.Color("#FFA500")
 	colorLightBlue  = lipgloss.Color("#00BBFF")
 	colorPurple     = lipgloss.Color("#BB00FF")
+	colorLightPurple = lipgloss.Color("#D8BFD8")
 	colorGray       = lipgloss.Color("#999999")
 	colorDarkGray   = lipgloss.Color("#303030")
 	colorWhite      = lipgloss.Color("#FFFFFF")
@@ -44,6 +45,7 @@ type StyleDefinitions struct {
 	footerContainer lipgloss.Style
 	cpuInfo         lipgloss.Style
 	ramInfo         lipgloss.Style
+	diskInfo        lipgloss.Style
 
 	// Components
 	spinner         lipgloss.Style
@@ -120,6 +122,9 @@ var lipglossStyle = StyleDefinitions{
 
 	ramInfo: lipgloss.NewStyle().
 		Foreground(colorPurple),
+
+	diskInfo: lipgloss.NewStyle().
+		Foreground(colorLightPurple),
 
 	// Components
 	spinner: lipgloss.NewStyle().

@@ -45,7 +45,7 @@ func makeDefaultSection() string {
 	commands := []string{
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9900")).Render("scale") + defaultDescStyle.Render("         Scale down MATSim data"),
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9900")).Render("network") + defaultDescStyle.Render("       Analyze network connections"),
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9900")).Render("pt") + defaultDescStyle.Render("           Process public transit data"),
+		lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9900")).Render("create") + defaultDescStyle.Render("        Create new simulation components"),
 	}
 	availableCommands := defaultHeaderStyle.Render("AVAILABLE COMMANDS") + "\n\n" +
 		strings.Join(commands, "\n")

@@ -1,6 +1,52 @@
+// Package display provides a universal Terminal User Interface (TUI) solution for
+// sequential logical flows across different modules in the ez-utils application.
+//
+// This package is designed for modules like PT (Public Transit) and future modules
+// that need live status tracking and step-by-step progress visualization.
+// The population module uses its own dedicated TUI system.
+//
+// The package is designed to be:
+// - Instance-based: Multiple display instances can be created and managed independently
+// - Thread-safe: All operations are protected by mutexes for concurrent access
+// - Resource-efficient: Proper cleanup and monitoring optimization
+// - Extensible: Configurable for different modules with varying step counts
+// - Cached: Template processing and locale loading are cached for performance
+// - Error-resilient: Comprehensive error handling and validation
+//
+// Architecture:
+// - DisplayInstance: Main interface for creating and managing TUI instances
+// - BusinessLogic: Separate layer for state management and validation
+// - ModuleConfig: Configuration structure for different modules
+//
+// Usage:
+//   config := &display.ModuleConfig{
+//       ModuleName: "pt",           // Module name for localization
+//       MaxSteps:   9,              // Number of steps in the process
+//       Language:   "en",           // Language for UI text
+//       Flags:      map[string]bool{"clean": true}, // Module-specific flags
+//   }
+//   
+//   instance, err := display.NewDisplayInstance(config)
+//   if err != nil {
+//       return fmt.Errorf("failed to create display: %v", err)
+//   }
+//   defer instance.Stop() // Always cleanup
+//   
+//   if err := instance.Start(); err != nil {
+//       return fmt.Errorf("failed to start display: %v", err)
+//   }
+//   
+//   // Update progress during processing
+//   _ = instance.SetStep(0)
+//   _ = instance.SetChunkCount(100)
+//   _ = instance.SetStep(1)
+//   // ... continue with other steps
+//   _ = instance.SetProcessComplete(true)
 package display
 
 import (
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -9,28 +55,89 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var p *tea.Program
-var model Model
+// DisplayInstance represents a single display TUI instance
+type DisplayInstance struct {
+	config       *Config
+	program      *tea.Program
+	model        Model
+	businessLogic *BusinessLogic
+	asyncManager *AsyncManager
+	mutex        sync.RWMutex
+	running      bool
+	cleanup      []func()
+	quitChan     chan bool // Channel to signal quit from TUI
+	
+	// Live updates storage
+	liveUpdates  map[int]map[string]interface{} // stepNum -> updates
+	stepMessages map[int]string                  // stepNum -> custom message
+}
 
-// InitDisplay sets up the TUI with system monitoring and non-blocking operation
-func InitDisplay(moduleName string, flagClean bool, flagDB bool, language string) {
-	// Initialize text manager with specified language
-	if err := InitializeTextManager(language); err != nil {
-		// Log error but continue with fallback behavior
-		// fmt.Printf("Warning: Failed to initialize text manager: %v\n", err)
+
+// ModuleConfig defines configuration for different modules
+type ModuleConfig struct {
+	ModuleName string
+	MaxSteps   int
+	Language   string
+	Flags      map[string]bool
+}
+
+// NewDisplayInstance creates a new display instance with modern config
+func NewDisplayInstance(config *Config) (*DisplayInstance, error) {
+	if config == nil {
+		return nil, fmt.Errorf("config cannot be nil")
 	}
+	
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
+	
+	return createDisplayInstance(config)
+}
+
+// NewDisplayInstanceFromModuleConfig creates a display instance from legacy config
+// DEPRECATED: Use NewDisplayInstance with Config instead
+func NewDisplayInstanceFromModuleConfig(config *ModuleConfig) (*DisplayInstance, error) {
+	if config == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+	
+	// Convert legacy config to new config format
+	newConfig := &Config{
+		Process: &ProcessConfig{
+			Title:    config.ModuleName + " Processing",
+			MaxSteps: config.MaxSteps,
+			Flags:    config.Flags,
+		},
+		Theme:    DefaultConfig().Theme,
+		Language: config.Language,
+		Async:    DefaultConfig().Async,
+	}
+	
+	return createDisplayInstance(newConfig)
+}
+
+// createDisplayInstance is the internal instance creation function
+func createDisplayInstance(config *Config) (*DisplayInstance, error) {
+
+	// Initialize text manager with specified language
+	if err := InitializeTextManager(config.Language); err != nil {
+		// Continue silently with fallback behavior
+	}
+
 	spn := spinner.New()
 	spn.Spinner = spinner.Line
 	spn.Style = lipgloss.NewStyle().Foreground(colorMagenta)
 
 	tmr := timer.NewWithInterval(0, time.Second)
 
-	model = Model{
-		// Basic configuration (module, flags)
-		moduleName: moduleName,
-		stepNumber: 0,
-		flagClean:  flagClean,
-		flagDB:     flagDB,
+	model := Model{
+		// Basic configuration (process, flags)
+		moduleName:   config.Process.Title,
+		processTitle: config.Process.Description,
+		stepNumber:   0,
+		maxSteps:     config.Process.MaxSteps,
+		flags:        config.Process.Flags,
+		steps:        config.Process.Steps,
 
 		// Time tracking
 		startTime:        time.Now(),
@@ -51,6 +158,9 @@ func InitDisplay(moduleName string, flagClean bool, flagDB bool, language string
 		// Process state
 		processComplete: false,
 		err:             nil,
+		
+		// Theme support
+		themeColors:     make(map[string]string),
 
 		// Progress tracking
 		chunkCount:      0,
@@ -72,130 +182,503 @@ func InitDisplay(moduleName string, flagClean bool, flagDB bool, language string
 		cleanupBytes:    0,
 	}
 
-	p = tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	// Create business logic instance (convert config for compatibility)
+	legacyConfig := &ModuleConfig{
+		ModuleName: config.Process.Title,
+		MaxSteps:   config.Process.MaxSteps,
+		Language:   config.Language,
+		Flags:      config.Process.Flags,
+	}
+	businessLogic := NewBusinessLogic(legacyConfig)
+	
+	// Create async manager
+	asyncManager := NewAsyncManager(config.Async)
+
+	instance := &DisplayInstance{
+		config:        config,
+		model:         model,
+		businessLogic: businessLogic,
+		asyncManager:  asyncManager,
+		running:       false,
+		cleanup:       make([]func(), 0),
+		quitChan:      make(chan bool, 1),
+		liveUpdates:   make(map[int]map[string]interface{}),
+		stepMessages:  make(map[int]string),
+	}
+
+	return instance, nil
+}
+
+// Start initializes and starts the TUI program with async support
+func (d *DisplayInstance) Start() error {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	if d.running {
+		return fmt.Errorf("display instance is already running")
+	}
+
+	// Apply theme to model
+	d.applyTheme()
+
+	d.program = tea.NewProgram(d.model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	d.running = true
+
+	// Start async manager
+	if err := d.asyncManager.Start(d.program); err != nil {
+		return fmt.Errorf("failed to start async manager: %w", err)
+	}
 
 	// Run in goroutine to prevent blocking the main process while UI is active
 	go func() {
-		_ = p.Start()
+		_, err := d.program.Run()
+		if err == nil {
+			// TUI exited normally (user pressed 'q'), signal quit
+			select {
+			case d.quitChan <- true:
+			default:
+			}
+		}
 	}()
 
 	// System monitoring in a separate goroutine
-	go monitorSystem()
+	go d.monitorSystem()
+
+	return nil
 }
 
-// Setters for updating the model states
+// Stop gracefully shuts down the display instance
+func (d *DisplayInstance) Stop() error {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
 
-func SetStep(stepNumber int) {
-	if p != nil {
-		p.Send(stepMsg(stepNumber))
+	if !d.running {
+		return nil
+	}
+
+	// Stop async manager first
+	if d.asyncManager != nil {
+		if err := d.asyncManager.Stop(); err != nil {
+			// Stop silently
+		}
+	}
+
+	// Run cleanup functions in reverse order
+	for i := len(d.cleanup) - 1; i >= 0; i-- {
+		if d.cleanup[i] != nil {
+			d.cleanup[i]()
+		}
+	}
+	d.cleanup = d.cleanup[:0]
+
+	// Stop the program
+	if d.program != nil {
+		d.program.Quit()
+		// Give the program time to shut down
+		time.Sleep(100 * time.Millisecond)
+		d.program = nil
+	}
+
+	// Clear the model's timers and spinners
+	d.model.timer.Timeout = 0
+
+	d.running = false
+	return nil
+}
+
+// IsRunning returns whether the display instance is currently running
+func (d *DisplayInstance) IsRunning() bool {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+	return d.running
+}
+
+// IsQuitRequested checks if the user requested to quit (non-blocking)
+func (d *DisplayInstance) IsQuitRequested() bool {
+	select {
+	case <-d.quitChan:
+		return true
+	default:
+		return false
 	}
 }
 
-func SetProcessComplete(complete bool) {
-	if p != nil {
-		p.Send(processCompleteMsg(complete))
-	}
+// AddCleanupFunc adds a cleanup function to be called when stopping
+func (d *DisplayInstance) AddCleanupFunc(cleanupFunc func()) {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+	d.cleanup = append(d.cleanup, cleanupFunc)
 }
+
+// SetLiveUpdate sets a live update value for a specific step
+func (d *DisplayInstance) SetLiveUpdate(stepNum int, key string, value interface{}) error {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	if !d.running {
+		return fmt.Errorf("display instance is not running")
+	}
+
+	// Check if this step supports this live update
+	if !d.config.HasLiveUpdate(stepNum, key) {
+		return fmt.Errorf("step %d does not support live update '%s'", stepNum, key)
+	}
+
+	// Store the update
+	if d.liveUpdates[stepNum] == nil {
+		d.liveUpdates[stepNum] = make(map[string]interface{})
+	}
+	d.liveUpdates[stepNum][key] = value
+
+	// Send async update
+	return d.asyncManager.SendLiveUpdate(stepNum, key, value)
+}
+
+// SetStepMessage sets a custom message for a specific step
+func (d *DisplayInstance) SetStepMessage(stepNum int, template string, data map[string]interface{}) error {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	if !d.running {
+		return fmt.Errorf("display instance is not running")
+	}
+
+	// Store the message
+	d.stepMessages[stepNum] = template
+
+	// Send async update
+	return d.asyncManager.SendStepMessage(stepNum, template, data)
+}
+
+// GetConfig returns the display configuration
+func (d *DisplayInstance) GetConfig() *Config {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+	return d.config
+}
+
+// GetLiveUpdates returns all live updates for a step
+func (d *DisplayInstance) GetLiveUpdates(stepNum int) map[string]interface{} {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if updates, exists := d.liveUpdates[stepNum]; exists {
+		// Return a copy to prevent external modification
+		copy := make(map[string]interface{})
+		for k, v := range updates {
+			copy[k] = v
+		}
+		return copy
+	}
+	return make(map[string]interface{})
+}
+
+// GetAsyncStats returns statistics about the async message system
+func (d *DisplayInstance) GetAsyncStats() map[string]interface{} {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if d.asyncManager == nil {
+		return make(map[string]interface{})
+	}
+	return d.asyncManager.GetQueueStats()
+}
+
+// applyTheme applies the configured theme to the display
+func (d *DisplayInstance) applyTheme() {
+	if d.config.Theme == nil {
+		return
+	}
+
+	// Get theme colors
+	themeColors := GetThemeColors(d.config.Theme.Name)
+	
+	// Apply custom color overrides
+	for element, color := range d.config.Theme.Colors {
+		themeColors[element] = color
+	}
+
+	// Apply colors to the model (this would need to be implemented in styles.go)
+	// For now, just store the theme colors for later use
+	d.model.themeColors = themeColors
+}
+
+
+// Display Instance Methods
+// All methods return errors for proper error handling and are thread-safe
+
+// SetStep updates the current step number (async)
+func (d *DisplayInstance) SetStep(stepNumber int) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running {
+		return fmt.Errorf("display instance is not running")
+	}
+
+	// Validate step transition
+	if err := d.businessLogic.ValidateStepTransition(stepNumber); err != nil {
+		// Log warning but continue
+		fmt.Printf("Step transition warning: %v\n", err)
+	}
+
+	// Update business logic
+	d.businessLogic.UpdateStep(stepNumber)
+
+	// Send async update
+	return d.asyncManager.SendStepUpdate(stepNumber)
+}
+
+
+// SetProcessComplete marks the process as complete
+func (d *DisplayInstance) SetProcessComplete(complete bool) error {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
+	}
+
+	// Update business logic
+	d.businessLogic.SetProcessComplete(complete)
+
+	// Send UI update
+	d.program.Send(processCompleteMsg(complete))
+	return nil
+}
+
 
 // XML Processing Functions (Steps 0-1) - Chunk parsing and validation
-func SetChunkCount(count int) {
-	if p != nil {
-		p.Send(chunkCountMsg(count))
+
+// SetChunkCount updates the chunk count
+func (d *DisplayInstance) SetChunkCount(count int) error {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	// Update business logic
+	d.businessLogic.SetChunkCount(count)
+
+	// Send UI update
+	d.program.Send(chunkCountMsg(count))
+	return nil
 }
 
-func SetPersonsFound(count int) {
-	if p != nil {
-		p.Send(personsFoundMsg(count))
+
+// SetPersonsFound updates the persons found count
+func (d *DisplayInstance) SetPersonsFound(count int) error {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	// Update business logic
+	d.businessLogic.SetPersonsFound(count)
+
+	// Send UI update
+	d.program.Send(personsFoundMsg(count))
+	return nil
 }
 
-func SetBytesReadMB(mb int) {
-	if p != nil {
-		p.Send(bytesReadMsg(mb))
+
+// SetBytesReadMB updates the bytes read in MB
+func (d *DisplayInstance) SetBytesReadMB(mb int) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(bytesReadMsg(mb))
+	return nil
 }
 
-func SetFirstChunkStatus(fixed bool) {
-	if p != nil {
-		p.Send(firstChunkFixedMsg(fixed))
+
+// SetFirstChunkStatus updates the first chunk fixed status
+func (d *DisplayInstance) SetFirstChunkStatus(fixed bool) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(firstChunkFixedMsg(fixed))
+	return nil
 }
 
-func SetLastChunkStatus(fixed bool) {
-	if p != nil {
-		p.Send(lastChunkFixedMsg(fixed))
+
+// SetLastChunkStatus updates the last chunk fixed status
+func (d *DisplayInstance) SetLastChunkStatus(fixed bool) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(lastChunkFixedMsg(fixed))
+	return nil
 }
+
 
 // Location Extraction Functions (Steps 2-3) - Geographic data processing
-func SetAgentCounter(count int) {
-	if p != nil {
-		p.Send(agentCounterMsg(count))
+
+// SetAgentCounter updates the agent counter
+func (d *DisplayInstance) SetAgentCounter(count int) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(agentCounterMsg(count))
+	return nil
 }
 
-func SetChunkCounter(current, total int) {
-	if p != nil {
-		p.Send(chunkCounterMsg{current, total})
+
+// SetChunkCounter updates the chunk processing counter
+func (d *DisplayInstance) SetChunkCounter(current, total int) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(chunkCounterMsg{current, total})
+	return nil
 }
 
-func SetDbCounter(current, total int) {
-	if p != nil {
-		p.Send(dbCounterMsg{current, total})
+
+// SetDbCounter updates the database processing counter
+func (d *DisplayInstance) SetDbCounter(current, total int) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(dbCounterMsg{current, total})
+	return nil
 }
+
 
 // Processing Functions (Steps 4-18) - Data transformation and cleanup
-func SetCoordinateCounter(count int) {
-	if p != nil {
-		p.Send(coordinateCounterMsg(count))
+
+// SetCoordinateCounter updates the coordinate counter
+func (d *DisplayInstance) SetCoordinateCounter(count int) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(coordinateCounterMsg(count))
+	return nil
 }
 
-func SetBinCounter(current, total int) {
-	if p != nil {
-		p.Send(binCounterMsg{current, total})
+
+// SetBinCounter updates the bin processing counter
+func (d *DisplayInstance) SetBinCounter(current, total int) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(binCounterMsg{current, total})
+	return nil
 }
 
-func SetAgentBinCounter(count int) {
-	if p != nil {
-		p.Send(agentBinCounterMsg(count))
+
+// SetAgentBinCounter updates the agent bin counter
+func (d *DisplayInstance) SetAgentBinCounter(count int) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(agentBinCounterMsg(count))
+	return nil
 }
 
-func SetScaleCounter(current, total int) {
-	if p != nil {
-		p.Send(scaleCounterMsg{current, total})
+
+// SetScaleCounter updates the scale processing counter
+func (d *DisplayInstance) SetScaleCounter(current, total int) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(scaleCounterMsg{current, total})
+	return nil
 }
 
-func SetOutputScale(scale int) {
-	if p != nil {
-		p.Send(outputScaleMsg(scale))
+
+// SetOutputScale updates the output scale value
+func (d *DisplayInstance) SetOutputScale(scale int) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(outputScaleMsg(scale))
+	return nil
 }
 
-func SetOutputCounter(current, total int) {
-	if p != nil {
-		p.Send(outputCounterMsg{current, total})
+
+// SetOutputCounter updates the output processing counter
+func (d *DisplayInstance) SetOutputCounter(current, total int) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(outputCounterMsg{current, total})
+	return nil
 }
 
-func SetCleanupCounter(files, dirs, bytes int) {
-	if p != nil {
-		p.Send(cleanupCounterMsg{files, dirs, bytes})
+
+// SetCleanupCounter updates the cleanup counter
+func (d *DisplayInstance) SetCleanupCounter(files, dirs, bytes int) error {
+	d.mutex.RLock()
+	defer d.mutex.RUnlock()
+
+	if !d.running || d.program == nil {
+		return fmt.Errorf("display instance is not running")
 	}
+
+	d.program.Send(cleanupCounterMsg{files, dirs, bytes})
+	return nil
 }
+
 
 // Message types for state updates
 type stepMsg int
 type processCompleteMsg bool
 type systemStatsMsg struct {
-	cpu float64
-	ram float64
+	cpu  float64
+	ram  float64
+	disk float64
 }
 type tickMsg struct{}
 type blinkMsg struct{}

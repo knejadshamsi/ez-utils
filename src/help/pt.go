@@ -43,12 +43,13 @@ func PrintPTHelp() {
 }
 
 func makePTUsageSection() string {
-	usageWords := []string{"ez-utils", "pt", "<time-period>", "<gtfs-directory>"}
+	usageWords := []string{"ez-utils", "create", "pt", "<gtfs-directory>", "[time-period]"}
 	styledUsageWords := []string{
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#C51010")).Render(usageWords[0]),
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9900")).Render(usageWords[1]),
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#CCCC00")).Render(usageWords[2]),
+		lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9900")).Render(usageWords[2]),
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#CCCC00")).Render(usageWords[3]),
+		lipgloss.NewStyle().Foreground(lipgloss.Color("#888888")).Render(usageWords[4]),
 	}
 
 	return ptSectionStyle.Render(
@@ -93,8 +94,8 @@ func makePTConfigSection() string {
 
 func makePTTimePeriodsSection() string {
 	periods := []string{
+		ptFlagStyle.Render("work") + ": (default) Selects and processes ONE random day from Monday through Friday",
 		ptFlagStyle.Render("week") + ": Selects and processes ONE random day from Saturday or Sunday",
-		ptFlagStyle.Render("work") + ": Selects and processes ONE random day from Monday through Friday",
 		ptFlagStyle.Render("DD-MM-YY") + ": Processes data for a specific date (e.g., 15-04-25)",
 	}
 
@@ -106,9 +107,10 @@ func makePTTimePeriodsSection() string {
 
 func makePTExamplesSection() string {
 	examples := []string{
-		"ez-utils pt week ./gtfs-data",
-		"ez-utils pt work ./gtfs-data",
-		"ez-utils pt 15-04-25 ./gtfs-data",
+		"ez-utils create pt ./gtfs-data",
+		"ez-utils create pt ./gtfs-data work",
+		"ez-utils create pt ./gtfs-data week",
+		"ez-utils create pt ./gtfs-data 15-04-25",
 	}
 
 	return ptSectionStyle.Render(

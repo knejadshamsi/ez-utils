@@ -1,5 +1,30 @@
 {
   "modules": {
+    "pt": {
+      "steps": {
+        "0": "Valider les fichiers GTFS",
+        "1": "Identifier les modèles de service",
+        "2": "Cartographier les itinéraires de service",
+        "3": "Sélectionner les services",
+        "4": "Collecter les trajets",
+        "5": "Extraire les séquences d'arrêts",
+        "6": "Rassembler les détails des arrêts",
+        "7": "Générer le XML",
+        "8": "Nettoyer les fichiers",
+        "default": "Étape de traitement"
+      },
+      "counters": {
+        "validating_files": "Validation de {file} : {status} [{size}]",
+        "service_patterns": "Trouvé {services} modèles de service [{progress}%]",
+        "route_mapping": "Cartographié {routes} itinéraires avec {mappings} liens de service",
+        "service_selection": "Sélectionné {selected} de {total} services",
+        "trip_collection": "Collecté {trips} trajets [{progress}%]",
+        "stop_sequences": "Traité {sequences} séquences avec {stops} arrêts",
+        "stop_details": "Rassemblé les détails pour {stops} arrêts",
+        "xml_generation": "XML généré [{progress}%] [{size}]",
+        "cleanup": "Nettoyé {files} fichiers, {dirs} répertoires [{bytes} MB]"
+      }
+    },
     "population": {
       "steps": {
         "0": "Créer des chunks de population",
@@ -42,15 +67,16 @@
   "ui": {
     "title_prefix": "[EZ-UTILS]",
     "title_description": " : Réduction d'échelle de la population MATSim ",
-    "time_format": "[TEMPS {minutes:02d}:{seconds:02d}]",
-    "abort_hint": " [Appuyez sur q pour annuler]",
+    "time_format": "[TEMPS ÉCOULÉ {minutes:02d}:{seconds:02d}]",
+    "abort_hint": "[Appuyez sur q pour annuler]",
     "process_complete": "Processus terminé avec succès !",
-    "currently_prefix": "Actuellement"
+    "currently_prefix": "ACTION"
   },
   "system": {
     "label": "SYSTÈME : ",
     "cpu_format": "[CPU : {value}]",
-    "ram_format": "[RAM : {value}]"
+    "ram_format": "[RAM : {value}]",
+    "disk_format": "[DISQUE : {value}]"
   },
   "status": {
     "first_chunk": "premier chunk",
