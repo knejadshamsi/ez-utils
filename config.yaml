@@ -1,0 +1,21 @@
+# Population Scaling Configuration
+# Maximum number of concurrent processing pipelines
+maxConcurrency: 20
+
+# Chunk processing configuration
+personsPerChunk: 250  # Number of persons per processing chunk
+
+# Spatial binning configuration
+binSize: 1000  # Square bin side length in meters
+targetDensity: 100  # Desired average population density per bin
+
+# Database configuration
+database:
+  filename: "population.db"  # SQLite database filename
+  timeout: 30000  # Connection timeout in milliseconds
+
+# Output configuration
+outputPath: "./output"  # Directory for final scaled population files
+
+# Default scales to generate (percentages 1-10, can be overridden via CLI)
+defaultScales: [1, 5, 10]
