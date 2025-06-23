@@ -1,11 +1,11 @@
 package main
 
 import (
-	"ez-utils/src/config"
+	"ez-utils/config"
+	"ez-utils/src/create/pt"
 	"ez-utils/src/help"
 	"ez-utils/src/scale/population"
 	"ez-utils/src/scale/population/processing"
-	"ez-utils/src/create/pt"
 	"fmt"
 	"os"
 	"os/signal"
@@ -14,7 +14,6 @@ import (
 )
 
 func main() {
-	// Check for --new-config flag first (before any config loading)
 	if hasNewConfigFlag() {
 		if err := config.CreateNewConfig(); err != nil {
 			fmt.Printf("Error creating new configuration: %v\n", err)
@@ -42,46 +41,25 @@ func main() {
 	}
 
 	if len(os.Args) < 2 {
-		help.PrintDefaultHelp()
+		help.PrintHelp("", "", cfg)
 		os.Exit(1)
 	}
 
 	command := os.Args[1]
 
-	// Handle help requests
-	if len(os.Args) >= 2 && (command == "--help" || command == "help") {
-		help.PrintDefaultHelp()
+	// Handle general help requests
+	if command == "help" || command == "--help" {
+		help.PrintHelp("", "", cfg)
 		os.Exit(0)
 	}
 
-	// Handle help for specific commands
-	if len(os.Args) >= 3 && os.Args[len(os.Args)-1] == "--help" {
-		if command == "scale" && len(os.Args) >= 4 {
+	// Handle help for specific commands and subcommands
+	if os.Args[len(os.Args)-1] == "--help" {
+		if len(os.Args) > 2 {
 			subcommand := os.Args[2]
-			switch subcommand {
-			case "population":
-				help.PrintPopulationHelp()
-			default:
-				fmt.Printf("Unknown scale subcommand: %s\n", subcommand)
-				help.PrintDefaultHelp()
-			}
-		} else if command == "create" && len(os.Args) >= 4 {
-			subcommand := os.Args[2]
-			switch subcommand {
-			case "pt":
-				help.PrintPTHelp()
-			default:
-				fmt.Printf("Unknown create subcommand: %s\n", subcommand)
-				help.PrintDefaultHelp()
-			}
+			help.PrintHelp(command, subcommand, cfg)
 		} else {
-			switch command {
-			case "network":
-				help.PrintNetworkHelp()
-			default:
-				fmt.Printf("Unknown command: %s\n", command)
-				help.PrintDefaultHelp()
-			}
+			help.PrintHelp(command, "", cfg)
 		}
 		os.Exit(0)
 	}
@@ -107,7 +85,7 @@ func main() {
 			}
 
 			gtfsDir := os.Args[3]
-			
+
 			// Default time period to "work" if not provided
 			timePeriod := "work"
 			if len(os.Args) >= 5 {
@@ -132,7 +110,7 @@ func main() {
 				// TODO: Parse specific date and determine day of week
 				serviceDay = pt.ServiceDayWeekday
 			}
-			
+
 			// Check for clean flag
 			cleanFlag := false
 			for _, arg := range os.Args {
@@ -164,7 +142,7 @@ func main() {
 			go func() {
 				done <- orchestrator.Process()
 			}()
-			
+
 			// Wait for either completion or quit signal
 			for {
 				select {
@@ -217,14 +195,10 @@ func main() {
 				fmt.Printf("Error: Input file does not exist: %s\n", populationFile)
 				os.Exit(1)
 			}
-			// fmt.Printf("DEBUG: Input file validated and exists\n")
 
 			// Create Phase One configuration from loaded config
 			phaseOneConfig := cfg.ToPhaseOneConfig()
-			// fmt.Printf("DEBUG: Phase One config created - Extractors: %d, Mappers: %d\n",
-			//	phaseOneConfig.ExtractorCount, phaseOneConfig.HashMapCount)
 
-			// Queue configuration is now handled internally by PopulationProcessor
 
 			// Create Phase Two configuration
 			phaseTwoConfig := cfg.ToPhaseTwoConfig()
@@ -256,8 +230,6 @@ func main() {
 				os.Exit(1)
 			}
 
-
-
 		default:
 			fmt.Printf("Unknown scale subcommand: %s\n", subcommand)
 			fmt.Println("\nAvailable subcommands:")
@@ -270,11 +242,11 @@ func main() {
 		os.Exit(1)
 
 	case "help":
-		help.PrintDefaultHelp()
+		help.PrintHelp("", "", cfg)
 
 	default:
 		fmt.Printf("Unknown command: %s\n", command)
-		help.PrintDefaultHelp()
+		help.PrintHelp("", "", cfg)
 		os.Exit(1)
 	}
 }
