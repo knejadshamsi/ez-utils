@@ -109,7 +109,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SystemStatsMsg: // Changed to SystemStatsMsg
 		m.CPUUsage = msg.Cpu
 		m.RAMUsage = msg.Ram
-		m.DiskUsage = msg.Disk
+		// m.DiskUsage = msg.Disk // Field removed from SystemStatsMsg
 		return m, nil
 
 	case tea.WindowSizeMsg:

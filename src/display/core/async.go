@@ -305,8 +305,7 @@ func (am *AsyncManager) convertToTeaMessage(msg DisplayMessage) tea.Msg {
 	case MsgTypeSystemStats:
 		cpu, _ := msg.Data["cpu"].(float64)
 		ram, _ := msg.Data["ram"].(float64)
-		disk, _ := msg.Data["disk"].(float64)
-		return tui.SystemStatsMsg{Cpu: cpu, Ram: ram, Disk: disk}
+		return tui.SystemStatsMsg{Cpu: cpu, Ram: ram}
 		
 	default:
 		return tui.CustomMsg{

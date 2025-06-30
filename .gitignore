@@ -1,4 +1,3 @@
-/docs
-/tests
-*.env
-ez-utils
+docs
+build
+test
