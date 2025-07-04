@@ -1,24 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Spin, message, Table, Popconfirm, Typography } from 'antd';
-import { DeleteOutlined, CheckCircleOutlined, SyncOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
-import { GetProcessesByFile, DeleteProcess } from '@wailsjs/go/gui/App';
+import { Modal, Button, Spin, message, Table, Popconfirm, Typography, Alert, Upload, Drawer } from 'antd';
+import { DeleteOutlined, UploadOutlined, BugOutlined } from '@ant-design/icons';
+import { GetProcessesByFile, DeleteProcess, ExitApplication, SelectFile, GetDebugLogs } from '@wailsjs/go/gui/App';
+import useAppStore from '../store/appStore';
 
 const { Text } = Typography;
 
-const WelcomeModal = ({ isVisible, onClose, onNewProcess, onLoadProcess, filePath }) => {
+const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
   const [loading, setLoading] = useState(true);
   const [processes, setProcesses] = useState([]);
-  const [selectedProcess, setSelectedProcess] = useState(null);
+  const [selectedProcessId, setSelectedProcessId] = useState(null);
+  const [dbError, setDbError] = useState(null);
+  const [retrying, setRetrying] = useState(false);
+  const [showDebugDrawer, setShowDebugDrawer] = useState(false);
+  const [debugLogs, setDebugLogs] = useState({ cliLog: '', guiLog: '' });
+  
+  const { filePath, editMode, startupError, setStartupConfig } = useAppStore();
 
   const fetchProcesses = async () => {
     if (!filePath) return;
     setLoading(true);
+    setDbError(null);
     try {
       const data = await GetProcessesByFile(filePath);
       setProcesses(data || []);
     } catch (error) {
       console.error('Error fetching processes:', error);
-      message.error('Failed to load process list.');
+      setDbError('Cannot establish connection with database');
     } finally {
       setLoading(false);
     }
@@ -27,6 +35,8 @@ const WelcomeModal = ({ isVisible, onClose, onNewProcess, onLoadProcess, filePat
   useEffect(() => {
     if (isVisible && filePath) {
       fetchProcesses();
+    } else if (isVisible && !filePath) {
+      setLoading(false);
     }
   }, [isVisible, filePath]);
 
@@ -34,43 +44,70 @@ const WelcomeModal = ({ isVisible, onClose, onNewProcess, onLoadProcess, filePat
     try {
       await DeleteProcess(processId);
       message.success('Process deleted successfully.');
-      fetchProcesses(); // Refresh the list
-      setSelectedProcess(null); // Deselect after deletion
+      fetchProcesses();
+      if (selectedProcessId === processId) {
+        setSelectedProcessId(null);
+      }
     } catch (error) {
       console.error('Error deleting process:', error);
       message.error(`Failed to delete process: ${error}`);
     }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'Completed':
-        return <CheckCircleOutlined style={{ color: 'green' }} />;
-      case 'started':
-      case 'processing':
-        return <SyncOutlined spin style={{ color: 'blue' }} />;
-      default:
-        return <ExclamationCircleOutlined style={{ color: 'red' }} />;
+  const handleClose = async () => {
+    try {
+      await ExitApplication();
+    } catch (error) {
+      console.error('Error exiting application:', error);
+      window.close();
     }
   };
 
+  const handleLoadProcess = () => {
+    const selectedProcess = processes.find(p => p.id === selectedProcessId);
+    if (selectedProcess) {
+      onLoadProcess(selectedProcess);
+    }
+  };
+
+  const handleFileSelect = async () => {
+    try {
+      const selectedPath = await SelectFile();
+      if (selectedPath) {
+        setStartupConfig({ filePath: selectedPath, editMode: editMode || 'Edit Population' });
+        fetchProcesses();
+      }
+    } catch (error) {
+      console.error('Error selecting file:', error);
+      message.error('Failed to select file');
+    }
+  };
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    await fetchProcesses();
+    setRetrying(false);
+  };
+
+  const fetchDebugLogs = async () => {
+    try {
+      const logs = await GetDebugLogs();
+      setDebugLogs(logs);
+      setShowDebugDrawer(true);
+    } catch (error) {
+      message.error('Failed to fetch debug logs');
+    }
+  };
 
   const columns = [
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 120,
-      render: (status) => (
-        <div style={{ textAlign: 'center' }}>
-          {getStatusIcon(status)} {status}
-        </div>
-      )
+      title: '',
+      key: 'checkbox',
+      width: 50,
+      render: () => null,
     },
-    { title: 'Table Name', dataIndex: 'table_name', key: 'table_name' },
-    { title: 'Record Count', dataIndex: 'record_count', key: 'record_count', align: 'center' },
     {
-      title: 'Created At',
+      title: 'Timestamp',
       dataIndex: 'timestamp',
       key: 'timestamp',
       render: (text) => new Date(text).toLocaleString(),
@@ -78,6 +115,7 @@ const WelcomeModal = ({ isVisible, onClose, onNewProcess, onLoadProcess, filePat
     {
       title: 'Action',
       key: 'action',
+      width: 80,
       align: 'center',
       render: (_, record) => (
         <Popconfirm
@@ -87,7 +125,7 @@ const WelcomeModal = ({ isVisible, onClose, onNewProcess, onLoadProcess, filePat
           okText="Yes, Delete"
           cancelText="No"
         >
-          <Button danger icon={<DeleteOutlined />} />
+          <Button danger icon={<DeleteOutlined />} size="small" />
         </Popconfirm>
       ),
     },
@@ -95,71 +133,240 @@ const WelcomeModal = ({ isVisible, onClose, onNewProcess, onLoadProcess, filePat
 
   const rowSelection = {
     type: 'radio',
-    selectedRowKeys: selectedProcess ? [selectedProcess.id] : [],
-    onChange: (_, selectedRows) => setSelectedProcess(selectedRows[0]),
-  };
-
-  const handleLoadProcess = () => {
-    if (selectedProcess) {
-      onLoadProcess(selectedProcess);
-      onClose();
-    }
+    selectedRowKeys: selectedProcessId ? [selectedProcessId] : [],
+    onChange: (selectedRowKeys) => {
+      setSelectedProcessId(selectedRowKeys[0] || null);
+    },
   };
 
   const renderContent = () => {
-    if (loading) {
+    // Scenario 4: Database connection error
+    if (dbError || startupError) {
       return (
-        <div style={{ textAlign: 'center', padding: '32px' }}>
-          <Spin tip="Loading..." />
+        <div style={{ textAlign: 'center' }}>
+          <Alert 
+            message={dbError || startupError} 
+            type="error" 
+            showIcon 
+            style={{ marginBottom: 0 }}
+          />
         </div>
       );
     }
-    if (processes.length === 0) {
+
+    // Scenario 1: No file specified
+    if (!filePath) {
       return (
-        <Text>
-          No previously processed records found for this file. Click "Start New Process" to begin.
-        </Text>
+        <div style={{ textAlign: 'center', padding: '24px 0' }}>
+          <Text style={{ display: 'block', marginBottom: 24, fontSize: '16px' }}>
+            You haven't specified a file yet. To get started please:
+          </Text>
+          <Button 
+            icon={<UploadOutlined />} 
+            size="large"
+            onClick={handleFileSelect}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}
+          >
+            Upload a file
+          </Button>
+        </div>
       );
     }
+
+    // Scenario 2: File path known - First time process
+    if (!loading && processes.length === 0) {
+      return (
+        <>
+          <div style={{ marginBottom: 16 }}>
+            <Text strong>File Path: </Text>
+            <Text code>{filePath}</Text>
+          </div>
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+            <Text style={{ fontSize: '16px' }}>
+              We were not able to find any previous process of this file. You need to{' '}
+              <span style={{ 
+                backgroundColor: '#f0f2f5', 
+                color: '#1890ff', 
+                padding: '2px 8px',
+                borderRadius: '4px',
+                fontWeight: 500
+              }}>
+                start New process
+              </span>
+            </Text>
+          </div>
+        </>
+      );
+    }
+
+    // Scenario 3: File path known - Previous process exists
+    if (!loading && processes.length > 0) {
+      return (
+        <>
+          <div style={{ marginBottom: 16 }}>
+            <Text strong>File Path: </Text>
+            <Text code>{filePath}</Text>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: '16px' }}>
+              We detected previous process of this file, either select to continue editing or start a new process
+            </Text>
+          </div>
+          <Table
+            columns={columns}
+            dataSource={processes}
+            rowKey="id"
+            rowSelection={rowSelection}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: false,
+              showTotal: (total) => `Total ${total} processes`,
+            }}
+            size="small"
+            onRow={(record) => ({
+              onClick: () => setSelectedProcessId(record.id),
+            })}
+          />
+        </>
+      );
+    }
+
+    // Loading state
     return (
-      <Table
-        columns={columns}
-        dataSource={processes}
-        rowKey="id"
-        rowSelection={rowSelection}
-        pagination={false}
-        onRow={(record) => ({
-          onClick: () => setSelectedProcess(record),
-        })}
-      />
+      <div style={{ textAlign: 'center', padding: '32px' }}>
+        <Spin tip="Loading processes..." />
+      </div>
     );
   };
 
-  return (
-    <Modal
-      title={`Select a Process (${Math.random().toString(36).substring(7)})`}
-      open={isVisible}
-      onCancel={onClose}
-      width={800}
-      footer={[
-        <Button key="exit" onClick={() => window.close()}>
-          Exit
+  const renderFooter = () => {
+    // Scenario 4: Database error - only Cancel and Retry
+    if (dbError || startupError) {
+      return [
+        <Button key="cancel" onClick={handleClose}>
+          Cancel
+        </Button>,
+        <Button key="retry" type="primary" onClick={handleRetry} loading={retrying}>
+          Retry
+        </Button>,
+      ];
+    }
+
+    // Scenario 1: No file - no footer buttons
+    if (!filePath) {
+      return null;
+    }
+
+    // Scenario 2: First time - Cancel and Start New Process
+    if (!loading && processes.length === 0) {
+      return [
+        <Button key="cancel" onClick={handleClose}>
+          Cancel
+        </Button>,
+        <Button key="new" type="primary" onClick={onNewProcess}>
+          Start New Process
+        </Button>,
+      ];
+    }
+
+    // Scenario 3: Has processes - all three buttons
+    if (!loading && processes.length > 0) {
+      return [
+        <Button key="cancel" onClick={handleClose}>
+          Cancel
         </Button>,
         <Button key="new" onClick={onNewProcess}>
           Start New Process
         </Button>,
         <Button
-          key="load"
+          key="continue"
           type="primary"
-          disabled={!selectedProcess}
+          disabled={!selectedProcessId}
           onClick={handleLoadProcess}
         >
-          Load Selected Process
+          Continue Last
         </Button>,
-      ]}
-    >
-      {renderContent()}
-    </Modal>
+      ];
+    }
+
+    // Loading state - no buttons
+    return null;
+  };
+
+  return (
+    <>
+      <Modal
+        title={
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Welcome To Ez-utils Population Edit v3</span>
+            <Button 
+              icon={<BugOutlined />} 
+              size="small" 
+              onClick={fetchDebugLogs}
+              style={{ marginRight: 40 }}
+            >
+              Debug Logs
+            </Button>
+          </div>
+        }
+        open={isVisible}
+        onCancel={handleClose}
+        width={600}
+        footer={renderFooter()}
+        maskClosable={false}
+        closable={true}
+        centered
+        bodyStyle={{ padding: '24px' }}
+      >
+        {renderContent()}
+      </Modal>
+      
+      <Drawer
+        title="Debug Logs"
+        placement="right"
+        width={800}
+        onClose={() => setShowDebugDrawer(false)}
+        open={showDebugDrawer}
+      >
+        <div style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+          <h3>CLI Log (ez-utils.log):</h3>
+          <pre style={{ 
+            backgroundColor: '#f5f5f5', 
+            padding: '10px', 
+            borderRadius: '4px',
+            maxHeight: '300px',
+            overflow: 'auto'
+          }}>
+            {debugLogs.cliLog || 'No CLI logs available'}
+          </pre>
+          
+          <h3 style={{ marginTop: '20px' }}>GUI Log (ez-utils-gui.log):</h3>
+          <pre style={{ 
+            backgroundColor: '#f5f5f5', 
+            padding: '10px', 
+            borderRadius: '4px',
+            maxHeight: '300px',
+            overflow: 'auto'
+          }}>
+            {debugLogs.guiLog || 'No GUI logs available'}
+          </pre>
+          
+          <h3 style={{ marginTop: '20px' }}>Current Configuration:</h3>
+          <pre style={{ 
+            backgroundColor: '#f5f5f5', 
+            padding: '10px', 
+            borderRadius: '4px'
+          }}>
+            {JSON.stringify({ filePath, editMode, startupError }, null, 2)}
+          </pre>
+        </div>
+      </Drawer>
+    </>
   );
 };
 

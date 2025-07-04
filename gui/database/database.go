@@ -3,8 +3,10 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -43,6 +45,30 @@ func InitDB(dataSourceName string) error {
 		return fmt.Errorf("failed to create status table: %w", err)
 	}
 
+	// Create telemetry table
+	createTelemetryTableSQL := `
+		CREATE TABLE IF NOT EXISTS process_telemetry (
+			process_id INTEGER PRIMARY KEY,
+			total_file_size INTEGER NOT NULL,
+			bytes_read INTEGER DEFAULT 0,
+			persons_extracted INTEGER DEFAULT 0,
+			last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (process_id) REFERENCES processes(id) ON DELETE CASCADE
+		);`
+	_, err = db.Exec(createTelemetryTableSQL)
+	if err != nil {
+		return fmt.Errorf("failed to create telemetry table: %w", err)
+	}
+	
+	// Add error_count column if it doesn't exist (migration)
+	addErrorCountSQL := `
+		ALTER TABLE process_telemetry ADD COLUMN error_count INTEGER DEFAULT 0;`
+	_, err = db.Exec(addErrorCountSQL)
+	// Ignore error if column already exists
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		log.Printf("Note: error_count column may already exist: %v", err)
+	}
+
 	return nil
 }
 
@@ -74,6 +100,13 @@ type Person struct {
 	ID     string `json:"id"`
 	Coords string `json:"coords"` // "x,y"
 	RawXML string `json:"raw_xml"`
+}
+
+// PersonData holds the extracted information for a single person (used by processor)
+type PersonData struct {
+	ID     string
+	Coords string // "x,y"
+	RawXML string
 }
 
 // CreateTable creates a new table for population data if it doesn't already exist.
@@ -294,4 +327,69 @@ func scanProcesses(rows *sql.Rows) ([]Process, error) {
 		processes = append(processes, p)
 	}
 	return processes, nil
+}
+
+// InitializeTelemetry creates an initial telemetry record for a process
+func InitializeTelemetry(processID int, totalFileSize int64) error {
+	query := `INSERT INTO process_telemetry (process_id, total_file_size, bytes_read, persons_extracted) 
+		  VALUES (?, ?, 0, 0)`
+	_, err := db.Exec(query, processID, totalFileSize)
+	if err != nil {
+		return fmt.Errorf("failed to initialize telemetry for process %d: %w", processID, err)
+	}
+	return nil
+}
+
+// UpdateTelemetry updates the telemetry data for a process
+func UpdateTelemetry(processID int, bytesRead, personsExtracted, errorCount int64) error {
+	query := `UPDATE process_telemetry 
+		  SET bytes_read = ?, persons_extracted = ?, error_count = ?, last_updated = CURRENT_TIMESTAMP 
+		  WHERE process_id = ?`
+	_, err := db.Exec(query, bytesRead, personsExtracted, errorCount, processID)
+	if err != nil {
+		return fmt.Errorf("failed to update telemetry for process %d: %w", processID, err)
+	}
+	return nil
+}
+
+// ProcessTelemetry represents telemetry data for a process
+type ProcessTelemetry struct {
+	ProcessID        int       `json:"process_id"`
+	TotalFileSize    int64     `json:"total_file_size"`
+	BytesRead        int64     `json:"bytes_read"`
+	PersonsExtracted int64     `json:"persons_extracted"`
+	ErrorCount       int64     `json:"error_count"`
+	LastUpdated      time.Time `json:"last_updated"`
+}
+
+// GetTelemetry retrieves telemetry data for a specific process
+func GetTelemetry(processID int) (*ProcessTelemetry, error) {
+	var telemetry ProcessTelemetry
+	var lastUpdatedStr string
+	query := `SELECT process_id, total_file_size, bytes_read, persons_extracted, 
+		  COALESCE(error_count, 0) as error_count, last_updated 
+		  FROM process_telemetry WHERE process_id = ?`
+	err := db.QueryRow(query, processID).Scan(
+		&telemetry.ProcessID,
+		&telemetry.TotalFileSize,
+		&telemetry.BytesRead,
+		&telemetry.PersonsExtracted,
+		&telemetry.ErrorCount,
+		&lastUpdatedStr,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("telemetry not found for process %d", processID)
+		}
+		return nil, fmt.Errorf("failed to get telemetry for process %d: %w", processID, err)
+	}
+	
+	// Parse the timestamp string into time.Time
+	telemetry.LastUpdated, err = time.Parse("2006-01-02 15:04:05", lastUpdatedStr)
+	if err != nil {
+		// If parsing fails, use current time as fallback
+		telemetry.LastUpdated = time.Now()
+	}
+	
+	return &telemetry, nil
 }

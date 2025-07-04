@@ -10,14 +10,24 @@ export function DeletePerson(arg1:string,arg2:string):Promise<Record<string, str
 
 export function DeleteProcess(arg1:number):Promise<void>;
 
+export function ExitApplication():Promise<void>;
+
+export function GetDebugLogs():Promise<Record<string, string>>;
+
 export function GetPopulation(arg1:string):Promise<Array<database.Person>>;
+
+export function GetProcessTelemetry(arg1:number):Promise<database.ProcessTelemetry>;
 
 export function GetProcesses():Promise<Array<database.Process>>;
 
 export function GetProcessesByFile(arg1:string):Promise<Array<database.Process>>;
 
+export function GetStartupConfig():Promise<Record<string, any>>;
+
 export function GetStartupFile():Promise<string>;
 
-export function ProcessFile(arg1:string):Promise<Record<string, any>>;
+export function ProcessPopulationFile(arg1:string):Promise<Record<string, any>>;
+
+export function SelectFile():Promise<string>;
 
 export function UpdatePersonPlan(arg1:string,arg2:string,arg3:string):Promise<Record<string, string>>;

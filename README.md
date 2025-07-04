@@ -1,10 +1,10 @@
 ## Building
 
-To build a redistributable, production mode package, use `wails build -tags=build,production,webkit2_41`.
+To build a redistributable, production mode package, use `wails build -tags=wails,production,webkit2_41`.
 
 
 ## TO INSTALL
-To install user `go install -tags=build,production,webkit2_41`
+To install user `go install -tags=wails,production,webkit2_41`
 
 to test application you must
 1. build the application
@@ -14,10 +14,20 @@ to test application you must
 
 
 
-first run wails build -tags=build,production,webkit2_41
-then run go install -tags=build,production,webkit2_41
-then test
+first run wails build -tags=wails,production,webkit2_41
+then run go install -tags=wails,production,webkit2_41
+then test: cd test && ez-utils edit popultation test_pop.xml
 
 
+# Clean build to ensure fresh bindings
+  wails build -clean -tags=wails,production,webkit2_41
 
-wails build -tags="build,production,webkit2_41" -nopackage -clean -dryrun
+  # Install
+  go install -tags=wails,production,webkit2_41
+
+  # Test CLI commands (should NOT launch GUI)
+  ez-utils scale
+  ez-utils create
+
+  # Test GUI command (should launch GUI)
+  ez-utils edit population test_pop.xml

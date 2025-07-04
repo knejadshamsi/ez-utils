@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-const MapView = () => {
+const MapView = ({ populationData = [] }) => {
   const mapContainer = useRef(null);
   const map = useRef(null);
 

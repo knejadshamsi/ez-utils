@@ -18,8 +18,20 @@ export function DeleteProcess(arg1) {
   return window['go']['gui']['App']['DeleteProcess'](arg1);
 }
 
+export function ExitApplication() {
+  return window['go']['gui']['App']['ExitApplication']();
+}
+
+export function GetDebugLogs() {
+  return window['go']['gui']['App']['GetDebugLogs']();
+}
+
 export function GetPopulation(arg1) {
   return window['go']['gui']['App']['GetPopulation'](arg1);
+}
+
+export function GetProcessTelemetry(arg1) {
+  return window['go']['gui']['App']['GetProcessTelemetry'](arg1);
 }
 
 export function GetProcesses() {
@@ -30,12 +42,20 @@ export function GetProcessesByFile(arg1) {
   return window['go']['gui']['App']['GetProcessesByFile'](arg1);
 }
 
+export function GetStartupConfig() {
+  return window['go']['gui']['App']['GetStartupConfig']();
+}
+
 export function GetStartupFile() {
   return window['go']['gui']['App']['GetStartupFile']();
 }
 
-export function ProcessFile(arg1) {
-  return window['go']['gui']['App']['ProcessFile'](arg1);
+export function ProcessPopulationFile(arg1) {
+  return window['go']['gui']['App']['ProcessPopulationFile'](arg1);
+}
+
+export function SelectFile() {
+  return window['go']['gui']['App']['SelectFile']();
 }
 
 export function UpdatePersonPlan(arg1, arg2, arg3) {
