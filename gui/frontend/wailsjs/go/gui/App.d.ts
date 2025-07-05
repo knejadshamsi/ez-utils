@@ -4,6 +4,8 @@ import {database} from '../models';
 
 export function AddPerson(arg1:string,arg2:Record<string, any>):Promise<Record<string, any>>;
 
+export function BatchUpdatePersons(arg1:string,arg2:Array<Record<string, any>>):Promise<void>;
+
 export function CheckProcessingStatus(arg1:number):Promise<string>;
 
 export function DeletePerson(arg1:string,arg2:string):Promise<Record<string, string>>;
@@ -14,7 +16,11 @@ export function ExitApplication():Promise<void>;
 
 export function GetDebugLogs():Promise<Record<string, string>>;
 
+export function GetPerson(arg1:string,arg2:string):Promise<database.Person>;
+
 export function GetPopulation(arg1:string):Promise<Array<database.Person>>;
+
+export function GetPopulationByBbox(arg1:string,arg2:number,arg3:number,arg4:number,arg5:number):Promise<Array<database.Person>>;
 
 export function GetProcessTelemetry(arg1:number):Promise<database.ProcessTelemetry>;
 
@@ -30,4 +36,4 @@ export function ProcessPopulationFile(arg1:string):Promise<Record<string, any>>;
 
 export function SelectFile():Promise<string>;
 
-export function UpdatePersonPlan(arg1:string,arg2:string,arg3:string):Promise<Record<string, string>>;
+export function UpdatePersonPlan(arg1:string,arg2:string,arg3:string):Promise<database.Person>;

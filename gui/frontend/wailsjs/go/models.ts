@@ -20,6 +20,7 @@ export namespace database {
 	    id: number;
 	    file_path: string;
 	    status: string;
+	    edit_mode: string;
 	    timestamp: string;
 	    table_name: string;
 	    record_count: number;
@@ -33,6 +34,7 @@ export namespace database {
 	        this.id = source["id"];
 	        this.file_path = source["file_path"];
 	        this.status = source["status"];
+	        this.edit_mode = source["edit_mode"];
 	        this.timestamp = source["timestamp"];
 	        this.table_name = source["table_name"];
 	        this.record_count = source["record_count"];

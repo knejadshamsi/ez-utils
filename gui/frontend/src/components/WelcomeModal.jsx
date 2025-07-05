@@ -22,8 +22,15 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
     setLoading(true);
     setDbError(null);
     try {
+      // For now, we get all processes but filter by edit mode on frontend
+      // TODO: Update backend to accept editMode parameter
       const data = await GetProcessesByFile(filePath);
-      setProcesses(data || []);
+      // Filter processes by current edit mode
+      // For backward compatibility, treat null/undefined edit_mode as 'population'
+      const filteredData = editMode ? 
+        (data || []).filter(p => (p.edit_mode || 'population') === editMode) : 
+        (data || []);
+      setProcesses(filteredData);
     } catch (error) {
       console.error('Error fetching processes:', error);
       setDbError('Cannot establish connection with database');
@@ -74,7 +81,7 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
     try {
       const selectedPath = await SelectFile();
       if (selectedPath) {
-        setStartupConfig({ filePath: selectedPath, editMode: editMode || 'Edit Population' });
+        setStartupConfig({ filePath: selectedPath, editMode: editMode || 'population' });
         fetchProcesses();
       }
     } catch (error) {
@@ -303,7 +310,7 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
       <Modal
         title={
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Welcome To Ez-utils Population Edit v3</span>
+            <span>Welcome To Ez-utils {editMode ? editMode.charAt(0).toUpperCase() + editMode.slice(1) : 'Population'} Edit v3</span>
             <Button 
               icon={<BugOutlined />} 
               size="small" 

@@ -60,14 +60,23 @@ func main() {
 			
 			// Check for valid edit subcommands
 			switch args[1] {
-			case "population":
+			case "population", "network", "pt", "transit", "public transportation":
 				if len(args) < 3 {
-					fmt.Println("Error: edit population requires a file path")
-					log.Printf("Invalid edit population command - missing file path")
+					fmt.Printf("Error: edit %s requires a file path\n", args[1])
+					log.Printf("Invalid edit %s command - missing file path", args[1])
 					os.Exit(1)
 				}
 				
-				editMode := "Edit Population"
+				var editMode string
+				switch args[1] {
+				case "population":
+					editMode = "population"
+				case "network":
+					editMode = "network"
+				case "pt", "transit", "public transportation":
+					editMode = "public transportation"
+				}
+				
 				startupFile := args[2]
 				
 				log.Printf("Original file path: %s", startupFile)
@@ -106,7 +115,7 @@ func main() {
 				return
 				
 			default:
-				fmt.Printf("Error: Unknown edit subcommand '%s'. Available: population\n", args[1])
+				fmt.Printf("Error: Unknown edit subcommand '%s'. Available: population, network, pt/transit/public transportation\n", args[1])
 				log.Printf("Invalid edit subcommand: %s", args[1])
 				os.Exit(1)
 			}

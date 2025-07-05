@@ -27,8 +27,20 @@ func RunEdit() {
 	log.Printf("RunEdit called with args: %v", args)
 	log.Printf("Full os.Args: %v", os.Args)
 
-	if len(args) >= 3 && args[0] == "edit" && args[1] == "population" {
-		editMode = "Edit Population"
+	if len(args) >= 3 && args[0] == "edit" {
+		switch args[1] {
+		case "population":
+			editMode = "population"
+		case "network":
+			editMode = "network"
+		case "pt", "transit", "public transportation":
+			editMode = "public transportation"
+		default:
+			errMsg := fmt.Sprintf("Error: Unknown edit mode: %s", args[1])
+			log.Printf(errMsg)
+			fmt.Println(errMsg)
+			os.Exit(1)
+		}
 		startupFile = args[2]
 		
 		log.Printf("Original file path: %s", startupFile)

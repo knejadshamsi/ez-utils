@@ -6,6 +6,10 @@ export function AddPerson(arg1, arg2) {
   return window['go']['gui']['App']['AddPerson'](arg1, arg2);
 }
 
+export function BatchUpdatePersons(arg1, arg2) {
+  return window['go']['gui']['App']['BatchUpdatePersons'](arg1, arg2);
+}
+
 export function CheckProcessingStatus(arg1) {
   return window['go']['gui']['App']['CheckProcessingStatus'](arg1);
 }
@@ -26,8 +30,16 @@ export function GetDebugLogs() {
   return window['go']['gui']['App']['GetDebugLogs']();
 }
 
+export function GetPerson(arg1, arg2) {
+  return window['go']['gui']['App']['GetPerson'](arg1, arg2);
+}
+
 export function GetPopulation(arg1) {
   return window['go']['gui']['App']['GetPopulation'](arg1);
+}
+
+export function GetPopulationByBbox(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['gui']['App']['GetPopulationByBbox'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function GetProcessTelemetry(arg1) {

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, message } from 'antd';
+import { Layout, message, Button } from 'antd';
 import { GetStartupConfig, ProcessPopulationFile, CheckProcessingStatus, GetPopulation } from '@wailsjs/go/gui/App';
 import './App.css';
 import WelcomeModal from './components/WelcomeModal';
 import LoadingModal from './components/LoadingModal';
 import MapView from './components/MapView';
+import PersonDrawer from './components/PersonDrawer';
+import PlanDrawer from './components/PlanDrawer';
 import useAppStore from './store/appStore';
 
 const { Header: AntHeader, Content } = Layout;
@@ -19,10 +21,12 @@ function App() {
     setSelectedProcess,
     filePath,
     editMode,
+    setEditMode,
     selectedProcess,
     currentTableName,
     startTelemetryPolling,
-    stopTelemetryPolling
+    stopTelemetryPolling,
+    selectedPerson
   } = useAppStore();
 
   const [populationData, setPopulationData] = useState([]);
@@ -66,18 +70,27 @@ function App() {
           
           if (status === 'Completed') {
             stopTelemetryPolling();
-            setShowLoadingModal(false);
-            message.success('Process completed successfully!');
             
-            // Set the selected process
+            // Set the selected process with edit mode
             setSelectedProcess({
               id: processId,
               table_name: `population_data_${processId}`,
-              status: 'Completed'
+              status: 'Completed',
+              edit_mode: editMode
             });
             
-            // Load the data
-            await loadPopulationData(`population_data_${processId}`);
+            // Load the data first
+            try {
+              await loadPopulationData(`population_data_${processId}`);
+              // Close modal after data is loaded
+              setShowLoadingModal(false);
+              message.success('Process completed successfully!');
+            } catch (error) {
+              console.error('Error loading data after process completion:', error);
+              setShowLoadingModal(false);
+              message.error('Process completed but failed to load data');
+            }
+            return; // Stop polling
           } else if (status.includes('failed') || status.includes('error')) {
             stopTelemetryPolling();
             setShowLoadingModal(false);
@@ -115,6 +128,9 @@ function App() {
     setShowLoadingModal(true, 'Loading process data...');
     setSelectedProcess(process);
     
+    // Set edit mode from the process
+    setEditMode(process.edit_mode || 'population');
+    
     try {
       await loadPopulationData(process.table_name);
       setShowLoadingModal(false);
@@ -130,6 +146,8 @@ function App() {
     try {
       const data = await GetPopulation(tableName);
       setPopulationData(data || []);
+      // Set persons data in the store for map visualization
+      useAppStore.getState().setPersons(data || []);
       message.success(`Loaded ${data.length} records`);
     } catch (error) {
       console.error("Error loading population data:", error);
@@ -143,15 +161,25 @@ function App() {
     setShowWelcomeModal(true);
   };
 
-  const headerTitle = editMode || 'EZ-Utils GUI';
+  const headerTitle = editMode ? `EZ-Utils - ${editMode.charAt(0).toUpperCase() + editMode.slice(1)} Editor` : 'EZ-Utils GUI';
+
+  const handleExit = () => {
+    window.location.reload();
+  };
 
   return (
     <Layout style={{ height: '100%' }}>
-      <AntHeader style={{ display: 'flex', alignItems: 'center', backgroundColor: '#001529' }}>
+      <AntHeader style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#001529' }}>
         <div style={{ color: 'white', fontSize: '20px' }}>{headerTitle}</div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button onClick={() => console.log('Settings')}>Settings</Button>
+          <Button onClick={handleExit} danger>Exit</Button>
+        </div>
       </AntHeader>
       <Content style={{ position: 'relative', padding: 0, flexGrow: 1 }}>
         <MapView populationData={populationData} />
+        {editMode === 'population' && selectedProcess?.table_name && <PersonDrawer />}
+        {selectedPerson && <PlanDrawer />}
         <WelcomeModal
           isVisible={showWelcomeModal}
           onNewProcess={handleNewProcess}

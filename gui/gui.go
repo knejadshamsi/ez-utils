@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"regexp"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -23,7 +24,7 @@ var assets embed.FS
 type App struct {
 	ctx         context.Context
 	StartupFile string
-	EditMode    string // "Edit Population", "Edit Network", "Edit Transit"
+	EditMode    string // "population", "network", "public transportation"
 }
 
 // NewApp creates a new App application struct
@@ -56,7 +57,7 @@ func (a *App) ProcessPopulationFile(filePath string) (map[string]interface{}, er
 		return nil, fmt.Errorf("file path cannot be empty")
 	}
 
-	processID, err := database.CreateProcess(filePath)
+	processID, err := database.CreateProcess(filePath, a.EditMode)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create process record: %w", err)
 	}
@@ -105,6 +106,11 @@ func (a *App) GetPopulation(tableName string) ([]database.Person, error) {
 	return database.GetPopulationData(tableName)
 }
 
+// GetPerson retrieves a single person by ID
+func (a *App) GetPerson(tableName string, personId string) (*database.Person, error) {
+	return database.GetPerson(tableName, personId)
+}
+
 // AddPerson adds a new person to a population table.
 func (a *App) AddPerson(tableName string, person map[string]interface{}) (map[string]interface{}, error) {
 	if err := database.AddPerson(tableName, person); err != nil {
@@ -113,13 +119,83 @@ func (a *App) AddPerson(tableName string, person map[string]interface{}) (map[st
 	return person, nil
 }
 
-// UpdatePersonPlan handles updating a person's plan XML.
-func (a *App) UpdatePersonPlan(tableName string, personId string, planXML string) (map[string]string, error) {
+// UpdatePersonPlan handles updating a person's plan XML and returns the updated person.
+func (a *App) UpdatePersonPlan(tableName string, personId string, planXML string) (*database.Person, error) {
+	log.Printf("UpdatePersonPlan called for person %s in table %s", personId, tableName)
+	log.Printf("XML content (first 500 chars): %s", planXML[:min(500, len(planXML))])
+	
 	err := database.UpdatePersonXML(tableName, personId, planXML)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update person plan: %w", err)
 	}
-	return map[string]string{"message": "Plan updated successfully"}, nil
+	
+	// Extract and update coordinates from the updated XML
+	coords := extractCoordsFromXML(planXML)
+	log.Printf("Extracted coordinates for person %s: %s", personId, coords)
+	
+	if coords != "" {
+		err = database.UpdatePersonCoords(tableName, personId, coords)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update person coordinates: %w", err)
+		}
+		log.Printf("Successfully updated coordinates for person %s to %s", personId, coords)
+	} else {
+		log.Printf("No coordinates found in XML for person %s", personId)
+	}
+	
+	// Fetch and return the updated person
+	updatedPerson, err := database.GetPerson(tableName, personId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch updated person: %w", err)
+	}
+	
+	return updatedPerson, nil
+}
+
+// BatchUpdatePersons handles batch updating multiple persons in a single transaction
+func (a *App) BatchUpdatePersons(tableName string, updates []map[string]interface{}) error {
+	log.Printf("BatchUpdatePersons called for %d persons in table %s", len(updates), tableName)
+	
+	// Convert map updates to PersonUpdate structs
+	var personUpdates []database.PersonUpdate
+	for _, update := range updates {
+		id, ok := update["id"].(string)
+		if !ok {
+			return fmt.Errorf("missing or invalid id in update")
+		}
+		
+		coords, ok := update["coords"].(string)
+		if !ok {
+			return fmt.Errorf("missing or invalid coords in update for person %s", id)
+		}
+		
+		rawXML, ok := update["raw_xml"].(string)
+		if !ok {
+			return fmt.Errorf("missing or invalid raw_xml in update for person %s", id)
+		}
+		
+		personUpdates = append(personUpdates, database.PersonUpdate{
+			ID:     id,
+			Coords: coords,
+			RawXML: rawXML,
+		})
+	}
+	
+	// Execute batch update
+	err := database.BatchUpdatePersons(tableName, personUpdates)
+	if err != nil {
+		return fmt.Errorf("failed to batch update persons: %w", err)
+	}
+	
+	log.Printf("Successfully batch updated %d persons", len(personUpdates))
+	return nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // DeletePerson handles deleting a person's record.
@@ -129,6 +205,28 @@ func (a *App) DeletePerson(tableName string, personId string) (map[string]string
 		return nil, fmt.Errorf("failed to delete person: %w", err)
 	}
 	return map[string]string{"message": "Person deleted successfully"}, nil
+}
+
+// extractCoordsFromXML extracts coordinates from the first activity in person XML
+func extractCoordsFromXML(xmlStr string) string {
+	// Updated regex to handle both self-closing and non-self-closing tags
+	// Looking for pattern like: <activity ... x="123.456" ... y="789.012" ... /> or <activity ... x="123.456" ... y="789.012" ... >
+	activityPattern := regexp.MustCompile(`<activity[^>]*\sx="([^"]+)"[^>]*\sy="([^"]+)"[^>]*(?:/>|>)`)
+	matches := activityPattern.FindStringSubmatch(xmlStr)
+	
+	if len(matches) >= 3 {
+		return fmt.Sprintf("%s,%s", matches[1], matches[2])
+	}
+	
+	// Try reverse order (y before x)
+	activityPatternReverse := regexp.MustCompile(`<activity[^>]*\sy="([^"]+)"[^>]*\sx="([^"]+)"[^>]*(?:/>|>)`)
+	matches = activityPatternReverse.FindStringSubmatch(xmlStr)
+	
+	if len(matches) >= 3 {
+		return fmt.Sprintf("%s,%s", matches[2], matches[1])
+	}
+	
+	return ""
 }
 
 // processPopulationFile processes a population XML file using the new processor module
@@ -254,6 +352,11 @@ func (a *App) SelectFile() (string, error) {
 	}
 	
 	return filePath, nil
+}
+
+// GetPopulationByBbox retrieves population data within a bounding box
+func (a *App) GetPopulationByBbox(tableName string, minLat, minLng, maxLat, maxLng float64) ([]database.Person, error) {
+	return database.GetPopulationByBbox(tableName, minLat, minLng, maxLat, maxLng)
 }
 
 // Run creates and runs the Wails application.

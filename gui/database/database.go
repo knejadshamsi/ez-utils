@@ -38,12 +38,18 @@ func InitDB(dataSourceName string) error {
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
 				file_path TEXT NOT NULL,
 				status TEXT NOT NULL,
+				edit_mode TEXT DEFAULT 'population',
 				timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 			);`
 	_, err = db.Exec(createStatusTableSQL)
 	if err != nil {
 		return fmt.Errorf("failed to create status table: %w", err)
 	}
+	
+	// Add edit_mode column if it doesn't exist (migration for existing databases)
+	addEditModeSQL := `ALTER TABLE processes ADD COLUMN edit_mode TEXT DEFAULT 'population';`
+	_, err = db.Exec(addEditModeSQL)
+	// Ignore error if column already exists
 
 	// Create telemetry table
 	createTelemetryTableSQL := `
@@ -150,6 +156,56 @@ func GetPopulationData(tableName string) ([]Person, error) {
 	return people, nil
 }
 
+// GetPopulationByBbox retrieves population data within a bounding box
+func GetPopulationByBbox(tableName string, minLat, minLng, maxLat, maxLng float64) ([]Person, error) {
+	query := fmt.Sprintf(`
+		SELECT id, coords, raw_xml 
+		FROM %s
+		WHERE CAST(SUBSTR(coords, 1, INSTR(coords, ',') - 1) AS REAL) BETWEEN ? AND ?
+		AND CAST(SUBSTR(coords, INSTR(coords, ',') + 1) AS REAL) BETWEEN ? AND ?
+	`, tableName)
+	
+	rows, err := db.Query(query, minLng, maxLng, minLat, maxLat)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query population data by bbox: %w", err)
+	}
+	defer rows.Close()
+	
+	var persons []Person
+	for rows.Next() {
+		var p Person
+		err := rows.Scan(&p.ID, &p.Coords, &p.RawXML)
+		if err != nil {
+			log.Printf("failed to scan person data: %v", err)
+			continue
+		}
+		persons = append(persons, p)
+	}
+	
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("failed to iterate over population data: %w", err)
+	}
+	
+	return persons, nil
+}
+
+// GetPerson retrieves a single person by ID from the specified table
+func GetPerson(tableName, personID string) (*Person, error) {
+	// IMPORTANT: The caller is responsible for sanitizing tableName to prevent SQL injection.
+	query := fmt.Sprintf("SELECT id, coords, raw_xml FROM %s WHERE id = ?", tableName)
+	
+	var p Person
+	err := db.QueryRow(query, personID).Scan(&p.ID, &p.Coords, &p.RawXML)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("person %s not found in %s", personID, tableName)
+		}
+		return nil, fmt.Errorf("failed to get person %s from %s: %w", personID, tableName, err)
+	}
+	
+	return &p, nil
+}
+
 // UpdatePersonXML updates the raw_xml for a specific person in a given table.
 func UpdatePersonXML(tableName, personID, rawXML string) error {
 	// IMPORTANT: The caller is responsible for sanitizing tableName to prevent SQL injection.
@@ -169,6 +225,45 @@ func UpdatePersonCoords(tableName, personID, coords string) error {
 	if err != nil {
 		return fmt.Errorf("failed to update person coords in %s for person %s: %w", tableName, personID, err)
 	}
+	return nil
+}
+
+// BatchUpdatePersons updates multiple persons in a single transaction
+type PersonUpdate struct {
+	ID      string
+	Coords  string
+	RawXML  string
+}
+
+func BatchUpdatePersons(tableName string, updates []PersonUpdate) error {
+	// Begin transaction
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	// Prepare update statement
+	query := fmt.Sprintf("UPDATE %s SET raw_xml = ?, coords = ? WHERE id = ?", tableName)
+	stmt, err := tx.Prepare(query)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	// Execute updates
+	for _, update := range updates {
+		_, err := stmt.Exec(update.RawXML, update.Coords, update.ID)
+		if err != nil {
+			return fmt.Errorf("failed to update person %s: %w", update.ID, err)
+		}
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	return nil
 }
 
@@ -243,6 +338,7 @@ type Process struct {
 	ID          int    `json:"id"`
 	FilePath    string `json:"file_path"`
 	Status      string `json:"status"`
+	EditMode    string `json:"edit_mode"`
 	Timestamp   string `json:"timestamp"`
 	TableName   string `json:"table_name"`
 	RecordCount int    `json:"record_count"`
@@ -250,7 +346,7 @@ type Process struct {
 
 // GetProcessesByFile retrieves all process records for a specific file path.
 func GetProcessesByFile(filePath string) ([]Process, error) {
-	rows, err := db.Query("SELECT id, file_path, status, timestamp FROM processes WHERE file_path = ? ORDER BY timestamp DESC", filePath)
+	rows, err := db.Query("SELECT id, file_path, status, COALESCE(edit_mode, 'population') as edit_mode, timestamp FROM processes WHERE file_path = ? ORDER BY timestamp DESC", filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query processes for file %s: %w", filePath, err)
 	}
@@ -269,9 +365,12 @@ func DeleteProcess(processID int) error {
 }
 
 // CreateProcess creates a new process record and returns its ID.
-func CreateProcess(filePath string) (int, error) {
-	query := "INSERT INTO processes (file_path, status) VALUES (?, ?)"
-	result, err := db.Exec(query, filePath, "started")
+func CreateProcess(filePath string, editMode string) (int, error) {
+	if editMode == "" {
+		editMode = "population"
+	}
+	query := "INSERT INTO processes (file_path, status, edit_mode) VALUES (?, ?, ?)"
+	result, err := db.Exec(query, filePath, "started", editMode)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create process: %w", err)
 	}
@@ -307,11 +406,19 @@ func scanProcesses(rows *sql.Rows) ([]Process, error) {
 	var processes []Process
 	for rows.Next() {
 		var p Process
-		if err := rows.Scan(&p.ID, &p.FilePath, &p.Status, &p.Timestamp); err != nil {
+		if err := rows.Scan(&p.ID, &p.FilePath, &p.Status, &p.EditMode, &p.Timestamp); err != nil {
 			return nil, fmt.Errorf("failed to scan process row: %w", err)
 		}
 
-		p.TableName = fmt.Sprintf("population_data_%d", p.ID)
+		// Determine table name based on edit mode
+		switch p.EditMode {
+		case "network":
+			p.TableName = fmt.Sprintf("network_data_%d", p.ID)
+		case "public transportation":
+			p.TableName = fmt.Sprintf("public_transportation_data_%d", p.ID)
+		default:
+			p.TableName = fmt.Sprintf("population_data_%d", p.ID)
+		}
 
 		var count int
 		countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", p.TableName)
