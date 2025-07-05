@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Input, Button, Space, Form } from 'antd';
 import { SearchOutlined, ClearOutlined } from '@ant-design/icons';
-import useAppStore from '../store/appStore';
+import usePersonStore from '../store/personStore';
 
 const BboxFilter = () => {
-  const { setBboxFilter } = useAppStore();
+  const { setBboxFilter } = usePersonStore();
   const [form] = Form.useForm();
   
   const handleSearch = (values) => {
@@ -32,7 +32,7 @@ const BboxFilter = () => {
   };
   
   return (
-    <div className="p-4 border-b">
+    <div id="bbox-filter">
       <Form
         form={form}
         onFinish={handleSearch}
@@ -45,7 +45,7 @@ const BboxFilter = () => {
         }}
       >
         <Space direction="vertical" style={{ width: '100%' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div id="bbox-filter-grid">
             <Form.Item
               name="minLat"
               label="Min Lat"
@@ -53,7 +53,7 @@ const BboxFilter = () => {
                 { required: true, message: 'Required' },
                 { pattern: /^-?\d*\.?\d+$/, message: 'Invalid number' }
               ]}
-              style={{ marginBottom: 8 }}
+              style={{ marginBottom: '0.5rem' }}
             >
               <Input placeholder="-90.0" />
             </Form.Item>
@@ -65,7 +65,7 @@ const BboxFilter = () => {
                 { required: true, message: 'Required' },
                 { pattern: /^-?\d*\.?\d+$/, message: 'Invalid number' }
               ]}
-              style={{ marginBottom: 8 }}
+              style={{ marginBottom: '0.5rem' }}
             >
               <Input placeholder="-180.0" />
             </Form.Item>
@@ -77,7 +77,7 @@ const BboxFilter = () => {
                 { required: true, message: 'Required' },
                 { pattern: /^-?\d*\.?\d+$/, message: 'Invalid number' }
               ]}
-              style={{ marginBottom: 8 }}
+              style={{ marginBottom: '0.5rem' }}
             >
               <Input placeholder="90.0" />
             </Form.Item>
@@ -89,15 +89,15 @@ const BboxFilter = () => {
                 { required: true, message: 'Required' },
                 { pattern: /^-?\d*\.?\d+$/, message: 'Invalid number' }
               ]}
-              style={{ marginBottom: 8 }}
+              style={{ marginBottom: '0.5rem' }}
             >
               <Input placeholder="180.0" />
             </Form.Item>
           </div>
           
           <Space style={{ width: '100%' }}>
-            <Button 
-              type="primary" 
+            <Button
+              type="primary"
               icon={<SearchOutlined />}
               htmlType="submit"
               block
@@ -105,7 +105,7 @@ const BboxFilter = () => {
             >
               Search
             </Button>
-            <Button 
+            <Button
               icon={<ClearOutlined />}
               onClick={handleClear}
               block

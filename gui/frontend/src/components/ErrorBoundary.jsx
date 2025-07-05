@@ -27,11 +27,14 @@ class ErrorBoundary extends React.Component {
           status="error"
           title="Something went wrong"
           subTitle={this.state.error?.message || 'An unexpected error occurred'}
-          extra={
-            <Button type="primary" onClick={this.handleReset}>
+          extra={[
+            <Button type="primary" onClick={this.handleReset} key="reload">
               Reload Application
-            </Button>
-          }
+            </Button>,
+            <pre key="stack" style={{ textAlign: 'left', whiteSpace: 'pre-wrap', background: '#fff0f0', border: '1px solid red', padding: '10px', marginTop: '10px' }}>
+              {this.state.error?.stack}
+            </pre>
+          ]}
         />
       );
     }

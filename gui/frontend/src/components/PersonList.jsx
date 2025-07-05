@@ -1,62 +1,55 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { List, Empty, Spin, Badge, Button, Space, message } from 'antd';
 import { UserOutlined, DeleteOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
-import useAppStore from '../store/appStore';
-import { GetPopulation, GetPopulationByBbox, DeletePerson } from '../../wailsjs/go/gui/App';
+import useUiStore from '../store/uiStore';
+import useProcessStore from '../store/processStore';
+import usePersonStore from '../store/personStore';
+import { DeletePerson } from '../../wailsjs/go/gui/App';
 
 const PersonList = ({ middle, pageSize, onRequestPageChange }) => {
-  const { 
-    selectedProcess, 
-    viewMode, 
-    visiblePersons, 
+  const { viewMode } = useUiStore();
+  const { selectedProcess } = useProcessStore();
+  const {
+    persons,
+    loadPopulation,
+    visiblePersons,
     togglePersonVisibility,
     selectedPerson,
     setSelectedPerson,
     bboxFilter,
-    persons: globalPersons
-  } = useAppStore();
+    setPersons,
+  } = usePersonStore();
   
-  const [persons, setPersons] = useState([]);
   const [loading, setLoading] = useState(false);
   const [deletingPersonId, setDeletingPersonId] = useState(null);
   const listRef = useRef(null);
-  
+
   useEffect(() => {
     if (selectedProcess?.table_name) {
       loadPersons();
     }
   }, [selectedProcess, viewMode, bboxFilter]);
-  
-  // Watch for updates from global store (e.g., when new person is added or updated)
-  useEffect(() => {
-    if (globalPersons && globalPersons.length > 0) {
-      setPersons(globalPersons);
-    }
-  }, [globalPersons]);
-  
+
   // Watch for newly selected person and scroll to it
   useEffect(() => {
-    if (selectedPerson && persons.length > 0) {
-      const personIndex = persons.findIndex(p => p.id === selectedPerson.id);
-      if (personIndex !== -1) {
-        // Calculate which middle value would show this person
-        const targetPage = Math.floor(personIndex / pageSize);
-        const targetMiddle = (targetPage * pageSize) + (pageSize / 2);
-        
-        if (targetMiddle !== middle) {
-          // Request parent to change to the right page
-          if (onRequestPageChange) {
-            onRequestPageChange(targetMiddle);
-          }
-        }
-        
-        // Scroll to the person item after page change
-        setTimeout(() => {
-          const element = document.getElementById(`person-${selectedPerson.id}`);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }, 100);
+    if (!selectedPerson) return;
+  
+    const personIndex = persons.findIndex(p => p.id === selectedPerson.id);
+    if (personIndex === -1) return;
+  
+    const targetPage = Math.floor(personIndex / pageSize);
+    const newMiddle = (targetPage * pageSize) + (pageSize / 2);
+  
+    if (newMiddle !== middle) {
+      // Defer scrolling until after the page has changed
+      if (onRequestPageChange) {
+        onRequestPageChange(newMiddle);
+      }
+    } else {
+      // Scroll immediately if already on the correct page
+      const element = document.getElementById(`person-${selectedPerson.id}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
   }, [selectedPerson, persons, pageSize, middle, onRequestPageChange]);
@@ -66,40 +59,10 @@ const PersonList = ({ middle, pageSize, onRequestPageChange }) => {
   const loadPersons = async () => {
     setLoading(true);
     try {
-      // Check for local modifications that should be preserved
-      const currentPersons = useAppStore.getState().persons;
-      const localModifiedPersons = currentPersons.filter(p => p.plans !== null);
-      const localModifiedMap = new Map(localModifiedPersons.map(p => [p.id, p]));
-      
-      let data;
-      if (viewMode === 'bbox' && bboxFilter) {
-        data = await GetPopulationByBbox(
-          selectedProcess.table_name,
-          bboxFilter.minLat,
-          bboxFilter.minLng,
-          bboxFilter.maxLat,
-          bboxFilter.maxLng
-        );
-      } else {
-        data = await GetPopulation(selectedProcess.table_name);
-      }
-      
-      // Merge with local modifications, ensuring plans field exists
-      const mergedData = (data || []).map(person => {
-        const localVersion = localModifiedMap.get(person.id);
-        if (localVersion) {
-          // Preserve local modifications
-          return localVersion;
-        }
-        // Ensure new persons have plans field set to null
-        return { ...person, plans: null };
-      });
-      
-      setPersons(mergedData);
-      useAppStore.getState().setPersons(mergedData);
+      await loadPopulation(selectedProcess.table_name, viewMode === 'bbox' ? bboxFilter : null);
     } catch (error) {
       console.error('Failed to load persons:', error);
-      setPersons([]);
+      message.error('Failed to load persons');
     } finally {
       setLoading(false);
     }
@@ -130,7 +93,6 @@ const PersonList = ({ middle, pageSize, onRequestPageChange }) => {
       // Update local state immediately
       const updatedPersons = persons.filter(p => p.id !== person.id);
       setPersons(updatedPersons);
-      useAppStore.getState().setPersons(updatedPersons);
       
       // Adjust middle if we deleted the last person on current view
       const minIndex = middle - (pageSize / 2);
@@ -159,7 +121,7 @@ const PersonList = ({ middle, pageSize, onRequestPageChange }) => {
   
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
+      <div className="spinner-container">
         <Spin size="large" />
       </div>
     );
@@ -167,18 +129,18 @@ const PersonList = ({ middle, pageSize, onRequestPageChange }) => {
   
   if (persons.length === 0) {
     return (
-      <Empty 
+      <Empty
         description={viewMode === 'bbox' ? "No persons in bbox" : "No persons found"}
-        style={{ padding: '40px' }}
+        className="empty-person-list"
       />
     );
   }
   
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="person-list-container">
       <List
         dataSource={paginatedPersons}
-        style={{ flex: 1, overflow: 'auto', padding: '0 16px' }}
+        className="person-list"
         renderItem={(person) => {
           const isVisible = visiblePersons.has(person.id);
           const isSelected = selectedPerson?.id === person.id;
@@ -188,41 +150,26 @@ const PersonList = ({ middle, pageSize, onRequestPageChange }) => {
             <List.Item
               id={`person-${person.id}`}
               key={person.id}
-              style={{ 
-                cursor: 'pointer',
-                backgroundColor: isSelected ? '#e6f4ff' : 'white',
-                padding: '12px 16px',
-                margin: '4px 0',
-                borderRadius: '4px',
-                border: isSelected ? '1px solid #1890ff' : '1px solid transparent'
-              }}
+              className={isSelected ? 'person-list-item selected' : 'person-list-item'}
               onClick={() => handlePersonClick(person)}
             >
-            <div style={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-              <List.Item.Meta
-                style={{ flex: 1 }}
-              avatar={
-                <div 
+            <div className="person-list-item-content">
+              <div
                   onClick={(e) => {
-                    e.stopPropagation();
-                    handleVisibilityToggle(person);
+                      e.stopPropagation();
+                      handleVisibilityToggle(person);
                   }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <Badge 
-                    dot={isVisible} 
-                    color="#52c41a"
-                    offset={[-5, 5]}
-                  >
-                    <UserOutlined style={{ 
-                      fontSize: '20px', 
-                      color: isVisible ? '#1890ff' : '#bfbfbf' 
-                    }} />
+                  className="person-list-item-avatar"
+              >
+                  <Badge dot={isVisible} color="green" offset={[-3, 28]}>
+                      <UserOutlined className={`user-icon ${isVisible ? 'visible' : ''}`} />
                   </Badge>
-                </div>
-              }
-              title={`Person ${person.id}`}
-              description={`Location: ${person.coords}`}
+              </div>
+
+              <List.Item.Meta
+                className="person-list-item-meta"
+                title={`Person ${person.id}`}
+                description={`Location: ${person.coords}`}
               />
               {isSelected && (
                 <Space size="small">
@@ -268,4 +215,4 @@ const PersonList = ({ middle, pageSize, onRequestPageChange }) => {
   );
 };
 
-export default PersonList;
+export default React.memo(PersonList);

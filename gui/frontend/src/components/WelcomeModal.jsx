@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Button, Spin, message, Table, Popconfirm, Typography, Alert, Upload, Drawer } from 'antd';
 import { DeleteOutlined, UploadOutlined, BugOutlined } from '@ant-design/icons';
 import { GetProcessesByFile, DeleteProcess, ExitApplication, SelectFile, GetDebugLogs } from '@wailsjs/go/gui/App';
-import useAppStore from '../store/appStore';
 
 const { Text } = Typography;
 
-const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
+const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess, filePath, editMode, setFilePath }) => {
   const [loading, setLoading] = useState(true);
   const [processes, setProcesses] = useState([]);
   const [selectedProcessId, setSelectedProcessId] = useState(null);
@@ -15,8 +14,6 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
   const [showDebugDrawer, setShowDebugDrawer] = useState(false);
   const [debugLogs, setDebugLogs] = useState({ cliLog: '', guiLog: '' });
   
-  const { filePath, editMode, startupError, setStartupConfig } = useAppStore();
-
   const fetchProcesses = async () => {
     if (!filePath) return;
     setLoading(true);
@@ -81,8 +78,7 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
     try {
       const selectedPath = await SelectFile();
       if (selectedPath) {
-        setStartupConfig({ filePath: selectedPath, editMode: editMode || 'population' });
-        fetchProcesses();
+        setFilePath(selectedPath);
       }
     } catch (error) {
       console.error('Error selecting file:', error);
@@ -148,13 +144,13 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
 
   const renderContent = () => {
     // Scenario 4: Database connection error
-    if (dbError || startupError) {
+    if (dbError) {
       return (
         <div style={{ textAlign: 'center' }}>
-          <Alert 
-            message={dbError || startupError} 
-            type="error" 
-            showIcon 
+          <Alert
+            message={dbError}
+            type="error"
+            showIcon
             style={{ marginBottom: 0 }}
           />
         </div>
@@ -164,20 +160,15 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
     // Scenario 1: No file specified
     if (!filePath) {
       return (
-        <div style={{ textAlign: 'center', padding: '24px 0' }}>
-          <Text style={{ display: 'block', marginBottom: 24, fontSize: '16px' }}>
+        <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+          <Text style={{ display: 'block', marginBottom: '1.5rem', fontSize: '1rem' }}>
             You haven't specified a file yet. To get started please:
           </Text>
-          <Button 
-            icon={<UploadOutlined />} 
+          <Button
+            icon={<UploadOutlined />}
             size="large"
             onClick={handleFileSelect}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px'
-            }}
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
           >
             Upload a file
           </Button>
@@ -189,20 +180,14 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
     if (!loading && processes.length === 0) {
       return (
         <>
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: '1rem' }}>
             <Text strong>File Path: </Text>
             <Text code>{filePath}</Text>
           </div>
-          <div style={{ textAlign: 'center', padding: '24px 0' }}>
-            <Text style={{ fontSize: '16px' }}>
+          <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+            <Text style={{ fontSize: '1rem' }}>
               We were not able to find any previous process of this file. You need to{' '}
-              <span style={{ 
-                backgroundColor: '#f0f2f5', 
-                color: '#1890ff', 
-                padding: '2px 8px',
-                borderRadius: '4px',
-                fontWeight: 500
-              }}>
+              <span style={{ backgroundColor: '#f3f4f6', color: '#3b82f6', padding: '0.125rem 0.5rem', borderRadius: '0.375rem', fontWeight: 500 }}>
                 start New process
               </span>
             </Text>
@@ -215,12 +200,12 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
     if (!loading && processes.length > 0) {
       return (
         <>
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: '1rem' }}>
             <Text strong>File Path: </Text>
             <Text code>{filePath}</Text>
           </div>
-          <div style={{ marginBottom: 16 }}>
-            <Text style={{ fontSize: '16px' }}>
+          <div style={{ marginBottom: '1rem' }}>
+            <Text style={{ fontSize: '1rem' }}>
               We detected previous process of this file, either select to continue editing or start a new process
             </Text>
           </div>
@@ -245,7 +230,7 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
 
     // Loading state
     return (
-      <div style={{ textAlign: 'center', padding: '32px' }}>
+      <div style={{ textAlign: 'center', padding: '2rem' }}>
         <Spin tip="Loading processes..." />
       </div>
     );
@@ -253,7 +238,7 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
 
   const renderFooter = () => {
     // Scenario 4: Database error - only Cancel and Retry
-    if (dbError || startupError) {
+    if (dbError) {
       return [
         <Button key="cancel" onClick={handleClose}>
           Cancel
@@ -311,11 +296,11 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
         title={
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Welcome To Ez-utils {editMode ? editMode.charAt(0).toUpperCase() + editMode.slice(1) : 'Population'} Edit v3</span>
-            <Button 
-              icon={<BugOutlined />} 
-              size="small" 
+            <Button
+              icon={<BugOutlined />}
+              size="small"
               onClick={fetchDebugLogs}
-              style={{ marginRight: 40 }}
+              style={{ marginRight: '2.5rem' }}
             >
               Debug Logs
             </Button>
@@ -328,9 +313,8 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
         maskClosable={false}
         closable={true}
         centered
-        bodyStyle={{ padding: '24px' }}
       >
-        {renderContent()}
+        <div style={{ padding: '1.5rem' }}>{renderContent()}</div>
       </Modal>
       
       <Drawer
@@ -340,36 +324,20 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess }) => {
         onClose={() => setShowDebugDrawer(false)}
         open={showDebugDrawer}
       >
-        <div style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+        <div style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
           <h3>CLI Log (ez-utils.log):</h3>
-          <pre style={{ 
-            backgroundColor: '#f5f5f5', 
-            padding: '10px', 
-            borderRadius: '4px',
-            maxHeight: '300px',
-            overflow: 'auto'
-          }}>
+          <pre style={{ backgroundColor: '#f3f4f6', padding: '0.625rem', borderRadius: '0.375rem', maxHeight: '18rem', overflow: 'auto' }}>
             {debugLogs.cliLog || 'No CLI logs available'}
           </pre>
           
-          <h3 style={{ marginTop: '20px' }}>GUI Log (ez-utils-gui.log):</h3>
-          <pre style={{ 
-            backgroundColor: '#f5f5f5', 
-            padding: '10px', 
-            borderRadius: '4px',
-            maxHeight: '300px',
-            overflow: 'auto'
-          }}>
+          <h3 style={{ marginTop: '1.25rem' }}>GUI Log (ez-utils-gui.log):</h3>
+          <pre style={{ backgroundColor: '#f3f4f6', padding: '0.625rem', borderRadius: '0.375rem', maxHeight: '18rem', overflow: 'auto' }}>
             {debugLogs.guiLog || 'No GUI logs available'}
           </pre>
           
-          <h3 style={{ marginTop: '20px' }}>Current Configuration:</h3>
-          <pre style={{ 
-            backgroundColor: '#f5f5f5', 
-            padding: '10px', 
-            borderRadius: '4px'
-          }}>
-            {JSON.stringify({ filePath, editMode, startupError }, null, 2)}
+          <h3 style={{ marginTop: '1.25rem' }}>Current Configuration:</h3>
+          <pre style={{ backgroundColor: '#f3f4f6', padding: '0.625rem', borderRadius: '0.375rem' }}>
+            {JSON.stringify({ filePath, editMode }, null, 2)}
           </pre>
         </div>
       </Drawer>

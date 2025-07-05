@@ -1,23 +1,16 @@
 import React from 'react';
 import { Layout, Space } from 'antd';
 import SyncButton from './SyncButton';
-import useAppStore from '../store/appStore';
+import useProcessStore from '../store/processStore';
 
 const { Header: AntHeader } = Layout;
 
 const Header = () => {
-  const { selectedProcess } = useAppStore();
+  const { selectedProcess } = useProcessStore();
   
   return (
-    <AntHeader style={{ 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'space-between',
-      backgroundColor: '#001529',
-      paddingLeft: '24px',
-      paddingRight: '24px'
-    }}>
-      <div style={{ color: 'white', fontSize: '20px' }}>EZ-Utils Population Editor</div>
+    <AntHeader id="app-header">
+      <div id="app-title">EZ-Utils Population Editor</div>
       {selectedProcess && (
         <Space>
           <SyncButton />

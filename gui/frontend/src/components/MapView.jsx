@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import Map from 'react-map-gl/maplibre';
 import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, PathLayer } from '@deck.gl/layers';
-import useAppStore from '../store/appStore';
+import usePersonStore from '../store/personStore';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 const MapView = () => {
-  const { 
-    visiblePersons, 
-    persons, 
+  const {
+    visiblePersons,
+    persons,
     selectedPlanRoute,
-    mapClickHandler
-  } = useAppStore();
+    mapClickHandler,
+    setSelectedPerson
+  } = usePersonStore();
   
   const [viewState, setViewState] = useState({
     longitude: -73.7,
@@ -19,7 +20,7 @@ const MapView = () => {
     zoom: 10
   });
 
-  const layers = [
+  const layers = useMemo(() => [
     new ScatterplotLayer({
       id: 'persons',
       data: persons.filter(p => visiblePersons.has(p.id)),
@@ -34,8 +35,8 @@ const MapView = () => {
       getFillColor: [0, 128, 255],
       pickable: true,
       onClick: info => {
-        if (info.object && !mapClickMode) {
-          useAppStore.getState().setSelectedPerson(info.object);
+        if (info.object && !mapClickHandler) {
+          setSelectedPerson(info.object);
         }
       }
     }),
@@ -46,14 +47,14 @@ const MapView = () => {
       getWidth: 3,
       getColor: [0, 128, 255]
     })
-  ].filter(Boolean);
+  ].filter(Boolean), [persons, visiblePersons, selectedPlanRoute, mapClickHandler, setSelectedPerson]);
 
-  const handleClick = (event) => {
+  const handleClick = useCallback((event) => {
     if (mapClickHandler && event.coordinate) {
       const [lng, lat] = event.coordinate;
       mapClickHandler({ lng, lat });
     }
-  };
+  }, [mapClickHandler]);
 
   return (
     <DeckGL

@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Drawer, Button, Spin, Empty, Tabs } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import PlanTimeline from './PlanTimeline';
-import useAppStore from '../store/appStore';
+import { calculateRouteFromPlan } from '../utils/mapUtils';
+import usePersonStore from '../store/personStore';
 
 const PlanDrawer = () => {
-  const { selectedPerson, parsePersonPlans, updatePersonLocally } = useAppStore();
+  const { selectedPerson, parsePersonPlans, updatePersonLocally, setSelectedPerson, setSelectedPlanRoute } = usePersonStore();
   const [loading, setLoading] = useState(false);
   const [activeKey, setActiveKey] = useState('0');
   
@@ -23,29 +24,20 @@ const PlanDrawer = () => {
     }
   }, [selectedPerson, parsePersonPlans]);
   
+  const planIndex = parseInt(activeKey, 10);
+  const selectedPlan = (plans && plans.length > 0 && planIndex >= 0 && planIndex < plans.length)
+    ? plans[planIndex]
+    : null;
+
   // Update map route when plan is selected
   useEffect(() => {
-    const planIndex = parseInt(activeKey);
-    if (plans && plans.length > 0 && planIndex >= 0 && planIndex < plans.length) {
-      const selectedPlan = plans[planIndex];
-      const activities = selectedPlan ? selectedPlan.filter(item => item.type === 'activity') : [];
-      
-      // Create route path from activities
-      if (activities.length > 1) {
-        const path = activities
-          .filter(a => a.x && a.y)
-          .map(a => [a.x, a.y]);
-        
-        if (path.length > 1) {
-          useAppStore.getState().setSelectedPlanRoute({ path });
-        }
-      }
-    }
-    
+    const route = calculateRouteFromPlan(selectedPlan);
+    setSelectedPlanRoute(route);
+
     return () => {
-      useAppStore.getState().setSelectedPlanRoute(null);
+      setSelectedPlanRoute(null);
     };
-  }, [plans, activeKey]);
+  }, [selectedPlan, setSelectedPlanRoute]);
   
   const updatePersonPlans = (personId, newPlans) => {
     // Extract coordinates from first activity of first plan
@@ -106,72 +98,49 @@ const PlanDrawer = () => {
   
   return (
     <Drawer
-      title={`Plans - Person ${selectedPerson.id}`}
+      title={<span className="drawer-title-text">{`Plans - Person ${selectedPerson.id}`}</span>}
       placement="right"
       open={!!selectedPerson}
-      onClose={() => useAppStore.getState().setSelectedPerson(null)}
-      width={400}
+      onClose={() => setSelectedPerson(null)}
+      width={450}
       mask={false}
-      styles={{ 
-        body: { padding: 0 },
-        wrapper: { top: '72px', height: 'calc(100% - 72px)' },
-        header: { borderBottom: 'none' }
-      }}
+      className="plan-drawer"
     >
       {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
+        <div className="spinner-container">
           <Spin size="large" />
         </div>
       ) : !plans || plans.length === 0 ? (
-        <Empty
-          description="No plans found"
-          style={{ padding: '40px' }}
-        >
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />}
-            onClick={handleAddPlan}
-          >
-            Add First Plan
-          </Button>
-        </Empty>
+        <div className="empty-plans-container">
+          <Empty description="No plans found for this person.">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleAddPlan}
+            >
+              Add First Plan
+            </Button>
+          </Empty>
+        </div>
       ) : (
-        <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '8px 16px', borderBottom: '1px solid #f0f0f0', fontSize: '12px', color: '#888' }}>
-            Auto-saves locally. Use sync button to save to database.
-          </div>
-          
+        <div className="plan-tabs-container">
           <Tabs
             activeKey={activeKey}
             onChange={setActiveKey}
             type="editable-card"
             onEdit={(targetKey, action) => {
-              if (action === 'add') {
-                handleAddPlan();
-              } else if (action === 'remove') {
-                handleRemovePlan(targetKey);
-              }
+              if (action === 'add') handleAddPlan();
+              else if (action === 'remove') handleRemovePlan(targetKey);
             }}
-            style={{ 
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-            tabBarStyle={{ 
-              marginBottom: 0,
-              flexShrink: 0
-            }}
+            className="plan-tabs"
             items={plans.map((plan, index) => ({
               key: String(index),
               label: `Plan ${index + 1}`,
               children: (
-                <div style={{ height: '100%', overflow: 'auto' }}>
-                  <PlanTimeline
-                    plan={plan}
-                    onUpdate={handlePlanUpdate}
-                  />
+                <div className="plan-timeline-container">
+                  <PlanTimeline plan={plan} onUpdate={handlePlanUpdate} />
                 </div>
-              )
+              ),
             }))}
           />
         </div>
