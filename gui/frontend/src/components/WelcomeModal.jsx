@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, Spin, message, Table, Popconfirm, Typography, Alert, Upload, Drawer } from 'antd';
-import { DeleteOutlined, UploadOutlined, BugOutlined } from '@ant-design/icons';
-import { GetProcessesByFile, DeleteProcess, ExitApplication, SelectFile, GetDebugLogs } from '@wailsjs/go/gui/App';
+import { Modal, Button, Spin, message, Table, Popconfirm, Typography, Alert, Upload } from 'antd';
+import { DeleteOutlined, UploadOutlined } from '@ant-design/icons';
+import { GetProcessesByFile, DeleteProcess, ExitApplication, SelectFile } from '@wailsjs/go/gui/App';
 
 const { Text } = Typography;
 
@@ -11,8 +11,6 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess, filePath, editMo
   const [selectedProcessId, setSelectedProcessId] = useState(null);
   const [dbError, setDbError] = useState(null);
   const [retrying, setRetrying] = useState(false);
-  const [showDebugDrawer, setShowDebugDrawer] = useState(false);
-  const [debugLogs, setDebugLogs] = useState({ cliLog: '', guiLog: '' });
   
   const fetchProcesses = async () => {
     if (!filePath) return;
@@ -29,7 +27,6 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess, filePath, editMo
         (data || []);
       setProcesses(filteredData);
     } catch (error) {
-      console.error('Error fetching processes:', error);
       setDbError('Cannot establish connection with database');
     } finally {
       setLoading(false);
@@ -53,7 +50,6 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess, filePath, editMo
         setSelectedProcessId(null);
       }
     } catch (error) {
-      console.error('Error deleting process:', error);
       message.error(`Failed to delete process: ${error}`);
     }
   };
@@ -62,7 +58,6 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess, filePath, editMo
     try {
       await ExitApplication();
     } catch (error) {
-      console.error('Error exiting application:', error);
       window.close();
     }
   };
@@ -81,7 +76,6 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess, filePath, editMo
         setFilePath(selectedPath);
       }
     } catch (error) {
-      console.error('Error selecting file:', error);
       message.error('Failed to select file');
     }
   };
@@ -92,15 +86,6 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess, filePath, editMo
     setRetrying(false);
   };
 
-  const fetchDebugLogs = async () => {
-    try {
-      const logs = await GetDebugLogs();
-      setDebugLogs(logs);
-      setShowDebugDrawer(true);
-    } catch (error) {
-      message.error('Failed to fetch debug logs');
-    }
-  };
 
   const columns = [
     {
@@ -293,19 +278,7 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess, filePath, editMo
   return (
     <>
       <Modal
-        title={
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Welcome To Ez-utils {editMode ? editMode.charAt(0).toUpperCase() + editMode.slice(1) : 'Population'} Edit v3</span>
-            <Button
-              icon={<BugOutlined />}
-              size="small"
-              onClick={fetchDebugLogs}
-              style={{ marginRight: '2.5rem' }}
-            >
-              Debug Logs
-            </Button>
-          </div>
-        }
+        title={`Welcome To Ez-utils ${editMode ? editMode.charAt(0).toUpperCase() + editMode.slice(1) : 'Population'} Edit v3`}
         open={isVisible}
         onCancel={handleClose}
         width={600}
@@ -316,31 +289,6 @@ const WelcomeModal = ({ isVisible, onNewProcess, onLoadProcess, filePath, editMo
       >
         <div style={{ padding: '1.5rem' }}>{renderContent()}</div>
       </Modal>
-      
-      <Drawer
-        title="Debug Logs"
-        placement="right"
-        width={800}
-        onClose={() => setShowDebugDrawer(false)}
-        open={showDebugDrawer}
-      >
-        <div style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
-          <h3>CLI Log (ez-utils.log):</h3>
-          <pre style={{ backgroundColor: '#f3f4f6', padding: '0.625rem', borderRadius: '0.375rem', maxHeight: '18rem', overflow: 'auto' }}>
-            {debugLogs.cliLog || 'No CLI logs available'}
-          </pre>
-          
-          <h3 style={{ marginTop: '1.25rem' }}>GUI Log (ez-utils-gui.log):</h3>
-          <pre style={{ backgroundColor: '#f3f4f6', padding: '0.625rem', borderRadius: '0.375rem', maxHeight: '18rem', overflow: 'auto' }}>
-            {debugLogs.guiLog || 'No GUI logs available'}
-          </pre>
-          
-          <h3 style={{ marginTop: '1.25rem' }}>Current Configuration:</h3>
-          <pre style={{ backgroundColor: '#f3f4f6', padding: '0.625rem', borderRadius: '0.375rem' }}>
-            {JSON.stringify({ filePath, editMode }, null, 2)}
-          </pre>
-        </div>
-      </Drawer>
     </>
   );
 };

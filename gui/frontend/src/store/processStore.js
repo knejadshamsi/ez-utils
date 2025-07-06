@@ -66,7 +66,6 @@ const useProcessStore = create((set, get) => ({
               setShowLoadingModal(false);
               message.success('Process completed successfully!');
             } catch (error) {
-              console.error('Error loading data after process completion:', error);
               setShowLoadingModal(false);
               message.error('Process completed but failed to load data');
             }
@@ -81,7 +80,6 @@ const useProcessStore = create((set, get) => ({
             setTimeout(checkStatus, 1000);
           }
         } catch (error) {
-          console.error('Error checking process status:', error);
           stopTelemetryPolling();
           setShowLoadingModal(false);
           message.error('Failed to check process status');
@@ -91,7 +89,6 @@ const useProcessStore = create((set, get) => ({
       };
       setTimeout(checkStatus, 1000);
     } catch (error) {
-      console.error("Error starting new process:", error);
       stopTelemetryPolling();
       message.error('Failed to start new process');
       setShowLoadingModal(false);
@@ -113,7 +110,6 @@ const useProcessStore = create((set, get) => ({
       await loadPopulation(process.table_name);
       setShowLoadingModal(false);
     } catch (error) {
-      console.error("Error loading process:", error);
       message.error('Failed to load process data');
       setShowLoadingModal(false);
       setShowWelcomeModal(true);
@@ -132,7 +128,6 @@ const useProcessStore = create((set, get) => ({
         const telemetry = await GetProcessTelemetry(processId);
         set({ currentTelemetry: telemetry });
       } catch (error) {
-        console.error('Failed to fetch telemetry:', error);
       }
     }, 1000);
 

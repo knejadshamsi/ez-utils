@@ -3,6 +3,7 @@ import { Button, Tooltip, Badge } from 'antd';
 import { SyncOutlined, LoadingOutlined } from '@ant-design/icons';
 import usePersonStore from '../store/personStore';
 import useProcessStore from '../store/processStore';
+import './SyncButton.css';
 
 const SyncButton = () => {
   const { changeCounter, syncThreshold, isSyncing, syncToDatabase, lastSyncTime } = usePersonStore();
@@ -35,14 +36,20 @@ const SyncButton = () => {
   );
 
   const buttonStyle = needsSync && !isSyncing ? {
-    background: `linear-gradient(to right, #1890ff ${syncProgress}%, transparent ${syncProgress}%)`,
-    borderColor: '#1890ff'
+    '--sync-progress': `${syncProgress}%`
   } : {};
+
+  const buttonClasses = [
+    'sync-button',
+    needsSync && 'needs-sync',
+    isSyncing && 'syncing'
+  ].filter(Boolean).join(' ');
 
   return (
     <Tooltip title={tooltipContent}>
       <Badge count={needsSync ? changeCounter : 0} offset={[-5, 5]}>
         <Button
+          className={buttonClasses}
           type={needsSync ? "primary" : "default"}
           icon={isSyncing ? <LoadingOutlined spin /> : <SyncOutlined />}
           onClick={() => syncToDatabase(selectedProcess.table_name)}

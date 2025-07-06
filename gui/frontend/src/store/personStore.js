@@ -55,7 +55,6 @@ const usePersonStore = create((set, get) => ({
       setPersons(mergedData);
       return mergedData;
     } catch (error) {
-      console.error('Failed to load population:', error);
       throw error;
     }
   },
@@ -125,7 +124,6 @@ const usePersonStore = create((set, get) => ({
       const plans = extractPlansAsArrays(parsedData);
       get().updatePersonById(personId, { plans });
     } catch (error) {
-      console.error('Failed to parse person plans:', error);
       get().updatePersonById(personId, { plans: [] });
     }
   },
@@ -180,7 +178,6 @@ const usePersonStore = create((set, get) => ({
       
       return updatedPersons.find(p => p.id === id);
     } catch (error) {
-      console.error('Failed to create person:', error);
       throw error;
     }
   },
@@ -224,7 +221,6 @@ const usePersonStore = create((set, get) => ({
       
       message.success(`Synced ${updates.length} persons`);
     } catch (error) {
-      console.error('Sync failed:', error);
       message.error('Failed to sync changes');
       set({ isSyncing: false });
     }

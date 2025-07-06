@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Layout, Button } from 'antd';
+import { Layout } from 'antd';
 import { GetStartupConfig } from '@wailsjs/go/gui/App';
 import './App.css';
 import './index.css';
+import Header from './components/Header';
 import WelcomeModal from './components/WelcomeModal';
 import LoadingModal from './components/LoadingModal';
 import MapView from './components/MapView';
@@ -12,7 +13,7 @@ import useUiStore from './store/uiStore';
 import useProcessStore from './store/processStore';
 import usePersonStore from './store/personStore';
 
-const { Header: AntHeader, Content } = Layout;
+const { Content } = Layout;
 
 function App() {
   const { showWelcomeModal, setShowWelcomeModal, setShowLoadingModal, viewMode } = useUiStore();
@@ -70,15 +71,17 @@ function App() {
     window.location.reload();
   };
 
+  const handleSettings = () => {
+    // TODO: Implement settings functionality
+  };
+
   return (
     <Layout style={{ height: '100%' }}>
-      <AntHeader style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#001529' }}>
-        <div style={{ color: 'white', fontSize: '20px' }}>{headerTitle}</div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <Button onClick={() => console.log('Settings')}>Settings</Button>
-          <Button onClick={handleExit} danger>Exit</Button>
-        </div>
-      </AntHeader>
+      <Header 
+        title={headerTitle}
+        onSettings={handleSettings}
+        onExit={handleExit}
+      />
       <Content style={{ overflow: 'hidden' }}>
         <div id="main-container">
           {editMode === 'population' && selectedProcess?.table_name && <PersonDrawer />}

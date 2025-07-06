@@ -61,7 +61,6 @@ const PersonList = ({ middle, pageSize, onRequestPageChange }) => {
     try {
       await loadPopulation(selectedProcess.table_name, viewMode === 'bbox' ? bboxFilter : null);
     } catch (error) {
-      console.error('Failed to load persons:', error);
       message.error('Failed to load persons');
     } finally {
       setLoading(false);
@@ -105,7 +104,6 @@ const PersonList = ({ middle, pageSize, onRequestPageChange }) => {
         }
       }
     } catch (error) {
-      console.error('Failed to delete person:', error);
       message.error('Failed to delete person');
       // Reload on error to ensure consistency
       loadPersons();

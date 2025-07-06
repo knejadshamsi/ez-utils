@@ -26,7 +26,6 @@ const PersonDrawer = () => {
       setSelectedPerson(createdPerson);
       
     } catch (error) {
-      console.error('Failed to add person:', error);
       message.error(error.message || 'Failed to add person');
     } finally {
       setAddingPerson(false);
