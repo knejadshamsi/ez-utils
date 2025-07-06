@@ -12,8 +12,8 @@
     "email": "k.nejadshamsi@gmail.com"
   },
   "build": {
-    "tags": "wails,production,webkit2_41",
-    "devtags": "wails,webkit2_41",
+    "tags": "wails,production,webkit2_42",
+    "devtags": "wails,!production,webkit2_42",
     "debounce": 100,
     "windows": {
       "nsis": {

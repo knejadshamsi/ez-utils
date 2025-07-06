@@ -31,3 +31,6 @@ then test: cd test && ez-utils edit popultation test_pop.xml
 
   # Test GUI command (should launch GUI)
   ez-utils edit population test_pop.xml
+
+  # run in dev mode:
+  wails dev -tags='wails,!production,webkit2_41'

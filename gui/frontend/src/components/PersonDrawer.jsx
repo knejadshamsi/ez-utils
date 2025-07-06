@@ -58,7 +58,7 @@ const PersonDrawer = () => {
 
   const onRequestPageChange = (newMiddle) => {
     const newPage = Math.floor(newMiddle / pageSize) + 1;
-    setPage(newPage)
+    setPage(newPage);
   };
   
   return (

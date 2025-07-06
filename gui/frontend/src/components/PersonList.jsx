@@ -172,7 +172,7 @@ const PersonList = ({ middle, pageSize, onRequestPageChange }) => {
                 description={`Location: ${person.coords}`}
               />
               {isSelected && (
-                <Space size="small">
+                <Space size="small" align="end">
                   {!isDeleting ? (
                     <Button
                       danger

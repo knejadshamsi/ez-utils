@@ -11,6 +11,12 @@ import (
 )
 
 func main() {
+	// Handle wails binding generation - it runs with /tmp/wailsbindings as argument
+	if len(os.Args) == 1 && os.Args[0] == "/tmp/wailsbindings" {
+		// Silent exit for wails binding generation
+		return
+	}
+
 	if hasNewConfigFlag() {
 		if err := config.CreateNewConfig(); err != nil {
 			fmt.Printf("Error creating new configuration: %v\n", err)
