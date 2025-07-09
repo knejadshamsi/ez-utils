@@ -19,7 +19,7 @@ func (a *App) ProcessPopulationFile(filePath string) (map[string]any, error) {
 		return nil, fmt.Errorf("file path cannot be empty")
 	}
 
-	result, err := execQuery(createProcessQuery, fmt.Sprintf("failed to create process for file %s", filePath), filePath)
+	result, err := a.db.execQuery(createProcessQuery, fmt.Sprintf("failed to create process for file %s", filePath), filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create process record: %w", err)
 	}
@@ -42,13 +42,13 @@ func (a *App) ProcessPopulationFile(filePath string) (map[string]any, error) {
 // processPopulationFile processes a population XML file using the new processor module
 func (a *App) processPopulationFile(filePath string, processID int) {
 	updateStatus := func(status string) {
-		if _, err := execQuery(updateProcessStatusQuery, fmt.Sprintf("failed to update process status for ID %d", processID), status, processID); err != nil {
+		if _, err := a.db.execQuery(updateProcessStatusQuery, fmt.Sprintf("failed to update process status for ID %d", processID), status, processID); err != nil {
 			log.Printf("Failed to update process status for processID %d: %v", processID, err)
 		}
 	}
 
 	updateStatus("Initializing processor...")
-	processor, err := NewProcessor(processID)
+	processor, err := NewProcessor(a.db, processID)
 	if err != nil {
 		errStr := fmt.Sprintf("failed to create processor: %v", err)
 		log.Printf("Error creating processor: %v", err)
@@ -70,17 +70,17 @@ func (a *App) processPopulationFile(filePath string, processID int) {
 
 // GetPopulation retrieves all processed population data for a given table.
 func (a *App) GetPopulation(tableName string) ([]Person, error) {
-	return GetPopulationData(tableName)
+	return a.db.GetPopulationData(tableName)
 }
 
 // GetPopulationByBbox retrieves population data within a bounding box
 func (a *App) GetPopulationByBbox(tableName string, minLat, minLng, maxLat, maxLng float64) ([]Person, error) {
-	return GetPopulationByBbox(tableName, minLat, minLng, maxLat, maxLng)
+	return a.db.GetPopulationByBbox(tableName, minLat, minLng, maxLat, maxLng)
 }
 
 // GetPerson retrieves a single person by ID
 func (a *App) GetPerson(tableName string, personId string) (*Person, error) {
-	return GetPerson(tableName, personId)
+	return a.db.GetPerson(tableName, personId)
 }
 
 // AddPerson adds a new person to a population table.
@@ -93,7 +93,7 @@ func (a *App) AddPerson(tableName string, person map[string]any) (map[string]any
 	coords, _ := person["coords"].(string)
 	rawXML, _ := person["raw_xml"].(string)
 	
-	if err := AddPerson(tableName, id, coords, rawXML); err != nil {
+	if err := a.db.AddPerson(tableName, id, coords, rawXML); err != nil {
 		return nil, err
 	}
 	return person, nil
@@ -102,18 +102,38 @@ func (a *App) AddPerson(tableName string, person map[string]any) (map[string]any
 // UpdatePersonPlan handles updating a person's plan XML and returns the updated person.
 func (a *App) UpdatePersonPlan(tableName string, personId string, planXML string) (*Person, error) {
 	log.Printf("UpdatePersonPlan called for person %s in table %s", personId, tableName)
-	log.Printf("XML content (first 500 chars): %s", planXML[:min(500, len(planXML))])
+	limit := 500
+	if len(planXML) < limit {
+		limit = len(planXML)
+	}
+	log.Printf("XML content (first %d chars): %s", limit, planXML[:limit])
 	
-	if err := UpdatePersonXML(tableName, personId, planXML); err != nil {
+	if err := a.db.UpdatePersonXML(tableName, personId, planXML); err != nil {
 		return nil, fmt.Errorf("failed to update person plan: %w", err)
 	}
 	
 	// Extract and update coordinates from the updated XML
-	coords := extractCoordsFromXML(planXML)
+	// Updated regex to handle both self-closing and non-self-closing tags
+	// Looking for pattern like: <activity ... x="123.456" ... y="789.012" ... /> or <activity ... x="123.456" ... y="789.012" ... >
+	activityPattern := regexp.MustCompile(`<activity[^>]*\sx="([^"]+)"[^>]*\sy="([^"]+)"[^>]*(?:/>|>)`)
+	matches := activityPattern.FindStringSubmatch(planXML)
+	
+	var coords string
+	if len(matches) >= 3 {
+		coords = fmt.Sprintf("%s,%s", matches[1], matches[2])
+	} else {
+		// Try reverse order (y before x)
+		activityPatternReverse := regexp.MustCompile(`<activity[^>]*\sy="([^"]+)"[^>]*\sx="([^"]+)"[^>]*(?:/>|>)`)
+		matches = activityPatternReverse.FindStringSubmatch(planXML)
+		
+		if len(matches) >= 3 {
+			coords = fmt.Sprintf("%s,%s", matches[2], matches[1])
+		}
+	}
 	log.Printf("Extracted coordinates for person %s: %s", personId, coords)
 	
 	if coords != "" {
-		if err := UpdatePersonCoords(tableName, personId, coords); err != nil {
+		if err := a.db.UpdatePersonCoords(tableName, personId, coords); err != nil {
 			return nil, fmt.Errorf("failed to update person coordinates: %w", err)
 		}
 		log.Printf("Successfully updated coordinates for person %s to %s", personId, coords)
@@ -122,7 +142,7 @@ func (a *App) UpdatePersonPlan(tableName string, personId string, planXML string
 	}
 	
 	// Fetch and return the updated person
-	updatedPerson, err := GetPerson(tableName, personId)
+	updatedPerson, err := a.db.GetPerson(tableName, personId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch updated person: %w", err)
 	}
@@ -160,7 +180,7 @@ func (a *App) BatchUpdatePersons(tableName string, updates []map[string]any) err
 	}
 	
 	// Execute batch update
-	err := BatchUpdatePersons(tableName, personUpdates)
+	err := a.db.BatchUpdatePersons(tableName, personUpdates)
 	if err != nil {
 		return fmt.Errorf("failed to batch update persons: %w", err)
 	}
@@ -171,41 +191,12 @@ func (a *App) BatchUpdatePersons(tableName string, updates []map[string]any) err
 
 // DeletePerson handles deleting a person's record.
 func (a *App) DeletePerson(tableName string, personId string) (map[string]string, error) {
-	if err := DeletePerson(tableName, personId); err != nil {
+	if err := a.db.DeletePerson(tableName, personId); err != nil {
 		return nil, fmt.Errorf("failed to delete person: %w", err)
 	}
 	return map[string]string{"message": "Person deleted successfully"}, nil
 }
 
-// extractCoordsFromXML extracts coordinates from the first activity in person XML
-func extractCoordsFromXML(xmlStr string) string {
-	// Updated regex to handle both self-closing and non-self-closing tags
-	// Looking for pattern like: <activity ... x="123.456" ... y="789.012" ... /> or <activity ... x="123.456" ... y="789.012" ... >
-	activityPattern := regexp.MustCompile(`<activity[^>]*\sx="([^"]+)"[^>]*\sy="([^"]+)"[^>]*(?:/>|>)`)
-	matches := activityPattern.FindStringSubmatch(xmlStr)
-	
-	if len(matches) >= 3 {
-		return fmt.Sprintf("%s,%s", matches[1], matches[2])
-	}
-	
-	// Try reverse order (y before x)
-	activityPatternReverse := regexp.MustCompile(`<activity[^>]*\sy="([^"]+)"[^>]*\sx="([^"]+)"[^>]*(?:/>|>)`)
-	matches = activityPatternReverse.FindStringSubmatch(xmlStr)
-	
-	if len(matches) >= 3 {
-		return fmt.Sprintf("%s,%s", matches[2], matches[1])
-	}
-	
-	return ""
-}
-
-// Helper function
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
 
 func (cr *CountingReader) Read(p []byte) (n int, err error) {
 	n, err = cr.reader.Read(p)
@@ -222,12 +213,7 @@ func (cr *CountingReader) BytesRead() int64 {
 }
 
 // NewProcessor creates a new population processor
-func NewProcessor(processID int) (*Processor, error) {
-	db, err := GetDB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get database connection: %w", err)
-	}
-
+func NewProcessor(db *Database, processID int) (*Processor, error) {
 	return &Processor{
 		db:        db,
 		processID: processID,
@@ -249,7 +235,7 @@ func (p *Processor) ProcessPopulationFile(filePath string) error {
 	p.telemetry.TotalFileSize = fileInfo.Size()
 
 	// Initialize telemetry in database
-	if _, err := execQuery(initTelemetryQuery, fmt.Sprintf("failed to initialize telemetry for process %d", p.processID), p.processID, p.telemetry.TotalFileSize); err != nil {
+	if _, err := p.db.execQuery(initTelemetryQuery, fmt.Sprintf("failed to initialize telemetry for process %d", p.processID), p.processID, p.telemetry.TotalFileSize); err != nil {
 		return err
 	}
 
@@ -265,7 +251,7 @@ func (p *Processor) ProcessPopulationFile(filePath string) error {
 
 	// Create table
 	tableName := fmt.Sprintf("population_data_%d", p.processID)
-	if err := execTableQuery(fmt.Sprintf(createPopulationTableQuery, tableName)); err != nil {
+	if err := p.db.execTableQuery(fmt.Sprintf(createPopulationTableQuery, tableName)); err != nil {
 		return err
 	}
 
@@ -365,9 +351,29 @@ func (p *Processor) processXML(reader io.Reader, tableName string) error {
 				if personDepth == 0 {
 					personEncoder.Flush()
 
-					id, err := extractAttribute(personBuffer.Bytes(), "person", "id")
-					if err != nil {
-						log.Printf("could not extract id for person, skipping: %v", err)
+					// Extract person ID from XML
+					var id string
+					foundID := false
+					decoder2 := xml.NewDecoder(bytes.NewReader(personBuffer.Bytes()))
+					for {
+						token2, err2 := decoder2.Token()
+						if err2 != nil {
+							break
+						}
+						if se, ok := token2.(xml.StartElement); ok && se.Name.Local == "person" {
+							for _, attr := range se.Attr {
+								if attr.Name.Local == "id" {
+									id = attr.Value
+									foundID = true
+									break
+								}
+							}
+							break
+						}
+					}
+					
+					if !foundID || id == "" {
+						log.Printf("could not extract id for person, skipping")
 						p.telemetryMutex.Lock()
 						p.errorCounter++
 						p.telemetryMutex.Unlock()
@@ -415,7 +421,7 @@ func (p *Processor) processXML(reader io.Reader, tableName string) error {
 }
 
 func (p *Processor) insertPersonBatch(tableName string, persons []PersonData) error {
-	tx, err := p.db.Begin()
+	tx, err := p.db.GetConn().Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
@@ -450,13 +456,13 @@ func (p *Processor) updateTelemetry(reader *CountingReader) {
 	p.telemetryMutex.Unlock()
 
 	// Try to update telemetry with one retry
-	_, err := execQuery(updateTelemetryQuery, fmt.Sprintf("failed to update telemetry for process %d", telemetry.ProcessID), telemetry.BytesRead, telemetry.PersonsExtracted, telemetry.ErrorCount, telemetry.ProcessID)
+	_, err := p.db.execQuery(updateTelemetryQuery, fmt.Sprintf("failed to update telemetry for process %d", telemetry.ProcessID), telemetry.BytesRead, telemetry.PersonsExtracted, telemetry.ErrorCount, telemetry.ProcessID)
 	if err != nil {
 		log.Printf("Failed to update telemetry for process %d (attempt 1): %v", p.processID, err)
 		
 		// Wait briefly and retry once
 		time.Sleep(100 * time.Millisecond)
-		_, err = execQuery(updateTelemetryQuery, fmt.Sprintf("failed to update telemetry for process %d", telemetry.ProcessID), telemetry.BytesRead, telemetry.PersonsExtracted, telemetry.ErrorCount, telemetry.ProcessID)
+		_, err = p.db.execQuery(updateTelemetryQuery, fmt.Sprintf("failed to update telemetry for process %d", telemetry.ProcessID), telemetry.BytesRead, telemetry.PersonsExtracted, telemetry.ErrorCount, telemetry.ProcessID)
 		if err != nil {
 			p.telemetryMutex.Lock()
 			p.telemetryFailureCounter++
@@ -470,19 +476,3 @@ func (p *Processor) updateTelemetry(reader *CountingReader) {
 	}
 }
 
-func extractAttribute(xmlData []byte, elementName, attrName string) (string, error) {
-	decoder := xml.NewDecoder(bytes.NewReader(xmlData))
-	for {
-		token, err := decoder.Token()
-		if err != nil {
-			return "", err
-		}
-		if se, ok := token.(xml.StartElement); ok && se.Name.Local == elementName {
-			for _, attr := range se.Attr {
-				if attr.Name.Local == attrName {
-					return attr.Value, nil
-				}
-			}
-		}
-	}
-}

@@ -35,9 +35,9 @@ const (
 )
 
 // GetPopulationData retrieves all person data from a specific table
-func GetPopulationData(tableName string) ([]Person, error) {
+func (db *Database) GetPopulationData(tableName string) ([]Person, error) {
 	query := fmt.Sprintf(selectAllFromPopulationQuery, tableName)
-	rows, err := queryRows(query, fmt.Sprintf(selectAllFromPopulationError, tableName))
+	rows, err := db.queryRows(query, fmt.Sprintf(selectAllFromPopulationError, tableName))
 	if err != nil {
 		return nil, err
 	}
@@ -60,9 +60,9 @@ func GetPopulationData(tableName string) ([]Person, error) {
 }
 
 // GetPopulationByBbox retrieves population data within a bounding box
-func GetPopulationByBbox(tableName string, minLat, minLng, maxLat, maxLng float64) ([]Person, error) {
+func (db *Database) GetPopulationByBbox(tableName string, minLat, minLng, maxLat, maxLng float64) ([]Person, error) {
 	query := fmt.Sprintf(selectPopulationByBboxQuery, tableName)
-	rows, err := queryRows(query, fmt.Sprintf(selectPopulationByBboxError, tableName))
+	rows, err := db.queryRows(query, fmt.Sprintf(selectPopulationByBboxError, tableName))
 	if err != nil {
 		return nil, err
 	}
@@ -97,10 +97,10 @@ func GetPopulationByBbox(tableName string, minLat, minLng, maxLat, maxLng float6
 }
 
 // GetPerson retrieves a single person by ID from the specified table
-func GetPerson(tableName, personID string) (*Person, error) {
+func (db *Database) GetPerson(tableName, personID string) (*Person, error) {
 	query := fmt.Sprintf(selectPersonByIDQuery, tableName)
 	var p Person
-	err := queryRow(query, fmt.Sprintf(selectPersonByIDError, tableName), personID).Scan(&p.ID, &p.Coords, &p.RawXML)
+	err := db.queryRow(query, fmt.Sprintf(selectPersonByIDError, tableName), personID).Scan(&p.ID, &p.Coords, &p.RawXML)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("person with ID %s not found in table %s", personID, tableName)
@@ -111,36 +111,36 @@ func GetPerson(tableName, personID string) (*Person, error) {
 }
 
 // AddPerson adds a new person to a population table
-func AddPerson(tableName string, id, coords, rawXML string) error {
+func (db *Database) AddPerson(tableName string, id, coords, rawXML string) error {
 	query := fmt.Sprintf(insertPersonQuery, tableName)
-	if _, err := execQuery(query, fmt.Sprintf(insertPersonError, tableName), id, coords, rawXML); err != nil {
+	if _, err := db.execQuery(query, fmt.Sprintf(insertPersonError, tableName), id, coords, rawXML); err != nil {
 		return fmt.Errorf("failed to add person: %w", err)
 	}
 	return nil
 }
 
 // DeletePerson deletes a person from a population table
-func DeletePerson(tableName, personID string) error {
+func (db *Database) DeletePerson(tableName, personID string) error {
 	query := fmt.Sprintf(deletePersonQuery, tableName)
-	if _, err := execQuery(query, fmt.Sprintf(deletePersonError, tableName), personID); err != nil {
+	if _, err := db.execQuery(query, fmt.Sprintf(deletePersonError, tableName), personID); err != nil {
 		return fmt.Errorf("failed to delete person: %w", err)
 	}
 	return nil
 }
 
 // UpdatePersonXML updates a person's XML data
-func UpdatePersonXML(tableName, personID, rawXML string) error {
+func (db *Database) UpdatePersonXML(tableName, personID, rawXML string) error {
 	query := fmt.Sprintf(updatePersonXMLQuery, tableName)
-	if _, err := execQuery(query, fmt.Sprintf(updatePersonXMLError, tableName), rawXML, personID); err != nil {
+	if _, err := db.execQuery(query, fmt.Sprintf(updatePersonXMLError, tableName), rawXML, personID); err != nil {
 		return fmt.Errorf("failed to update person XML: %w", err)
 	}
 	return nil
 }
 
 // UpdatePersonCoords updates a person's coordinates
-func UpdatePersonCoords(tableName, personID, coords string) error {
+func (db *Database) UpdatePersonCoords(tableName, personID, coords string) error {
 	query := fmt.Sprintf(updatePersonCoordsQuery, tableName)
-	if _, err := execQuery(query, fmt.Sprintf(updatePersonCoordsError, tableName), coords, personID); err != nil {
+	if _, err := db.execQuery(query, fmt.Sprintf(updatePersonCoordsError, tableName), coords, personID); err != nil {
 		return fmt.Errorf("failed to update person coordinates: %w", err)
 	}
 	return nil
@@ -150,8 +150,8 @@ func UpdatePersonCoords(tableName, personID, coords string) error {
 
 
 // BatchUpdatePersons updates multiple persons in a single transaction
-func BatchUpdatePersons(tableName string, updates []PersonUpdate) error {
-	return WithTransaction(func(tx *sql.Tx) error {
+func (db *Database) BatchUpdatePersons(tableName string, updates []PersonUpdate) error {
+	return db.WithTransaction(func(tx *sql.Tx) error {
 		query := fmt.Sprintf(updatePersonFullQuery, tableName)
 		stmt, err := tx.Prepare(query)
 		if err != nil {

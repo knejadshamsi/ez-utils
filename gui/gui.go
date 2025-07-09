@@ -2,7 +2,6 @@ package gui
 
 import (
 	"context"
-	"embed"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -13,9 +12,6 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 )
-
-//go:embed all:frontend/dist
-var assets embed.FS
 
 // NewApp creates a new App application struct
 func NewApp() *App {
@@ -36,9 +32,11 @@ func (a *App) startup(ctx context.Context) {
 	log.Printf("App.startup() called - StartupFile: '%s', EditMode: '%s'", a.StartupFile, a.EditMode)
 	
 	// Initialize database
-	if err := InitDB("ez_utils_gui.db"); err != nil {
+	db, err := NewDatabase("ez_utils_gui.db")
+	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
+	a.db = db
 }
 
 
@@ -162,7 +160,7 @@ func Run(filePath string, editMode string) {
 		Height:        10000,
 		DisableResize: false,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets: FrontendAssets,
 		},
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup:        app.startup,

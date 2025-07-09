@@ -40,7 +40,7 @@ const (
 
 // GetProcesses retrieves all process records from the database.
 func (a *App) GetProcesses() ([]Process, error) {
-	rows, err := queryRows(selectAllProcessesQuery, selectAllProcessesError)
+	rows, err := a.db.queryRows(selectAllProcessesQuery, selectAllProcessesError)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func (a *App) GetProcesses() ([]Process, error) {
 // CheckProcessingStatus retrieves the status of a specific process.
 func (a *App) CheckProcessingStatus(processID int) (string, error) {
 	var status string
-	err := queryRow(selectProcessStatusQuery, fmt.Sprintf(selectProcessStatusError, processID), processID).Scan(&status)
+	err := a.db.queryRow(selectProcessStatusQuery, fmt.Sprintf(selectProcessStatusError, processID), processID).Scan(&status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", ErrProcessNotFound
@@ -64,7 +64,7 @@ func (a *App) CheckProcessingStatus(processID int) (string, error) {
 
 // GetProcessesByFile retrieves all process records for a given file path.
 func (a *App) GetProcessesByFile(filePath string) []Process {
-	rows, err := queryRows(selectProcessesByFileQuery, fmt.Sprintf(selectProcessesByFileError, filePath), filePath)
+	rows, err := a.db.queryRows(selectProcessesByFileQuery, fmt.Sprintf(selectProcessesByFileError, filePath), filePath)
 	if err != nil {
 		log.Printf("Failed to query processes for file %s: %v", filePath, err)
 		return nil
@@ -84,9 +84,9 @@ func (a *App) GetProcessesByFile(filePath string) []Process {
 func (a *App) DeleteProcess(processID int) error {
 	tableName := fmt.Sprintf("population_data_%d", processID)
 	// First, drop the associated table if it exists
-	if err := execTableQuery(fmt.Sprintf(dropTableQuery, tableName)); err != nil { return err }
+	if err := a.db.execTableQuery(fmt.Sprintf(dropTableQuery, tableName)); err != nil { return err }
 	// Then, delete the process record
-	if _, err := execQuery(deleteProcessQuery, fmt.Sprintf(deleteProcessError, processID), processID); err != nil {
+	if _, err := a.db.execQuery(deleteProcessQuery, fmt.Sprintf(deleteProcessError, processID), processID); err != nil {
 		return err
 	}
 	return nil
@@ -130,7 +130,7 @@ func scanProcesses(rows *sql.Rows) ([]Process, error) {
 func (a *App) GetProcessTelemetry(processID int) (*ProcessTelemetry, error) {
 	var telemetry ProcessTelemetry
 	var lastUpdatedStr string
-	err := queryRow(selectTelemetryQuery, fmt.Sprintf(selectTelemetryError, processID), processID).Scan(
+	err := a.db.queryRow(selectTelemetryQuery, fmt.Sprintf(selectTelemetryError, processID), processID).Scan(
 		&telemetry.ProcessID,
 		&telemetry.TotalFileSize,
 		&telemetry.BytesRead,

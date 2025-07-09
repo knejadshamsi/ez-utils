@@ -2,7 +2,6 @@ package gui
 
 import (
 	"context"
-	"database/sql"
 	"io"
 	"sync"
 	"time"
@@ -11,6 +10,7 @@ import (
 // App struct - Main application structure for Wails
 type App struct {
 	ctx         context.Context
+	db          *Database
 	StartupFile string
 	EditMode    string // "population", "network", "public transportation"
 }
@@ -56,11 +56,10 @@ type ProcessTelemetry struct {
 
 // Processor - Handles population file processing with telemetry
 type Processor struct {
-	db                      *sql.DB
+	db                      *Database
 	processID               int
 	telemetry               *ProcessTelemetry
 	telemetryMutex          sync.Mutex
-	lastUpdate              time.Time
 	personCounter           int64
 	errorCounter            int64
 	telemetryFailureCounter int64
