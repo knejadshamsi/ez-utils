@@ -88,11 +88,18 @@
 <Modal 
   open={appState.display === 'WELCOME'} 
   permanent
+  dismissable={false}
+  outsideclose={false}
+  autoclose={false}
   size="lg"
   placement="center"
   class="!w-full max-w-2xl"
-  title="Welcome to Ez-utils GUI"
 >
+  {#snippet header()}
+    <h3 class="text-xl font-semibold text-gray-900 dark:text-white">
+      Welcome to Ez-utils GUI
+    </h3>
+  {/snippet}
   <div class="space-y-6">
     {#if !welcomeModalState.showTable}
       <P class="text-gray-600 dark:text-gray-400">

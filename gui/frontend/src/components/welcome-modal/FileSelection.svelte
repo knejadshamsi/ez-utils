@@ -51,11 +51,16 @@
     <Helper color="yellow" class="mb-3">
       Please provide a file to continue
     </Helper>
-    <Fileupload 
-      id="file-upload" 
-      onchange={handleFileChange}
-      accept=".xml,.json,.csv"
-    />
+    <div class="flex justify-center">
+      <div class="w-85">
+        <Fileupload 
+          id="file-upload" 
+          onchange={handleFileChange}
+          accept=".xml"
+          class="!border !border-gray-600 !dark:border-gray-300 file:ml-0 file:mr-6 file:py-3 file:px-4 file:rounded-l-md file:border-0 file:text-sm file:font-medium"
+        />
+      </div>
+    </div>
     {#if selectedFile}
       <Helper color="green" class="mt-2">
         Selected: {selectedFile.name}
