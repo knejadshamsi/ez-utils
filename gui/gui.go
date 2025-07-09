@@ -57,7 +57,7 @@ func (a *App) ProcessPopulationFile(filePath string) (map[string]interface{}, er
 		return nil, fmt.Errorf("file path cannot be empty")
 	}
 
-	processID, err := database.CreateProcess(filePath, a.EditMode)
+	processID, err := database.CreateProcess(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create process record: %w", err)
 	}
@@ -82,7 +82,8 @@ func (a *App) CheckProcessingStatus(processID int) (string, error) {
 }
 
 // GetProcessesByFile retrieves all process records for a given file path.
-func (a *App) GetProcessesByFile(filePath string) ([]database.Process, error) {
+// Returns nil if there's an error, empty array if no processes found, or array of processes.
+func (a *App) GetProcessesByFile(filePath string) []database.Process {
 	return database.GetProcessesByFile(filePath)
 }
 

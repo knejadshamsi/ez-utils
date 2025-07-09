@@ -4,6 +4,7 @@
   import Map from "./Map.svelte";
   import PrimarySidebar from "./PrimarySidebar.svelte";
   import SecondarySidebar from "./SecondarySidebar.svelte";
+  import WelcomeModal from "./WelcomeModal.svelte";
   
   let primarySidebarHidden = $state(false);
   let secondarySidebarHidden = $state(false);
@@ -17,4 +18,6 @@
 
 <PrimarySidebar bind:hidden={primarySidebarHidden} />
 <SecondarySidebar bind:hidden={secondarySidebarHidden} />
+
+<WelcomeModal />
 

@@ -21,8 +21,12 @@ export const appState = $state<{
 // Create separate state for command arguments
 export const commandArgs = $state<{
   fileEditMode: FileEditMode,
-  filePath: string | null
+  filePath: string,
+  isFileEditModeProvided: boolean,
+  isFilePathProvided: boolean
 }>({
   fileEditMode: 'POPULATION',
-  filePath: null
+  filePath: '',
+  isFileEditModeProvided: false,
+  isFilePathProvided: false
 });

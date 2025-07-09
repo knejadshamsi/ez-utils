@@ -35,21 +35,15 @@ func InitDB(dataSourceName string) error {
 
 	createStatusTableSQL := `
 			CREATE TABLE IF NOT EXISTS processes (
-				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				process_id INTEGER PRIMARY KEY AUTOINCREMENT,
 				file_path TEXT NOT NULL,
 				status TEXT NOT NULL,
-				edit_mode TEXT DEFAULT 'population',
 				timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 			);`
 	_, err = db.Exec(createStatusTableSQL)
 	if err != nil {
 		return fmt.Errorf("failed to create status table: %w", err)
 	}
-	
-	// Add edit_mode column if it doesn't exist (migration for existing databases)
-	addEditModeSQL := `ALTER TABLE processes ADD COLUMN edit_mode TEXT DEFAULT 'population';`
-	_, err = db.Exec(addEditModeSQL)
-	// Ignore error if column already exists
 
 	// Create telemetry table
 	createTelemetryTableSQL := `
@@ -59,7 +53,7 @@ func InitDB(dataSourceName string) error {
 			bytes_read INTEGER DEFAULT 0,
 			persons_extracted INTEGER DEFAULT 0,
 			last_updated DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (process_id) REFERENCES processes(id) ON DELETE CASCADE
+			FOREIGN KEY (process_id) REFERENCES processes(process_id) ON DELETE CASCADE
 		);`
 	_, err = db.Exec(createTelemetryTableSQL)
 	if err != nil {
@@ -91,7 +85,7 @@ var ErrProcessNotFound = fmt.Errorf("process not found")
 // GetProcessStatus retrieves the status of a process from the database.
 func GetProcessStatus(processID int) (string, error) {
 	var status string
-	err := db.QueryRow("SELECT status FROM processes WHERE id = ?", processID).Scan(&status)
+	err := db.QueryRow("SELECT status FROM processes WHERE process_id = ?", processID).Scan(&status)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", ErrProcessNotFound
@@ -335,28 +329,43 @@ func DropTable(tableName string) error {
 
 // Process defines the structure for a record from the 'processes' table.
 type Process struct {
-	ID          int    `json:"id"`
+	ProcessID   int    `json:"process_id"`
 	FilePath    string `json:"file_path"`
 	Status      string `json:"status"`
-	EditMode    string `json:"edit_mode"`
 	Timestamp   string `json:"timestamp"`
 	TableName   string `json:"table_name"`
 	RecordCount int    `json:"record_count"`
 }
 
 // GetProcessesByFile retrieves all process records for a specific file path.
-func GetProcessesByFile(filePath string) ([]Process, error) {
-	rows, err := db.Query("SELECT id, file_path, status, COALESCE(edit_mode, 'population') as edit_mode, timestamp FROM processes WHERE file_path = ? ORDER BY timestamp DESC", filePath)
+// Returns nil if there's an error, empty array if no processes found, or array of processes.
+func GetProcessesByFile(filePath string) []Process {
+	fmt.Printf("DEBUG: GetProcessesByFile called with filePath: %s\n", filePath)
+	if db == nil {
+		fmt.Printf("DEBUG: Database is nil!\n")
+		return nil
+	}
+	rows, err := db.Query("SELECT process_id, file_path, status, timestamp FROM processes WHERE file_path = ? ORDER BY timestamp DESC", filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query processes for file %s: %w", filePath, err)
+		fmt.Printf("DEBUG: Query failed: %v\n", err)
+		return nil
 	}
 	defer rows.Close()
-	return scanProcesses(rows)
+	processes, err := scanProcesses(rows)
+	if err != nil {
+		fmt.Printf("DEBUG: scanProcesses failed: %v\n", err)
+		return nil
+	}
+	fmt.Printf("DEBUG: Successfully found %d processes\n", len(processes))
+	if processes == nil {
+		return []Process{}
+	}
+	return processes
 }
 
 // DeleteProcess deletes a process record from the database.
 func DeleteProcess(processID int) error {
-	query := "DELETE FROM processes WHERE id = ?"
+	query := "DELETE FROM processes WHERE process_id = ?"
 	_, err := db.Exec(query, processID)
 	if err != nil {
 		return fmt.Errorf("failed to delete process with ID %d: %w", processID, err)
@@ -365,12 +374,9 @@ func DeleteProcess(processID int) error {
 }
 
 // CreateProcess creates a new process record and returns its ID.
-func CreateProcess(filePath string, editMode string) (int, error) {
-	if editMode == "" {
-		editMode = "population"
-	}
-	query := "INSERT INTO processes (file_path, status, edit_mode) VALUES (?, ?, ?)"
-	result, err := db.Exec(query, filePath, "started", editMode)
+func CreateProcess(filePath string) (int, error) {
+	query := "INSERT INTO processes (file_path, status) VALUES (?, ?)"
+	result, err := db.Exec(query, filePath, "started")
 	if err != nil {
 		return 0, fmt.Errorf("failed to create process: %w", err)
 	}
@@ -383,7 +389,7 @@ func CreateProcess(filePath string, editMode string) (int, error) {
 
 // UpdateProcessStatus updates the status of an existing process.
 func UpdateProcessStatus(processID int, status string) error {
-	query := "UPDATE processes SET status = ? WHERE id = ?"
+	query := "UPDATE processes SET status = ? WHERE process_id = ?"
 	_, err := db.Exec(query, status, processID)
 	if err != nil {
 		return fmt.Errorf("failed to update process status for ID %d: %w", processID, err)
@@ -393,7 +399,7 @@ func UpdateProcessStatus(processID int, status string) error {
 
 // GetProcesses retrieves all process records.
 func GetProcesses() ([]Process, error) {
-	rows, err := db.Query("SELECT id, file_path, status, timestamp FROM processes ORDER BY timestamp DESC")
+	rows, err := db.Query("SELECT process_id, file_path, status, timestamp FROM processes ORDER BY timestamp DESC")
 	if err != nil {
 		return nil, fmt.Errorf("failed to query processes: %w", err)
 	}
@@ -406,19 +412,12 @@ func scanProcesses(rows *sql.Rows) ([]Process, error) {
 	var processes []Process
 	for rows.Next() {
 		var p Process
-		if err := rows.Scan(&p.ID, &p.FilePath, &p.Status, &p.EditMode, &p.Timestamp); err != nil {
+		if err := rows.Scan(&p.ProcessID, &p.FilePath, &p.Status, &p.Timestamp); err != nil {
 			return nil, fmt.Errorf("failed to scan process row: %w", err)
 		}
 
-		// Determine table name based on edit mode
-		switch p.EditMode {
-		case "network":
-			p.TableName = fmt.Sprintf("network_data_%d", p.ID)
-		case "public transportation":
-			p.TableName = fmt.Sprintf("public_transportation_data_%d", p.ID)
-		default:
-			p.TableName = fmt.Sprintf("population_data_%d", p.ID)
-		}
+		// Always use population_data table name
+		p.TableName = fmt.Sprintf("population_data_%d", p.ProcessID)
 
 		var count int
 		countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", p.TableName)
