@@ -48,46 +48,6 @@ func (a *App) GetPTDepartures(processID int, routeID string) ([]PTDeparture, err
 	return a.db.GetPTDepartures(processID, routeID)
 }
 
-// AddPTStop adds a new stop
-func (a *App) AddPTStop(processID int, stop PTStop) error {
-	return a.db.AddPTStop(processID, stop)
-}
-
-// UpdatePTStop updates an existing stop
-func (a *App) UpdatePTStop(processID int, stopID string, update PTStopUpdate) error {
-	return a.db.UpdatePTStop(processID, stopID, update)
-}
-
-// BatchUpdatePTStops updates multiple stops in a transaction
-func (a *App) BatchUpdatePTStops(processID int, updates map[string]PTStopUpdate) error {
-	return a.db.BatchUpdatePTStops(processID, updates)
-}
-
-// DeletePTStop deletes a stop
-func (a *App) DeletePTStop(processID int, stopID string) error {
-	return a.db.DeletePTStop(processID, stopID)
-}
-
-// DeletePTLine deletes a line (cascades to routes, route stops, and departures)
-func (a *App) DeletePTLine(processID int, lineID string) error {
-	return a.db.DeletePTLine(processID, lineID)
-}
-
-// DeletePTRoute deletes a route (cascades to route stops and departures)
-func (a *App) DeletePTRoute(processID int, routeID string) error {
-	return a.db.DeletePTRoute(processID, routeID)
-}
-
-// DeletePTRouteStop deletes a route stop
-func (a *App) DeletePTRouteStop(processID int, routeID string, stopOrder int) error {
-	return a.db.DeletePTRouteStop(processID, routeID, stopOrder)
-}
-
-// DeletePTDeparture deletes a departure
-func (a *App) DeletePTDeparture(processID int, departureID string) error {
-	return a.db.DeletePTDeparture(processID, departureID)
-}
-
 // GetPTStatistics returns statistics for PT data
 func (a *App) GetPTStatistics(processID int) (map[string]interface{}, error) {
 	return a.db.GetPTStatistics(processID)

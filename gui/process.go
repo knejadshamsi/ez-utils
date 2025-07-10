@@ -80,8 +80,8 @@ func (a *App) GetProcessesByFile(filePath string) []Process {
 	return processes
 }
 
-// DeleteProcess deletes a process and its associated data.
-func (a *App) DeleteProcess(processID int) error {
+// deleteProcess deletes a process and its associated data (internal function for interpreter)
+func (a *App) deleteProcess(processID int) error {
 	tableName := fmt.Sprintf("population_data_%d", processID)
 	// First, drop the associated table if it exists
 	if err := a.db.execTableQuery(fmt.Sprintf(dropTableQuery, tableName)); err != nil { return err }

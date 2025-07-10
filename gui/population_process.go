@@ -83,8 +83,8 @@ func (a *App) GetPerson(tableName string, personId string) (*Person, error) {
 	return a.db.GetPerson(tableName, personId)
 }
 
-// AddPerson adds a new person to a population table.
-func (a *App) AddPerson(tableName string, person map[string]any) (map[string]any, error) {
+// addPerson adds a new person to a population table (internal function for interpreter)
+func (a *App) addPerson(tableName string, person map[string]any) (map[string]any, error) {
 	// Extract person data
 	id, ok := person["id"].(string)
 	if !ok || id == "" {
@@ -99,8 +99,8 @@ func (a *App) AddPerson(tableName string, person map[string]any) (map[string]any
 	return person, nil
 }
 
-// UpdatePersonPlan handles updating a person's plan XML and returns the updated person.
-func (a *App) UpdatePersonPlan(tableName string, personId string, planXML string) (*Person, error) {
+// updatePersonPlan handles updating a person's plan XML and returns the updated person (internal function for interpreter)
+func (a *App) updatePersonPlan(tableName string, personId string, planXML string) (*Person, error) {
 	log.Printf("UpdatePersonPlan called for person %s in table %s", personId, tableName)
 	limit := 500
 	if len(planXML) < limit {
@@ -150,8 +150,8 @@ func (a *App) UpdatePersonPlan(tableName string, personId string, planXML string
 	return updatedPerson, nil
 }
 
-// BatchUpdatePersons handles batch updating multiple persons in a single transaction
-func (a *App) BatchUpdatePersons(tableName string, updates []map[string]any) error {
+// batchUpdatePersons handles batch updating multiple persons in a single transaction (internal function for interpreter)
+func (a *App) batchUpdatePersons(tableName string, updates []map[string]any) error {
 	log.Printf("BatchUpdatePersons called for %d persons in table %s", len(updates), tableName)
 	
 	// Convert map updates to PersonUpdate structs
@@ -189,8 +189,8 @@ func (a *App) BatchUpdatePersons(tableName string, updates []map[string]any) err
 	return nil
 }
 
-// DeletePerson handles deleting a person's record.
-func (a *App) DeletePerson(tableName string, personId string) (map[string]string, error) {
+// deletePerson handles deleting a person's record (internal function for interpreter)
+func (a *App) deletePerson(tableName string, personId string) (map[string]string, error) {
 	if err := a.db.DeletePerson(tableName, personId); err != nil {
 		return nil, fmt.Errorf("failed to delete person: %w", err)
 	}

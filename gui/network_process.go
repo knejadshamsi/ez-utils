@@ -367,7 +367,7 @@ func (p *NetworkProcessor) updateTelemetry(reader *CountingReader) {
 	}
 }
 
-// UpdateNetworkNode updates a network node's coordinates
-func (a *App) UpdateNetworkNode(processID int, nodeID string, x, y float64) error {
+// updateNetworkNode updates a network node's coordinates (internal function for interpreter)
+func (a *App) updateNetworkNode(processID int, nodeID string, x, y float64) error {
 	return a.db.UpdateNode(processID, nodeID, x, y)
 }

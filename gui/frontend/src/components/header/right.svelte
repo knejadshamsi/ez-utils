@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { Button, Modal } from "flowbite-svelte";
-  import { ExclamationCircleOutline, CogOutline, DownloadOutline, CloseOutline } from "flowbite-svelte-icons";
+  import { Button, Modal, Badge } from "flowbite-svelte";
+  import { ExclamationCircleOutline, CogOutline, DownloadOutline, CloseOutline, CloudArrowUpOutline } from "flowbite-svelte-icons";
   import { slide } from "svelte/transition";
   import { appState } from "../../store.svelte";
-  import { ExitApplication } from "../../../wailsjs/go/gui/App";
+  import { ExitApplication, SyncChanges } from "../../../wailsjs/go/gui/App";
+  import { changeTracker } from "../../lib/changeTracker.svelte";
   import SettingsModal from "../SettingsModal.svelte";
   
   let showExitConfirmation = $state(false);
@@ -20,6 +21,28 @@
   function handleExport() {
     // TODO: Implement export functionality
     console.log('Export clicked');
+  }
+  
+  async function handleSync() {
+    if (changeTracker.pendingChanges.length === 0) {
+      console.log('No changes to sync');
+      return;
+    }
+    
+    changeTracker.isSyncing = true;
+    
+    try {
+      const result = await SyncChanges(changeTracker.pendingChanges);
+      console.log('Successfully synced', changeTracker.pendingChanges.length, 'changes');
+      
+      // Clear pending changes after successful sync
+      changeTracker.pendingChanges = [];
+    } catch (error) {
+      console.error('Sync failed:', error);
+      // TODO: Show error toast or modal
+    } finally {
+      changeTracker.isSyncing = false;
+    }
   }
 </script>
 
@@ -54,6 +77,21 @@
       >
         <CloseOutline class="w-4 h-4 me-2" />
         Exit
+      </Button>
+      
+      <Button 
+        color="green"
+        outline={changeTracker.pendingChanges.length === 0}
+        size="sm"
+        onclick={handleSync}
+        disabled={changeTracker.isSyncing || changeTracker.pendingChanges.length === 0}
+      >
+        <CloudArrowUpOutline class="w-4 h-4 me-2" />
+        {#if changeTracker.pendingChanges.length === 0}
+          No Changes
+        {:else}
+          Sync Changes ({changeTracker.pendingChanges.length})
+        {/if}
       </Button>
     </div>
   {/if}

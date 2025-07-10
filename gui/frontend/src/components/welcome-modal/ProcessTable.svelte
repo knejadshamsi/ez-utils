@@ -1,8 +1,9 @@
 <script lang="ts">
   import { Table, TableBody, TableBodyCell, TableBodyRow, TableHead, TableHeadCell, Radio, Button, P } from "flowbite-svelte";
   import { welcomeModalState, getPaginatedProcesses, getTotalPages } from "./welcome.svelte";
-  import { DeleteProcess, GetProcessesByFile } from "../../../wailsjs/go/gui/App";
+  import { GetProcessesByFile, SyncChanges } from "../../../wailsjs/go/gui/App";
   import { commandArgs } from "../../store.svelte";
+  import { changeTracker } from "../../lib/changeTracker.svelte";
   
   let error = $state<string | null>(null);
 
@@ -13,7 +14,18 @@
     }
     
     try {
-      await DeleteProcess(processId);
+      // Queue the delete action
+      changeTracker.pendingChanges.push({
+        type: 'process',
+        elementType: 'process',
+        action: 'delete',
+        processId: processId
+      });
+      
+      // Sync immediately for delete operations
+      await SyncChanges(changeTracker.pendingChanges);
+      changeTracker.pendingChanges = [];
+      
       // Refresh the process list
       welcomeModalState.processes = await GetProcessesByFile(commandArgs.filePath);
       
