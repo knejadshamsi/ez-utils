@@ -15,10 +15,10 @@ const (
 	updatePersonXMLQuery         = `UPDATE %s SET raw_xml = ? WHERE id = ?`
 	updatePersonCoordsQuery      = `UPDATE %s SET coords = ? WHERE id = ?`
 	updatePersonFullQuery        = `UPDATE %s SET coords = ?, raw_xml = ? WHERE id = ?`
-	deletePersonQuery            = `DELETE FROM %s WHERE id = ?`
-	insertPersonQuery            = `INSERT INTO %s (id, coords, raw_xml) VALUES (?, ?, ?)`
-	insertBatchValuePlaceholder  = "(?, ?, ?)"
-	insertBatchBaseQuery         = "INSERT INTO %s (id, coords, raw_xml) VALUES "
+	deletePersonQuery                   = `DELETE FROM %s WHERE id = ?`
+	insertPersonQuery                   = `INSERT INTO %s (id, coords, raw_xml) VALUES (?, ?, ?)`
+	populationInsertBatchPlaceholder    = "(?, ?, ?)"
+	insertBatchBaseQuery                = "INSERT INTO %s (id, coords, raw_xml) VALUES "
 )
 
 // Population table error messages
@@ -180,7 +180,7 @@ func InsertBatch(tx *sql.Tx, tableName string, batch []PersonData) error {
 	var values []string
 	var args []any
 	for _, person := range batch {
-		values = append(values, insertBatchValuePlaceholder)
+		values = append(values, populationInsertBatchPlaceholder)
 		args = append(args, person.ID, person.Coords, person.RawXML)
 	}
 	query += strings.Join(values, ", ")

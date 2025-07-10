@@ -38,6 +38,51 @@ const (
 		)`
 
 	dropTableQuery = "DROP TABLE IF EXISTS %s"
+
+	// PT table creation queries
+	createPTStopsTableQuery = `
+		CREATE TABLE IF NOT EXISTS %s (
+			id TEXT PRIMARY KEY,
+			x REAL NOT NULL,
+			y REAL NOT NULL,
+			name TEXT,
+			raw_xml TEXT
+		)`
+
+	createPTLinesTableQuery = `
+		CREATE TABLE IF NOT EXISTS %s (
+			id TEXT PRIMARY KEY,
+			mode TEXT,
+			raw_xml TEXT
+		)`
+
+	createPTRoutesTableQuery = `
+		CREATE TABLE IF NOT EXISTS %s (
+			id TEXT PRIMARY KEY,
+			line_id TEXT NOT NULL,
+			raw_xml TEXT,
+			FOREIGN KEY (line_id) REFERENCES %s(id) ON DELETE CASCADE
+		)`
+
+	createPTRouteStopsTableQuery = `
+		CREATE TABLE IF NOT EXISTS %s (
+			route_id TEXT NOT NULL,
+			stop_ref_id TEXT NOT NULL,
+			stop_order INTEGER NOT NULL,
+			arrival_offset TEXT,
+			departure_offset TEXT,
+			PRIMARY KEY (route_id, stop_order),
+			FOREIGN KEY (route_id) REFERENCES %s(id) ON DELETE CASCADE,
+			FOREIGN KEY (stop_ref_id) REFERENCES %s(id)
+		)`
+
+	createPTDeparturesTableQuery = `
+		CREATE TABLE IF NOT EXISTS %s (
+			id TEXT PRIMARY KEY,
+			route_id TEXT NOT NULL,
+			departure_time TEXT NOT NULL,
+			FOREIGN KEY (route_id) REFERENCES %s(id) ON DELETE CASCADE
+		)`
 )
 
 // Error messages for table queries
@@ -165,4 +210,85 @@ func (db *Database) execTableQuery(query string, args ...any) error {
 	}
 	_, err := db.execQuery(query, errorMsg, args...)
 	return err
+}
+
+// AlterTelemetryTableForPT adds PT-specific columns to the telemetry table if they don't exist
+func (db *Database) AlterTelemetryTableForPT() error {
+	// Try to add PT-specific columns - ignore errors if columns already exist
+	alterQueries := []string{
+		"ALTER TABLE process_telemetry ADD COLUMN stops_extracted INTEGER DEFAULT 0",
+		"ALTER TABLE process_telemetry ADD COLUMN lines_extracted INTEGER DEFAULT 0", 
+		"ALTER TABLE process_telemetry ADD COLUMN routes_extracted INTEGER DEFAULT 0",
+	}
+	
+	for _, query := range alterQueries {
+		// Execute but ignore "duplicate column" errors
+		_, _ = db.conn.Exec(query)
+	}
+	
+	return nil
+}
+
+// CreatePTTables creates all necessary tables for PT data
+func (db *Database) CreatePTTables(processID int) error {
+	// Ensure telemetry table has PT columns
+	if err := db.AlterTelemetryTableForPT(); err != nil {
+		return fmt.Errorf("failed to update telemetry table: %w", err)
+	}
+	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
+	
+	// Create stops table
+	stopsTable := fmt.Sprintf("%s_stops", tablePrefix)
+	if err := db.execTableQuery(fmt.Sprintf(createPTStopsTableQuery, stopsTable)); err != nil {
+		return fmt.Errorf("failed to create PT stops table: %w", err)
+	}
+	
+	// Create lines table
+	linesTable := fmt.Sprintf("%s_lines", tablePrefix)
+	if err := db.execTableQuery(fmt.Sprintf(createPTLinesTableQuery, linesTable)); err != nil {
+		return fmt.Errorf("failed to create PT lines table: %w", err)
+	}
+	
+	// Create routes table
+	routesTable := fmt.Sprintf("%s_routes", tablePrefix)
+	query := fmt.Sprintf(createPTRoutesTableQuery, routesTable, linesTable)
+	if err := db.execTableQuery(query); err != nil {
+		return fmt.Errorf("failed to create PT routes table: %w", err)
+	}
+	
+	// Create route stops table
+	routeStopsTable := fmt.Sprintf("%s_route_stops", tablePrefix)
+	query = fmt.Sprintf(createPTRouteStopsTableQuery, routeStopsTable, routesTable, stopsTable)
+	if err := db.execTableQuery(query); err != nil {
+		return fmt.Errorf("failed to create PT route stops table: %w", err)
+	}
+	
+	// Create departures table
+	departuresTable := fmt.Sprintf("%s_departures", tablePrefix)
+	query = fmt.Sprintf(createPTDeparturesTableQuery, departuresTable, routesTable)
+	if err := db.execTableQuery(query); err != nil {
+		return fmt.Errorf("failed to create PT departures table: %w", err)
+	}
+	
+	return nil
+}
+
+// DropPTTables drops all PT tables for a given process
+func (db *Database) DropPTTables(processID int) error {
+	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
+	tables := []string{
+		fmt.Sprintf("%s_departures", tablePrefix),
+		fmt.Sprintf("%s_route_stops", tablePrefix),
+		fmt.Sprintf("%s_routes", tablePrefix),
+		fmt.Sprintf("%s_lines", tablePrefix),
+		fmt.Sprintf("%s_stops", tablePrefix),
+	}
+	
+	for _, table := range tables {
+		if err := db.execTableQuery(fmt.Sprintf(dropTableQuery, table)); err != nil {
+			return fmt.Errorf("failed to drop table %s: %w", table, err)
+		}
+	}
+	
+	return nil
 }

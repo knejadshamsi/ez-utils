@@ -197,21 +197,6 @@ func (a *App) DeletePerson(tableName string, personId string) (map[string]string
 	return map[string]string{"message": "Person deleted successfully"}, nil
 }
 
-
-func (cr *CountingReader) Read(p []byte) (n int, err error) {
-	n, err = cr.reader.Read(p)
-	cr.mu.Lock()
-	cr.bytesRead += int64(n)
-	cr.mu.Unlock()
-	return n, err
-}
-
-func (cr *CountingReader) BytesRead() int64 {
-	cr.mu.Lock()
-	defer cr.mu.Unlock()
-	return cr.bytesRead
-}
-
 // NewProcessor creates a new population processor
 func NewProcessor(db *Database, processID int) (*Processor, error) {
 	return &Processor{
@@ -261,9 +246,12 @@ func (p *Processor) ProcessPopulationFile(filePath string) error {
 
 	// Channel to signal processing completion
 	done := make(chan error, 1)
+	// Channel to signal telemetry goroutine has finished
+	telemetryDone := make(chan struct{})
 
 	// Start telemetry updater in goroutine
 	go func() {
+		defer close(telemetryDone)
 		for {
 			select {
 			case <-ticker.C:
@@ -279,6 +267,9 @@ func (p *Processor) ProcessPopulationFile(filePath string) error {
 	// Process XML
 	err = p.processXML(countingReader, tableName)
 	done <- err
+	
+	// Wait for telemetry goroutine to finish
+	<-telemetryDone
 
 	if err != nil {
 		return fmt.Errorf("failed to process XML: %w", err)

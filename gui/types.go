@@ -50,6 +50,8 @@ type ProcessTelemetry struct {
 	TotalFileSize    int64     `json:"total_file_size"`
 	BytesRead        int64     `json:"bytes_read"`
 	PersonsExtracted int64     `json:"persons_extracted"`
+	NodesRead        int64     `json:"nodes_read"`
+	LinksRead        int64     `json:"links_read"`
 	ErrorCount       int64     `json:"error_count"`
 	LastUpdated      time.Time `json:"last_updated"`
 }
@@ -70,4 +72,172 @@ type CountingReader struct {
 	reader    io.Reader
 	bytesRead int64
 	mu        sync.Mutex
+}
+
+// Network-specific types
+
+// NodeData represents a network node for database storage.
+type NodeData struct {
+	ID     string
+	Coords string
+	RawXML string
+}
+
+// LinkData represents a network link for database storage.
+type LinkData struct {
+	FromNode string
+	ToNode   string
+	RawXML   string
+}
+
+// BoundingBox represents a geographic bounding box.
+type BoundingBox struct {
+	North float64 `json:"north"`
+	South float64 `json:"south"`
+	East  float64 `json:"east"`
+	West  float64 `json:"west"`
+}
+
+// NodeResult represents a node query result with parsed coordinates.
+type NodeResult struct {
+	ID     string  `json:"id"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	RawXML string  `json:"raw_xml"`
+}
+
+// LinkResult represents a link query result.
+type LinkResult struct {
+	ID       string `json:"id"`
+	FromNode string `json:"from_node"`
+	ToNode   string `json:"to_node"`
+	RawXML   string `json:"raw_xml"`
+}
+
+// ProcessResult represents the result of starting a process
+type ProcessResult struct {
+	ProcessID int    `json:"process_id"`
+	Message   string `json:"message"`
+}
+
+// PT-specific types
+
+// PTStop represents a transit stop with coordinates
+type PTStop struct {
+	ID     string  `json:"id"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Name   string  `json:"name"`
+	RawXML string  `json:"raw_xml"`
+}
+
+// PTLine represents a transit line
+type PTLine struct {
+	ID     string `json:"id"`
+	Mode   string `json:"mode"`
+	RawXML string `json:"raw_xml"`
+}
+
+// PTRoute represents a transit route
+type PTRoute struct {
+	ID     string `json:"id"`
+	LineID string `json:"line_id"`
+	RawXML string `json:"raw_xml"`
+}
+
+// PTRouteStop represents a stop in a route
+type PTRouteStop struct {
+	RouteID         string `json:"route_id"`
+	StopRefID       string `json:"stop_ref_id"`
+	StopOrder       int    `json:"stop_order"`
+	ArrivalOffset   string `json:"arrival_offset"`
+	DepartureOffset string `json:"departure_offset"`
+}
+
+// PTDeparture represents a departure time
+type PTDeparture struct {
+	ID            string `json:"id"`
+	RouteID       string `json:"route_id"`
+	DepartureTime string `json:"departure_time"`
+}
+
+// PTStopUpdate represents an update to a stop
+type PTStopUpdate struct {
+	X    float64
+	Y    float64
+	Name string
+}
+
+// PT data structures for processing
+
+// PTStopData represents stop data during processing
+type PTStopData struct {
+	ID     string
+	X      float64
+	Y      float64
+	Name   string
+	RawXML string
+}
+
+// PTLineData represents line data during processing
+type PTLineData struct {
+	ID     string
+	Mode   string
+	RawXML string
+}
+
+// PTRouteData represents route data during processing
+type PTRouteData struct {
+	ID     string
+	LineID string
+	RawXML string
+}
+
+// PTRouteStopData represents route stop data during processing
+type PTRouteStopData struct {
+	RouteID         string
+	StopRefID       string
+	StopOrder       int
+	ArrivalOffset   string
+	DepartureOffset string
+}
+
+// PTDepartureData represents departure data during processing
+type PTDepartureData struct {
+	ID            string
+	RouteID       string
+	DepartureTime string
+}
+
+// PTTelemetry represents PT processing telemetry data
+type PTTelemetry struct {
+	ProcessID       int    `json:"process_id"`
+	TotalFileSize   int64  `json:"total_file_size"`
+	BytesRead       int64  `json:"bytes_read"`
+	StopsExtracted  int    `json:"stops_extracted"`
+	LinesExtracted  int    `json:"lines_extracted"`
+	RoutesExtracted int    `json:"routes_extracted"`
+	ErrorCount      int    `json:"error_count"`
+	LastUpdated     string `json:"last_updated"`
+}
+
+// PTProcessor handles PT file processing with telemetry
+type PTProcessor struct {
+	processID      int
+	db             *Database
+	app            *App
+	telemetry      *PTTelemetry
+	telemetryMutex sync.RWMutex
+	stopCount      int64
+	lineCount      int64
+	routeCount     int64
+	errorCount     int64
+	countingReader *CountingReader
+}
+
+// PTExporter handles PT data export operations
+type PTExporter struct {
+	processID int
+	db        *Database
+	app       *App
 }

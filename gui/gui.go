@@ -39,6 +39,11 @@ func (a *App) startup(ctx context.Context) {
 	a.db = db
 }
 
+// SetDatabase sets the database for testing purposes
+func (a *App) SetDatabase(db *Database) {
+	a.db = db
+}
+
 
 
 
