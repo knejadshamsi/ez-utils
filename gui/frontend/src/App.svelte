@@ -8,6 +8,12 @@
   
   let primarySidebarHidden = $state(false);
   let secondarySidebarHidden = $state(false);
+  
+  // Demo: Editable layer state - uncomment to enable drawing functionality
+  // let isEditingEnabled = $state(false);
+  // const toggleEditing = () => {
+  //   isEditingEnabled = !isEditingEnabled;
+  // };
 </script>
 
 <Header />
