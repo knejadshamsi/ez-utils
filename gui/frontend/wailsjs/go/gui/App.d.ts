@@ -66,3 +66,9 @@ export function SelectFile():Promise<string>;
 export function SetDatabase(arg1:gui.Database):Promise<void>;
 
 export function SyncChanges(arg1:Array<json.RawMessage>):Promise<void>;
+
+export function ValidateNetworkXML(arg1:string):Promise<gui.ValidationResult>;
+
+export function ValidatePTXML(arg1:string):Promise<gui.ValidationResult>;
+
+export function ValidatePopulationXML(arg1:string):Promise<gui.ValidationResult>;

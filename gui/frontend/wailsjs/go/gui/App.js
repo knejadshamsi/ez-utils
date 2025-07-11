@@ -129,3 +129,15 @@ export function SetDatabase(arg1) {
 export function SyncChanges(arg1) {
   return window['go']['gui']['App']['SyncChanges'](arg1);
 }
+
+export function ValidateNetworkXML(arg1) {
+  return window['go']['gui']['App']['ValidateNetworkXML'](arg1);
+}
+
+export function ValidatePTXML(arg1) {
+  return window['go']['gui']['App']['ValidatePTXML'](arg1);
+}
+
+export function ValidatePopulationXML(arg1) {
+  return window['go']['gui']['App']['ValidatePopulationXML'](arg1);
+}

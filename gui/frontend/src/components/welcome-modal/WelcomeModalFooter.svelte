@@ -42,7 +42,7 @@
     {#if !welcomeModalState.showTable}
       <Button 
         color="primary"
-        disabled={!commandArgs.isFilePathProvided || welcomeModalState.isProcessFetching}
+        disabled={!commandArgs.isFilePathProvided || commandArgs.validationStatus !== `VALIDATED_${commandArgs.fileEditMode}` || welcomeModalState.isProcessFetching}
         onclick={onNext}
       >
         {welcomeModalState.isProcessFetching ? 'Loading...' : 'Next'}

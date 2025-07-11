@@ -2,7 +2,7 @@
   import { Modal, P } from "flowbite-svelte";
   import { appState, commandArgs, type FileEditMode } from "./store.svelte";
   import { onMount } from "svelte";
-  import { GetStartupConfig, GetProcessesByFile } from "../wailsjs/go/gui/App";
+  import { GetStartupConfig, GetProcessesByFile, ValidatePopulationXML, ValidateNetworkXML, ValidatePTXML } from "../wailsjs/go/gui/App";
   import SelectEditMode from "./components/welcome-modal/SelectEditMode.svelte";
   import FileSelection from "./components/welcome-modal/FileSelection.svelte";
   import ProcessTable from "./components/welcome-modal/ProcessTable.svelte";
@@ -59,6 +59,40 @@
     welcomeModalState.processes = [];
   }
 
+  // Get the correct validator function based on file edit mode
+  function getValidatorFunction() {
+    switch (commandArgs.fileEditMode) {
+      case 'POPULATION':
+        return ValidatePopulationXML;
+      case 'NETWORK':
+        return ValidateNetworkXML;
+      case 'PT':
+        return ValidatePTXML;
+      default:
+        throw new Error(`Unknown file edit mode: ${commandArgs.fileEditMode}`);
+    }
+  }
+
+  // Validate file (used for startup files)
+  async function validateFile() {
+    if (!commandArgs.filePath) return;
+    
+    commandArgs.validationStatus = 'VALIDATING';
+    
+    try {
+      const validator = getValidatorFunction();
+      const result = await validator(commandArgs.filePath);
+      commandArgs.validationStatus = result.isValid ? `VALIDATED_${commandArgs.fileEditMode}` : 'FAIL';
+      
+      if (!result.isValid) {
+        console.error('Validation failed:', result.error);
+      }
+    } catch (error) {
+      console.error('Validation error:', error);
+      commandArgs.validationStatus = 'FAIL';
+    }
+  }
+
   // Receive command arguments from Wails/Go backend
   onMount(async () => {
     try {
@@ -76,6 +110,9 @@
       if (config.filePath && config.filePath !== '') {
         commandArgs.filePath = config.filePath;
         commandArgs.isFilePathProvided = true;
+        
+        // Auto-validate the startup file
+        await validateFile();
       } else {
         commandArgs.isFilePathProvided = false;
       }

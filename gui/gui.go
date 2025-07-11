@@ -2,10 +2,13 @@ package gui
 
 import (
 	"context"
+	"encoding/xml"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -137,6 +140,325 @@ func (a *App) SelectFile() (string, error) {
 	}
 	
 	return filePath, nil
+}
+
+// ValidationResult represents the result of XML validation
+type ValidationResult struct {
+	IsValid bool   `json:"isValid"`
+	Error   string `json:"error"`
+}
+
+// ValidatePopulationXML validates that the XML file has proper structure for population data
+func (a *App) ValidatePopulationXML(filePath string) (*ValidationResult, error) {
+	log.Printf("ValidatePopulationXML called with filePath: %s", filePath)
+	
+	// Check if file exists and is readable
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "File not found",
+		}, nil
+	}
+	
+	// Check file extension
+	if !strings.HasSuffix(strings.ToLower(filePath), ".xml") {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "File must have .xml extension",
+		}, nil
+	}
+	
+	// Open and read the file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   fmt.Sprintf("Cannot read file: %v", err),
+		}, nil
+	}
+	defer file.Close()
+	
+	// Parse XML and check structure
+	decoder := xml.NewDecoder(file)
+	
+	var foundPopulation bool
+	var foundPerson bool
+	var depth int
+	
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return &ValidationResult{
+				IsValid: false,
+				Error:   fmt.Sprintf("Invalid XML format: %v", err),
+			}, nil
+		}
+		
+		switch t := token.(type) {
+		case xml.StartElement:
+			depth++
+			
+			// Check for population root element
+			if depth == 1 && t.Name.Local == "population" {
+				foundPopulation = true
+			}
+			
+			// Check for person element
+			if t.Name.Local == "person" {
+				foundPerson = true
+			}
+			
+			// Early exit if we found both required elements
+			if foundPopulation && foundPerson {
+				return &ValidationResult{
+					IsValid: true,
+					Error:   "",
+				}, nil
+			}
+			
+		case xml.EndElement:
+			depth--
+		}
+	}
+	
+	// Check validation results
+	if !foundPopulation {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "Missing <population> root element",
+		}, nil
+	}
+	
+	if !foundPerson {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "No <person> elements found",
+		}, nil
+	}
+	
+	return &ValidationResult{
+		IsValid: true,
+		Error:   "",
+	}, nil
+}
+
+// ValidateNetworkXML validates that the XML file has proper structure for network data
+func (a *App) ValidateNetworkXML(filePath string) (*ValidationResult, error) {
+	log.Printf("ValidateNetworkXML called with filePath: %s", filePath)
+	
+	// Check if file exists and is readable
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "File not found",
+		}, nil
+	}
+	
+	// Check file extension
+	if !strings.HasSuffix(strings.ToLower(filePath), ".xml") {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "File must have .xml extension",
+		}, nil
+	}
+	
+	// Open and read the file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   fmt.Sprintf("Cannot read file: %v", err),
+		}, nil
+	}
+	defer file.Close()
+	
+	// Parse XML and check structure
+	decoder := xml.NewDecoder(file)
+	
+	var foundNetwork bool
+	var foundNodes bool
+	var foundLinks bool
+	var depth int
+	
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return &ValidationResult{
+				IsValid: false,
+				Error:   fmt.Sprintf("Invalid XML format: %v", err),
+			}, nil
+		}
+		
+		switch t := token.(type) {
+		case xml.StartElement:
+			depth++
+			
+			// Check for network root element
+			if depth == 1 && t.Name.Local == "network" {
+				foundNetwork = true
+			}
+			
+			// Check for nodes and links elements
+			if t.Name.Local == "nodes" {
+				foundNodes = true
+			}
+			if t.Name.Local == "links" {
+				foundLinks = true
+			}
+			
+			// Early exit if we found all required elements
+			if foundNetwork && foundNodes && foundLinks {
+				return &ValidationResult{
+					IsValid: true,
+					Error:   "",
+				}, nil
+			}
+			
+		case xml.EndElement:
+			depth--
+		}
+	}
+	
+	// Check validation results
+	if !foundNetwork {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "Missing <network> root element",
+		}, nil
+	}
+	
+	if !foundNodes {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "Missing <nodes> element",
+		}, nil
+	}
+	
+	if !foundLinks {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "Missing <links> element",
+		}, nil
+	}
+	
+	return &ValidationResult{
+		IsValid: true,
+		Error:   "",
+	}, nil
+}
+
+// ValidatePTXML validates that the XML file has proper structure for public transport data
+func (a *App) ValidatePTXML(filePath string) (*ValidationResult, error) {
+	log.Printf("ValidatePTXML called with filePath: %s", filePath)
+	
+	// Check if file exists and is readable
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "File not found",
+		}, nil
+	}
+	
+	// Check file extension
+	if !strings.HasSuffix(strings.ToLower(filePath), ".xml") {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "File must have .xml extension",
+		}, nil
+	}
+	
+	// Open and read the file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   fmt.Sprintf("Cannot read file: %v", err),
+		}, nil
+	}
+	defer file.Close()
+	
+	// Parse XML and check structure
+	decoder := xml.NewDecoder(file)
+	
+	var foundTransitSchedule bool
+	var foundTransitStops bool
+	var foundTransitLines bool
+	var depth int
+	
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return &ValidationResult{
+				IsValid: false,
+				Error:   fmt.Sprintf("Invalid XML format: %v", err),
+			}, nil
+		}
+		
+		switch t := token.(type) {
+		case xml.StartElement:
+			depth++
+			
+			// Check for transitSchedule root element
+			if depth == 1 && t.Name.Local == "transitSchedule" {
+				foundTransitSchedule = true
+			}
+			
+			// Check for transitStops and transitLines elements
+			if t.Name.Local == "transitStops" {
+				foundTransitStops = true
+			}
+			if t.Name.Local == "transitLines" {
+				foundTransitLines = true
+			}
+			
+			// Early exit if we found all required elements
+			if foundTransitSchedule && foundTransitStops && foundTransitLines {
+				return &ValidationResult{
+					IsValid: true,
+					Error:   "",
+				}, nil
+			}
+			
+		case xml.EndElement:
+			depth--
+		}
+	}
+	
+	// Check validation results
+	if !foundTransitSchedule {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "Missing <transitSchedule> root element",
+		}, nil
+	}
+	
+	if !foundTransitStops {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "Missing <transitStops> element",
+		}, nil
+	}
+	
+	if !foundTransitLines {
+		return &ValidationResult{
+			IsValid: false,
+			Error:   "Missing <transitLines> element",
+		}, nil
+	}
+	
+	return &ValidationResult{
+		IsValid: true,
+		Error:   "",
+	}, nil
 }
 
 

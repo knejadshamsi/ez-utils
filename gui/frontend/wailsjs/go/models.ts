@@ -256,6 +256,20 @@ export namespace gui {
 		    return a;
 		}
 	}
+	export class ValidationResult {
+	    isValid: boolean;
+	    error: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ValidationResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.isValid = source["isValid"];
+	        this.error = source["error"];
+	    }
+	}
 
 }
 
