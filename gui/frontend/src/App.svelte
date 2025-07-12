@@ -4,11 +4,9 @@
   import Map from "./Map.svelte";
   import PrimarySidebar from "./PrimarySidebar.svelte";
   import SecondarySidebar from "./SecondarySidebar.svelte";
-  import WelcomeModal from "./WelcomeModal.svelte";
+  // import WelcomeModal from "./WelcomeModal.svelte"; // TEMPORARY: Commented for development
   import ProcessingModal from "./components/ProcessingModal.svelte";
-  
-  let primarySidebarHidden = $state(false);
-  let secondarySidebarHidden = $state(false);
+  import { appState } from "./store.svelte";
   
   // Demo: Editable layer state - uncomment to enable drawing functionality
   // let isEditingEnabled = $state(false);
@@ -23,9 +21,10 @@
   <Map />
 </div>
 
-<PrimarySidebar bind:hidden={primarySidebarHidden} />
-<SecondarySidebar bind:hidden={secondarySidebarHidden} />
+<PrimarySidebar state={appState.primarySidebar} />
+<SecondarySidebar state={appState.secondarySidebar} />
 
-<WelcomeModal />
+<!-- TEMPORARY: Commented out for development - UNCOMMENT BEFORE COMMIT -->
+<!-- <WelcomeModal /> -->
 <ProcessingModal />
 

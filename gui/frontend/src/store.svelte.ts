@@ -19,7 +19,7 @@ export const appState = $state<{
   primarySidebar: SidebarState,
   secondarySidebar: SidebarState
 }>({ 
-  display: 'WELCOME',
+  display: 'EDITING', // TEMPORARY: Changed from 'WELCOME' for development - CHANGE BACK TO 'WELCOME' BEFORE COMMIT
   primarySidebar: 'EXPANDED',
   secondarySidebar: 'HIDDEN'
 });
@@ -32,9 +32,18 @@ export const commandArgs = $state<{
   isFilePathProvided: boolean,
   validationStatus: ValidationStatus
 }>({
-  fileEditMode: 'POPULATION',
-  filePath: '',
-  isFileEditModeProvided: false,
-  isFilePathProvided: false,
-  validationStatus: 'NOT'
+  fileEditMode: 'POPULATION', // TEMPORARY: Default to POPULATION for development
+  filePath: '/dummy/population.xml', // TEMPORARY: Dummy path for development
+  isFileEditModeProvided: true, // TEMPORARY: Set to true for development
+  isFilePathProvided: true, // TEMPORARY: Set to true for development
+  validationStatus: 'VALIDATED_POPULATION' // TEMPORARY: Skip validation for development
+});
+
+// TEMPORARY: Add state for current editing session - for development
+export const editingSession = $state<{
+  processId: number,
+  tableName: string
+}>({
+  processId: 999, // TEMPORARY: Dummy process ID for development
+  tableName: 'population_data_999' // TEMPORARY: Dummy table name for development
 });
