@@ -130,9 +130,9 @@ func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64)
 	done <- true
 
 	// Update final status
-	status := "completed"
+	status := "COMPLETED"
 	if err != nil {
-		status = "failed"
+		status = "FAILED"
 		log.Printf("PT processing failed: %v", err)
 		wailsruntime.EventsEmit(a.ctx, "pt-processing-error", map[string]interface{}{
 			"processID": processID,

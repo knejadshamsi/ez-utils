@@ -10,7 +10,7 @@ import (
 // Process query constants
 const (
 	deleteProcessQuery = `DELETE FROM processes WHERE process_id = ?`
-	createProcessQuery = `INSERT INTO processes (file_path, status) VALUES (?, 'pending')`
+	createProcessQuery = `INSERT INTO processes (file_path, status) VALUES (?, 'PENDING')`
 	updateProcessStatusQuery = `UPDATE processes SET status = ? WHERE process_id = ?`
 	initTelemetryQuery = `INSERT INTO process_telemetry (process_id, total_file_size, bytes_read, persons_extracted) 
 		  VALUES (?, ?, 0, 0)`
@@ -42,11 +42,18 @@ const (
 func (a *App) GetProcesses() ([]Process, error) {
 	rows, err := a.db.queryRows(selectAllProcessesQuery, selectAllProcessesError)
 	if err != nil {
-		return nil, err
+		return make([]Process, 0), err
 	}
 	defer rows.Close()
 
-	return scanProcesses(rows)
+	processes, err := scanProcesses(rows)
+	if err != nil {
+		return make([]Process, 0), err
+	}
+	if processes == nil {
+		return make([]Process, 0), nil
+	}
+	return processes, nil
 }
 
 // CheckProcessingStatus retrieves the status of a specific process.
@@ -64,28 +71,63 @@ func (a *App) CheckProcessingStatus(processID int) (string, error) {
 
 // GetProcessesByFile retrieves all process records for a given file path.
 func (a *App) GetProcessesByFile(filePath string) []Process {
+	log.Printf("GetProcessesByFile called with filePath: %s", filePath)
+	
+	if a.db == nil {
+		log.Printf("Database is nil!")
+		// Return an initialized slice, not nil
+		return make([]Process, 0)
+	}
+	
 	rows, err := a.db.queryRows(selectProcessesByFileQuery, fmt.Sprintf(selectProcessesByFileError, filePath), filePath)
 	if err != nil {
 		log.Printf("Failed to query processes for file %s: %v", filePath, err)
-		return nil
+		// Return an initialized slice, not nil
+		return make([]Process, 0)
 	}
 	defer rows.Close()
 
 	processes, err := scanProcesses(rows)
 	if err != nil {
 		log.Printf("Failed to scan processes for file %s: %v", filePath, err)
-		return nil
+		// Return an initialized slice, not nil
+		return make([]Process, 0)
 	}
 
+	// Ensure we never return nil, even if processes is nil
+	if processes == nil {
+		processes = make([]Process, 0)
+	}
+
+	log.Printf("GetProcessesByFile returning %d processes", len(processes))
 	return processes
 }
 
 // deleteProcess deletes a process and its associated data (internal function for interpreter)
 func (a *App) deleteProcess(processID int) error {
-	tableName := fmt.Sprintf("population_data_%d", processID)
-	// First, drop the associated table if it exists
-	if err := a.db.execTableQuery(fmt.Sprintf(dropTableQuery, tableName)); err != nil { return err }
-	// Then, delete the process record
+	// Drop all possible tables associated with this process
+	// Population tables
+	populationTable := fmt.Sprintf("population_data_%d", processID)
+	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", populationTable))
+	
+	// Network tables
+	nodesTable := fmt.Sprintf("network_nodes_%d", processID)
+	linksTable := fmt.Sprintf("network_links_%d", processID)
+	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", nodesTable))
+	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", linksTable))
+	
+	// PT tables
+	ptPrefix := fmt.Sprintf("pt_data_%d", processID)
+	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s_stops", ptPrefix))
+	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s_lines", ptPrefix))
+	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s_routes", ptPrefix))
+	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s_route_stops", ptPrefix))
+	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s_departures", ptPrefix))
+	
+	// Delete telemetry record
+	_, _ = a.db.execQuery("DELETE FROM process_telemetry WHERE process_id = ?", fmt.Sprintf("failed to delete telemetry for process %d", processID), processID)
+	
+	// Finally, delete the process record
 	if _, err := a.db.execQuery(deleteProcessQuery, fmt.Sprintf(deleteProcessError, processID), processID); err != nil {
 		return err
 	}

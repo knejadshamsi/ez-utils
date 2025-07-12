@@ -1,10 +1,10 @@
-import type { database } from "../../../wailsjs/go/models";
+import type { gui } from "../../../wailsjs/go/models";
 
 // Local state for welcome modal
 export const welcomeModalState = $state({
   showTable: false,
   selectedProcessId: null as number | null,
-  processes: [] as database.Process[],
+  processes: [] as gui.Process[],
   isProcessFetching: false,
   currentPage: 1
 });

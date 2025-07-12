@@ -9,9 +9,10 @@
   import WelcomeModalFooter from "./components/welcome-modal/WelcomeModalFooter.svelte";
   import { welcomeModalState } from "./components/welcome-modal/welcome.svelte";
 
-  // Handle form submission
+  // Handle form submission (for loading existing process)
   function handleStart() {
-    appState.display = 'EDITING';
+    // Don't change state here - let ProcessingModal handle the transition
+    // The WelcomeModalFooter already sets appState.display = 'LOADING'
   }
   
   // Handle creating new process
@@ -26,26 +27,31 @@
     commandArgs.isFileEditModeProvided = true;
     welcomeModalState.isProcessFetching = true;
     
-    // Fetch processes for the selected file
-    console.log('Calling GetProcessesByFile with:', commandArgs.filePath);
-    const processes = await GetProcessesByFile(commandArgs.filePath);
-    console.log('GetProcessesByFile returned:', processes);
-    
-    if (processes === null) {
-      console.log('Error case: processes is null');
-      // Handle error - don't show table
-      welcomeModalState.showTable = false;
-    } else {
-      console.log('Success case: processes array length:', processes.length);
-      // Set processes (empty array or filled array)
-      welcomeModalState.processes = processes;
+    try {
+      // Fetch processes for the selected file
       
-      if (welcomeModalState.processes.length > 0) {
-        // Auto-select the first process
-        welcomeModalState.selectedProcessId = (welcomeModalState.processes[0] as any).process_id;
+      const processes = await GetProcessesByFile(commandArgs.filePath);
+      console.log('GetProcessesByFile returned:', processes);
+      
+      if (processes === null) {
+        console.log('Error case: processes is null');
+        // Handle error - don't show table
+        welcomeModalState.showTable = false;
+      } else {
+        console.log('Success case: processes array length:', processes.length);
+        // Set processes (empty array or filled array)
+        welcomeModalState.processes = processes;
+        
+        if (welcomeModalState.processes.length > 0) {
+          // Auto-select the first process
+          welcomeModalState.selectedProcessId = (welcomeModalState.processes[0] as any).process_id;
+        }
+        
+        welcomeModalState.showTable = true;
       }
-      
-      welcomeModalState.showTable = true;
+    } catch (error) {
+      console.error('Error in handleNext:', error);
+      welcomeModalState.showTable = false;
     }
     
     welcomeModalState.isProcessFetching = false;

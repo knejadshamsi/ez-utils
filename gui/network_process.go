@@ -69,20 +69,22 @@ func (a *App) processNetworkFile(filePath string, processID int) {
 		}
 	}
 
-	updateStatus("Initializing processor...")
+	updateStatus("INITIALIZING")
 	processor, err := NewNetworkProcessor(a.db, processID)
 	if err != nil {
-		updateStatus(fmt.Sprintf("failed to create processor: %v", err))
+		log.Printf("Error creating network processor: %v", err)
+		updateStatus("FAILED")
 		return
 	}
 
-	updateStatus("Processing file...")
+	updateStatus("PROCESSING")
 	if err := processor.ProcessNetworkFile(filePath); err != nil {
-		updateStatus(fmt.Sprintf("failed to process file: %v", err))
+		log.Printf("Error processing network file %s: %v", filePath, err)
+		updateStatus("FAILED")
 		return
 	}
 
-	updateStatus("Completed")
+	updateStatus("COMPLETED")
 }
 
 // ProcessNetworkFile method for NetworkProcessor.

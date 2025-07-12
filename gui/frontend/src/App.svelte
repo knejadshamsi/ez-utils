@@ -5,6 +5,7 @@
   import PrimarySidebar from "./PrimarySidebar.svelte";
   import SecondarySidebar from "./SecondarySidebar.svelte";
   import WelcomeModal from "./WelcomeModal.svelte";
+  import ProcessingModal from "./components/ProcessingModal.svelte";
   
   let primarySidebarHidden = $state(false);
   let secondarySidebarHidden = $state(false);
@@ -26,4 +27,5 @@
 <SecondarySidebar bind:hidden={secondarySidebarHidden} />
 
 <WelcomeModal />
+<ProcessingModal />
 

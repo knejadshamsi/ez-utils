@@ -3,7 +3,7 @@
   import { ExclamationCircleOutline } from "flowbite-svelte-icons";
   import { slide } from "svelte/transition";
   import { welcomeModalState } from "./welcome.svelte";
-  import { commandArgs } from "../../store.svelte";
+  import { commandArgs, appState } from "../../store.svelte";
   import { ExitApplication } from "../../../wailsjs/go/gui/App";
   
   interface Props {
@@ -56,7 +56,10 @@
       </Button>
         <Button 
           color="primary"
-          onclick={onNewProcess}
+          onclick={() => {
+            appState.display = 'PROCESSING';
+            onNewProcess();
+          }}
         >
           New Process
         </Button>
@@ -64,9 +67,12 @@
         <Button 
           color="primary"
           disabled={!welcomeModalState.selectedProcessId}
-          onclick={onStart}
+          onclick={() => {
+            appState.display = 'LOADING';
+            onStart();
+          }}
         >
-          Start Editing
+          Load
         </Button>
       {/if}
     {/if}

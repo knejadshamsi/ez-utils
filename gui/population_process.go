@@ -47,35 +47,47 @@ func (a *App) processPopulationFile(filePath string, processID int) {
 		}
 	}
 
-	updateStatus("Initializing processor...")
+	updateStatus("INITIALIZING")
 	processor, err := NewProcessor(a.db, processID)
 	if err != nil {
-		errStr := fmt.Sprintf("failed to create processor: %v", err)
 		log.Printf("Error creating processor: %v", err)
-		updateStatus(errStr)
+		updateStatus("FAILED")
 		return
 	}
 
-	updateStatus("Processing file...")
+	updateStatus("PROCESSING")
 	if err := processor.ProcessPopulationFile(filePath); err != nil {
-		errStr := fmt.Sprintf("failed to process file: %v", err)
 		log.Printf("Error processing file %s: %v", filePath, err)
-		updateStatus(errStr)
+		updateStatus("FAILED")
 		return
 	}
 
-	updateStatus("Completed")
+	updateStatus("COMPLETED")
 	log.Printf("Successfully processed file %s", filePath)
 }
 
 // GetPopulation retrieves all processed population data for a given table.
 func (a *App) GetPopulation(tableName string) ([]Person, error) {
-	return a.db.GetPopulationData(tableName)
+	persons, err := a.db.GetPopulationData(tableName)
+	if err != nil {
+		return make([]Person, 0), err
+	}
+	if persons == nil {
+		return make([]Person, 0), nil
+	}
+	return persons, nil
 }
 
 // GetPopulationByBbox retrieves population data within a bounding box
 func (a *App) GetPopulationByBbox(tableName string, minLat, minLng, maxLat, maxLng float64) ([]Person, error) {
-	return a.db.GetPopulationByBbox(tableName, minLat, minLng, maxLat, maxLng)
+	persons, err := a.db.GetPopulationByBbox(tableName, minLat, minLng, maxLat, maxLng)
+	if err != nil {
+		return make([]Person, 0), err
+	}
+	if persons == nil {
+		return make([]Person, 0), nil
+	}
+	return persons, nil
 }
 
 // GetPerson retrieves a single person by ID

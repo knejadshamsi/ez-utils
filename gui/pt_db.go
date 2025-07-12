@@ -5,12 +5,26 @@ package gui
 
 // GetPTStops retrieves all stops for a process
 func (a *App) GetPTStops(processID int) ([]PTStop, error) {
-	return a.db.GetPTStops(processID)
+	stops, err := a.db.GetPTStops(processID)
+	if err != nil {
+		return make([]PTStop, 0), err
+	}
+	if stops == nil {
+		return make([]PTStop, 0), nil
+	}
+	return stops, nil
 }
 
 // GetPTStopsByBbox retrieves stops within a bounding box
 func (a *App) GetPTStopsByBbox(processID int, bbox BoundingBox) ([]PTStop, error) {
-	return a.db.GetPTStopsByBbox(processID, bbox)
+	stops, err := a.db.GetPTStopsByBbox(processID, bbox)
+	if err != nil {
+		return make([]PTStop, 0), err
+	}
+	if stops == nil {
+		return make([]PTStop, 0), nil
+	}
+	return stops, nil
 }
 
 // GetPTStop retrieves a specific stop by ID
@@ -20,7 +34,14 @@ func (a *App) GetPTStop(processID int, stopID string) (*PTStop, error) {
 
 // GetPTLines retrieves all lines for a process
 func (a *App) GetPTLines(processID int) ([]PTLine, error) {
-	return a.db.GetPTLines(processID)
+	lines, err := a.db.GetPTLines(processID)
+	if err != nil {
+		return make([]PTLine, 0), err
+	}
+	if lines == nil {
+		return make([]PTLine, 0), nil
+	}
+	return lines, nil
 }
 
 // GetPTLine retrieves a specific line by ID
@@ -30,22 +51,50 @@ func (a *App) GetPTLine(processID int, lineID string) (*PTLine, error) {
 
 // GetPTLinesByMode retrieves lines by transport mode
 func (a *App) GetPTLinesByMode(processID int, mode string) ([]PTLine, error) {
-	return a.db.GetPTLinesByMode(processID, mode)
+	lines, err := a.db.GetPTLinesByMode(processID, mode)
+	if err != nil {
+		return make([]PTLine, 0), err
+	}
+	if lines == nil {
+		return make([]PTLine, 0), nil
+	}
+	return lines, nil
 }
 
 // GetPTRoutes retrieves routes for a specific line
 func (a *App) GetPTRoutes(processID int, lineID string) ([]PTRoute, error) {
-	return a.db.GetPTRoutes(processID, lineID)
+	routes, err := a.db.GetPTRoutes(processID, lineID)
+	if err != nil {
+		return make([]PTRoute, 0), err
+	}
+	if routes == nil {
+		return make([]PTRoute, 0), nil
+	}
+	return routes, nil
 }
 
 // GetPTRouteStops retrieves stops for a specific route
 func (a *App) GetPTRouteStops(processID int, routeID string) ([]PTRouteStop, error) {
-	return a.db.GetPTRouteStops(processID, routeID)
+	stops, err := a.db.GetPTRouteStops(processID, routeID)
+	if err != nil {
+		return make([]PTRouteStop, 0), err
+	}
+	if stops == nil {
+		return make([]PTRouteStop, 0), nil
+	}
+	return stops, nil
 }
 
 // GetPTDepartures retrieves departures for a specific route
 func (a *App) GetPTDepartures(processID int, routeID string) ([]PTDeparture, error) {
-	return a.db.GetPTDepartures(processID, routeID)
+	departures, err := a.db.GetPTDepartures(processID, routeID)
+	if err != nil {
+		return make([]PTDeparture, 0), err
+	}
+	if departures == nil {
+		return make([]PTDeparture, 0), nil
+	}
+	return departures, nil
 }
 
 // GetPTStatistics returns statistics for PT data

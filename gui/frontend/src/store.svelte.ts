@@ -1,5 +1,5 @@
 // Define the type for display states
-export type DisplayState = 'WELCOME' | 'PROCESSING' | 'EDITING' | 'EXPORTING';
+export type DisplayState = 'WELCOME' | 'LOADING' | 'PROCESSING' | 'EDITING' | 'EXPORTING';
 
 // Define the type for sidebar states
 export type SidebarState = 'HIDDEN' | 'COLLAPSED' | 'EXPANDED';
@@ -9,6 +9,9 @@ export type FileEditMode = 'POPULATION' | 'NETWORK' | 'PT';
 
 // Define the type for validation status
 export type ValidationStatus = 'NOT' | 'VALIDATING' | 'FAIL' | 'VALIDATED_POPULATION' | 'VALIDATED_NETWORK' | 'VALIDATED_PT';
+
+// Define the type for process status
+export type ProcessStatus = 'PENDING' | 'INITIALIZING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
 
 // Create the reactive state for UI using Svelte 5 runes
 export const appState = $state<{ 

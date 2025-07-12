@@ -1,19 +1,32 @@
 <script lang="ts">
-  import { Table, TableBody, TableBodyCell, TableBodyRow, TableHead, TableHeadCell, Radio, Button, P } from "flowbite-svelte";
+  import { Table, TableBody, TableBodyCell, TableBodyRow, TableHead, TableHeadCell, Radio, Button, P, Modal } from "flowbite-svelte";
+  import { ExclamationCircleOutline } from "flowbite-svelte-icons";
   import { welcomeModalState, getPaginatedProcesses, getTotalPages } from "./welcome.svelte";
   import { GetProcessesByFile, SyncChanges } from "../../../wailsjs/go/gui/App";
   import { commandArgs } from "../../store.svelte";
   import { changeTracker } from "../../lib/changeTracker.svelte";
   
   let error = $state<string | null>(null);
+  let showDeleteConfirmation = $state(false);
+  let processToDelete = $state<number | null>(null);
 
-  // Handle delete process
-  async function handleDeleteProcess(processId: number) {
-    if (!confirm('Are you sure you want to delete this process?')) {
-      return;
-    }
+  // Show delete confirmation modal
+  function showDeleteModal(processId: number) {
+    processToDelete = processId;
+    showDeleteConfirmation = true;
+  }
+  
+  // Handle delete confirmation
+  async function confirmDelete() {
+    if (!processToDelete) return;
+    
+    showDeleteConfirmation = false;
+    const processId = processToDelete;
+    processToDelete = null;
     
     try {
+      console.log('Deleting process:', processId);
+      
       // Queue the delete action
       changeTracker.pendingChanges.push({
         type: 'process',
@@ -22,12 +35,18 @@
         processId: processId
       });
       
+      console.log('Syncing changes:', changeTracker.pendingChanges);
+      
       // Sync immediately for delete operations
       await SyncChanges(changeTracker.pendingChanges);
       changeTracker.pendingChanges = [];
       
+      console.log('Delete successful, refreshing process list');
+      
       // Refresh the process list
-      welcomeModalState.processes = await GetProcessesByFile(commandArgs.filePath);
+      const updatedProcesses = await GetProcessesByFile(commandArgs.filePath);
+      console.log('Updated processes:', updatedProcesses);
+      welcomeModalState.processes = updatedProcesses || [];
       
       // If we deleted the selected process, clear selection
       if (welcomeModalState.selectedProcessId === processId) {
@@ -40,8 +59,15 @@
         welcomeModalState.currentPage = Math.max(1, getTotalPages());
       }
     } catch (err) {
+      console.error('Delete failed:', err);
       error = err instanceof Error ? err.message : 'Failed to delete process';
     }
+  }
+  
+  // Cancel delete
+  function cancelDelete() {
+    showDeleteConfirmation = false;
+    processToDelete = null;
   }
 </script>
 
@@ -78,12 +104,12 @@
                 name="processSelection"
                 value={process.process_id}
                 checked={welcomeModalState.selectedProcessId === process.process_id}
-                on:change={() => welcomeModalState.selectedProcessId = process.process_id}
+                onchange={() => welcomeModalState.selectedProcessId = process.process_id}
               />
             </TableBodyCell>
             <TableBodyCell>{process.process_id}</TableBodyCell>
             <TableBodyCell>
-              <span class={process.status === 'Completed' ? 'text-green-600' : process.status === 'failed' ? 'text-red-600' : 'text-yellow-600'}>
+              <span class={process.status === 'COMPLETED' ? 'text-green-600 font-medium' : process.status === 'FAILED' ? 'text-red-600 font-medium' : 'text-yellow-600'}>
                 {process.status}
               </span>
             </TableBodyCell>
@@ -93,7 +119,7 @@
                 size="xs" 
                 color="red" 
                 outline
-                on:click={() => handleDeleteProcess(process.process_id)}
+                onclick={() => showDeleteModal(process.process_id)}
               >
                 Delete
               </Button>
@@ -109,7 +135,7 @@
           size="sm"
           color="alternative"
           disabled={welcomeModalState.currentPage === 1}
-          on:click={() => welcomeModalState.currentPage--}
+          onclick={() => welcomeModalState.currentPage--}
         >
           Previous
         </Button>
@@ -120,7 +146,7 @@
           size="sm"
           color="alternative"
           disabled={welcomeModalState.currentPage === getTotalPages()}
-          on:click={() => welcomeModalState.currentPage++}
+          onclick={() => welcomeModalState.currentPage++}
         >
           Next
         </Button>
@@ -132,3 +158,24 @@
     {/if}
   </div>
 {/if}
+
+<!-- Delete Confirmation Modal -->
+<Modal bind:open={showDeleteConfirmation} size="xs" autoclose={false}>
+  <div class="text-center">
+    <ExclamationCircleOutline class="mx-auto mb-4 h-12 w-12 text-gray-400 dark:text-gray-200" />
+    <h3 class="mb-5 text-lg font-normal text-gray-500 dark:text-gray-400">
+      Are you sure you want to delete process #{processToDelete}?
+    </h3>
+    <P class="mb-5 text-sm text-gray-500 dark:text-gray-400">
+      This action cannot be undone. All data associated with this process will be permanently deleted.
+    </P>
+    <div class="flex justify-center gap-4">
+      <Button color="red" onclick={confirmDelete}>
+        Yes, Delete Process
+      </Button>
+      <Button color="alternative" onclick={cancelDelete}>
+        Cancel
+      </Button>
+    </div>
+  </div>
+</Modal>
