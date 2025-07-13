@@ -1,5 +1,6 @@
 import { changeTracker } from '../../../lib/changeTracker.svelte';
 import type { Person } from './populationStore.svelte';
+import type { SyncAction } from '../../../lib/changeTracker.svelte';
 import { editingSession } from '../../../store.svelte';
 
 function convertPersonToXML(person: Person): string {
@@ -32,33 +33,47 @@ export function trackPersonChange(person: Person, action: 'create' | 'update' | 
   
   // Remove any existing changes for this person
   changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
-    (change: any) => !(change.actionType?.includes('population.person') && 
-                      (change.personId === person.id || change.data?.id === person.id))
+    (change) => {
+      if (change.type === 'population' && change.elementType === 'person') {
+        if ('personId' in change && change.personId === person.id) return false;
+        if ('data' in change && change.data.id === person.id) return false;
+      }
+      return true;
+    }
   );
   
   if (action === 'create') {
-    changeTracker.pendingChanges.push({
-      actionType: 'population.person.add',
+    const addAction: SyncAction = {
+      type: 'population',
+      elementType: 'person',
+      action: 'add',
       tableName: editingSession.tableName,
       data: {
         id: person.id,
         coords: '0,0', // Default coordinates, should be updated when placed on map
         rawXML: convertPersonToXML(person)
       }
-    } as any);
+    };
+    changeTracker.pendingChanges.push(addAction);
   } else if (action === 'update') {
-    changeTracker.pendingChanges.push({
-      actionType: 'population.person.update',
+    const updateAction: SyncAction = {
+      type: 'population',
+      elementType: 'person',
+      action: 'update',
       tableName: editingSession.tableName,
       personId: person.id,
       planXML: convertPersonToXML(person)
-    } as any);
+    };
+    changeTracker.pendingChanges.push(updateAction);
   } else if (action === 'delete') {
-    changeTracker.pendingChanges.push({
-      actionType: 'population.person.delete',
+    const deleteAction: SyncAction = {
+      type: 'population',
+      elementType: 'person',
+      action: 'delete',
       tableName: editingSession.tableName,
       personId: person.id
-    } as any);
+    };
+    changeTracker.pendingChanges.push(deleteAction);
   }
 }
 
@@ -68,7 +83,12 @@ export function trackActivityChange(personId: string, person: Person) {
 
 export function removePersonChanges(personId: string) {
   changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
-    (change: any) => !(change.actionType?.includes('population.person') && 
-                      (change.personId === personId || change.data?.id === personId))
+    (change) => {
+      if (change.type === 'population' && change.elementType === 'person') {
+        if ('personId' in change && change.personId === personId) return false;
+        if ('data' in change && change.data.id === personId) return false;
+      }
+      return true;
+    }
   );
 }

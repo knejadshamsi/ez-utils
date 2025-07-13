@@ -95,6 +95,22 @@ func (a *App) GetPerson(tableName string, personId string) (*Person, error) {
 	return a.db.GetPerson(tableName, personId)
 }
 
+// GetPopulationPaginated retrieves paginated population data
+func (a *App) GetPopulationPaginated(tableName string, page int, pageSize int, zoneFilter []string) (*PaginatedResponse, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 1000 {
+		pageSize = 50 // Default page size
+	}
+	return a.db.GetPopulationPaginated(tableName, page, pageSize, zoneFilter)
+}
+
+// GetZonesWithCounts retrieves all zones with their person counts
+func (a *App) GetZonesWithCounts(tableName string) ([]ZoneCount, error) {
+	return a.db.GetZonesWithCounts(tableName)
+}
+
 // addPerson adds a new person to a population table (internal function for interpreter)
 func (a *App) addPerson(tableName string, person map[string]any) (map[string]any, error) {
 	// Extract person data

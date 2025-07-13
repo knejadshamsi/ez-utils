@@ -53,6 +53,14 @@ export interface PopulationState {
   isSelectingActivityLocation: boolean;
   selectingActivityId: string | null;
   currentPlanIndex: number;
+  // Pagination state
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+  totalPersons: number;
+  isLoadingPage: boolean;
+  pageCache: Map<number, Person[]>;
+  cacheTimestamps: Map<number, number>;
 }
 
 // Create the reactive population state
@@ -70,7 +78,15 @@ export const populationState = $state<PopulationState>({
   isDrawingZone: false,
   isSelectingActivityLocation: false,
   selectingActivityId: null,
-  currentPlanIndex: 0
+  currentPlanIndex: 0,
+  // Pagination state
+  currentPage: 1,
+  pageSize: 50,
+  totalPages: 1,
+  totalPersons: 0,
+  isLoadingPage: false,
+  pageCache: new Map(),
+  cacheTimestamps: new Map()
 });
 
 // Helper functions
@@ -98,6 +114,54 @@ export function getPersonsInSelectedZones(): Person[] {
   return Array.from(populationState.persons.values()).filter(
     person => populationState.selectedZones.has(person.zoneId)
   );
+}
+
+// Pagination helpers
+export function setCurrentPage(page: number) {
+  populationState.currentPage = page;
+}
+
+export function setPageSize(size: number) {
+  populationState.pageSize = size;
+  populationState.currentPage = 1; // Reset to first page when changing page size
+}
+
+export function clearPageCache() {
+  populationState.pageCache.clear();
+  populationState.cacheTimestamps.clear();
+}
+
+// Check if a page is cached and fresh (less than 30 seconds old)
+export function isPageCached(page: number): boolean {
+  const timestamp = populationState.cacheTimestamps.get(page);
+  if (!timestamp) return false;
+  
+  const age = Date.now() - timestamp;
+  return age < 30000; // 30 seconds
+}
+
+// LRU cache management - keep only 5 most recent pages
+export function updatePageCache(page: number, persons: Person[]) {
+  populationState.pageCache.set(page, persons);
+  populationState.cacheTimestamps.set(page, Date.now());
+  
+  // If cache exceeds 5 pages, remove oldest
+  if (populationState.pageCache.size > 5) {
+    let oldestPage = -1;
+    let oldestTime = Date.now();
+    
+    populationState.cacheTimestamps.forEach((time, pageNum) => {
+      if (time < oldestTime && pageNum !== page) {
+        oldestTime = time;
+        oldestPage = pageNum;
+      }
+    });
+    
+    if (oldestPage !== -1) {
+      populationState.pageCache.delete(oldestPage);
+      populationState.cacheTimestamps.delete(oldestPage);
+    }
+  }
 }
 
 // Activity type metadata

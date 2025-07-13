@@ -12,6 +12,9 @@ const (
 	selectAllFromPopulationQuery = `SELECT id, coords, raw_xml FROM %s`
 	selectPopulationByBboxQuery  = `SELECT id, coords, raw_xml FROM %s WHERE coords IS NOT NULL AND coords != ''`
 	selectPersonByIDQuery        = `SELECT id, coords, raw_xml FROM %s WHERE id = ?`
+	selectPopulationPaginatedQuery = `SELECT id, coords, raw_xml FROM %s ORDER BY id LIMIT ? OFFSET ?`
+	countPopulationQuery = `SELECT COUNT(*) FROM %s`
+	selectZonesWithCountsQuery = `SELECT coords, COUNT(*) as count FROM %s WHERE coords IS NOT NULL AND coords != '' GROUP BY coords`
 	updatePersonXMLQuery         = `UPDATE %s SET raw_xml = ? WHERE id = ?`
 	updatePersonCoordsQuery      = `UPDATE %s SET coords = ? WHERE id = ?`
 	updatePersonFullQuery        = `UPDATE %s SET coords = ?, raw_xml = ? WHERE id = ?`
@@ -32,6 +35,9 @@ const (
 	deletePersonError            = "failed to delete person from table %s"
 	insertPersonError            = "failed to insert person into table %s"
 	insertBatchError             = "failed to insert batch"
+	selectPopulationPaginatedError = "failed to query paginated population from table %s"
+	countPopulationError         = "failed to count population in table %s"
+	selectZonesWithCountsError   = "failed to query zones with counts from table %s"
 )
 
 // GetPopulationData retrieves all person data from a specific table
@@ -144,6 +150,56 @@ func (db *Database) UpdatePersonCoords(tableName, personID, coords string) error
 		return fmt.Errorf("failed to update person coordinates: %w", err)
 	}
 	return nil
+}
+
+// PaginatedResponse represents a paginated query response
+type PaginatedResponse struct {
+	Persons     []Person `json:"persons"`
+	TotalCount  int      `json:"totalCount"`
+	CurrentPage int      `json:"currentPage"`
+	TotalPages  int      `json:"totalPages"`
+	PageSize    int      `json:"pageSize"`
+}
+
+// ZoneCount represents a zone with its person count
+type ZoneCount struct {
+	ZoneID string `json:"zoneId"`
+	Count  int    `json:"count"`
+}
+
+// GetPopulationPaginated retrieves paginated population data
+// Uses dynamic zone filtering - if no zones selected, returns empty result
+func (db *Database) GetPopulationPaginated(tableName string, page, pageSize int, zoneFilter []string) (*PaginatedResponse, error) {
+	// Use dynamic point-in-polygon filtering
+	return db.GetPopulationByZonesDynamic(tableName, zoneFilter, page, pageSize)
+}
+
+// GetZonesWithCounts retrieves all zones with their person counts
+// DEPRECATED: Use GetZoneStats instead for proper zone management
+func (db *Database) GetZonesWithCounts(tableName string) ([]ZoneCount, error) {
+	// Get zone statistics
+	stats, err := db.GetZoneStats(tableName)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Get all zones
+	zones, err := db.GetAllZones()
+	if err != nil {
+		return nil, err
+	}
+	
+	// Convert to ZoneCount format
+	var zoneCounts []ZoneCount
+	for _, zone := range zones {
+		count := stats[zone.ID]
+		zoneCounts = append(zoneCounts, ZoneCount{
+			ZoneID: zone.ID,
+			Count:  count,
+		})
+	}
+	
+	return zoneCounts, nil
 }
 
 

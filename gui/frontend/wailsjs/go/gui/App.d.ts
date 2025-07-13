@@ -3,7 +3,17 @@
 import {json} from '../models';
 import {gui} from '../models';
 
+export function AssignPopulationToZones(arg1:string):Promise<void>;
+
 export function CheckProcessingStatus(arg1:number):Promise<string>;
+
+export function ClearAllZones():Promise<void>;
+
+export function CreateDemoZones():Promise<void>;
+
+export function CreateZoneFromGeoJSON(arg1:Record<string, any>):Promise<void>;
+
+export function DeleteZone(arg1:string):Promise<void>;
 
 export function ExecuteAction(arg1:json.RawMessage):Promise<void>;
 
@@ -15,7 +25,15 @@ export function ExportPTFile(arg1:number,arg2:string):Promise<void>;
 
 export function ExportPTSubset(arg1:number,arg2:gui.BoundingBox,arg3:string):Promise<void>;
 
+export function ExportPopulationFile(arg1:string,arg2:string):Promise<void>;
+
+export function FindZoneForCoordinates(arg1:string):Promise<gui.Zone>;
+
+export function GetAllZones():Promise<Array<gui.Zone>>;
+
 export function GetDebugLogs():Promise<Record<string, string>>;
+
+export function GetExportInfo(arg1:string):Promise<Record<string, any>>;
 
 export function GetPTDepartures(arg1:number,arg2:string):Promise<Array<gui.PTDeparture>>;
 
@@ -45,6 +63,10 @@ export function GetPopulation(arg1:string):Promise<Array<gui.Person>>;
 
 export function GetPopulationByBbox(arg1:string,arg2:number,arg3:number,arg4:number,arg5:number):Promise<Array<gui.Person>>;
 
+export function GetPopulationByZones(arg1:string,arg2:number,arg3:number,arg4:Array<string>):Promise<gui.PaginatedResponse>;
+
+export function GetPopulationPaginated(arg1:string,arg2:number,arg3:number,arg4:Array<string>):Promise<gui.PaginatedResponse>;
+
 export function GetProcessTelemetry(arg1:number):Promise<gui.ProcessTelemetry>;
 
 export function GetProcesses():Promise<Array<gui.Process>>;
@@ -55,11 +77,21 @@ export function GetStartupConfig():Promise<Record<string, any>>;
 
 export function GetStartupFile():Promise<string>;
 
+export function GetZone(arg1:string):Promise<gui.Zone>;
+
+export function GetZoneStats(arg1:string):Promise<Record<string, any>>;
+
+export function GetZonesWithCounts(arg1:string):Promise<Array<gui.ZoneCount>>;
+
 export function ProcessNetworkFile(arg1:string):Promise<Record<string, any>>;
 
 export function ProcessPTFile(arg1:string):Promise<gui.ProcessResult>;
 
 export function ProcessPopulationFile(arg1:string):Promise<Record<string, any>>;
+
+export function SaveFile(arg1:string,arg2:string):Promise<string>;
+
+export function SaveZone(arg1:gui.Zone):Promise<void>;
 
 export function SelectFile():Promise<string>;
 

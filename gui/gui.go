@@ -40,6 +40,11 @@ func (a *App) startup(ctx context.Context) {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	a.db = db
+	
+	// Create zone tables
+	if err := db.CreateZoneTables(); err != nil {
+		log.Printf("Error creating zone tables: %v", err)
+	}
 }
 
 // SetDatabase sets the database for testing purposes

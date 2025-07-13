@@ -116,23 +116,3 @@ function formatTime(timeStr: string): string {
   }
   return '00:00';
 }
-
-export function extractZoneFromCoords(coords: string): string {
-  try {
-    const [x, y] = coords.split(',').map(c => parseFloat(c.trim()));
-    
-    // Simple zone calculation based on coordinates
-    // This is a placeholder - in a real implementation, you would
-    // check against actual zone boundaries
-    if (isNaN(x) || isNaN(y)) {
-      return 'default';
-    }
-    
-    // Example zone assignment based on coordinate ranges
-    const zoneX = Math.floor(x / 0.01);
-    const zoneY = Math.floor(y / 0.01);
-    return `zone_${zoneX}_${zoneY}`;
-  } catch (error) {
-    return 'default';
-  }
-}

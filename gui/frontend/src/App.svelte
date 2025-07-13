@@ -6,6 +6,7 @@
   import SecondarySidebar from "./SecondarySidebar.svelte";
   // import WelcomeModal from "./WelcomeModal.svelte"; // TEMPORARY: Commented for development
   import ProcessingModal from "./components/ProcessingModal.svelte";
+  import ToastContainer from "./components/ToastContainer.svelte";
   import { appState } from "./store.svelte";
   
   // Demo: Editable layer state - uncomment to enable drawing functionality
@@ -27,4 +28,5 @@
 <!-- TEMPORARY: Commented out for development - UNCOMMENT BEFORE COMMIT -->
 <!-- <WelcomeModal /> -->
 <ProcessingModal />
+<ToastContainer />
 

@@ -3,7 +3,7 @@
   import { ScatterplotLayer, PathLayer, PolygonLayer, TextLayer } from '@deck.gl/layers';
   import { populationState } from './populationStore.svelte';
   import { SvelteSet } from 'svelte/reactivity';
-  import { appState } from '../../../store.svelte.ts';
+  import { appState } from '../../../store.svelte';
   
   // Debug zones
   $effect(() => {

@@ -9,58 +9,22 @@
     getPersonsInSelectedZones 
   } from '../../services/edit/population/populationStore.svelte';
   import { appState, editingSession } from '../../store.svelte';
-  import { GetPopulation } from '../../../wailsjs/go/gui/App';
   import { onMount } from 'svelte';
   import { trackPersonChange } from '../../services/edit/population/changeTracking';
-  import { parsePersonXML, extractZoneFromCoords } from '../../services/edit/population/xmlParser';
+  import { loadPopulationPage, loadZones, handlePageChange, handleZoneFilterChange } from '../../services/edit/population/paginationService';
+  import { syncChanges } from '../../lib/syncManager';
 
   // Load population data from backend
   onMount(async () => {
     console.log('PopulationContent onMount - editingSession.tableName:', editingSession.tableName);
     if (editingSession.tableName) {
       try {
-        const persons = await GetPopulation(editingSession.tableName);
-        console.log('Loaded persons from backend:', persons?.length || 0, 'persons');
+        // Load zones first
+        await loadZones(editingSession.tableName);
         
-        // Process persons to extract zones
-        const zoneMap = new Map<string, number>();
+        // Load first page of population data
+        await loadPopulationPage(editingSession.tableName, 1);
         
-        persons.forEach((person: any) => {
-          // Parse person XML to extract plans
-          const parsedData = parsePersonXML(person.raw_xml);
-          const zoneId = extractZoneFromCoords(person.coords);
-          
-          // Update persons map
-          populationState.persons.set(person.id, {
-            id: person.id,
-            zoneId: zoneId,
-            plans: parsedData.plans || []
-          });
-          
-          // Add to visible persons by default
-          populationState.visiblePersons.add(person.id);
-          
-          // Count persons per zone
-          zoneMap.set(zoneId, (zoneMap.get(zoneId) || 0) + 1);
-        });
-        
-        // Update zones
-        populationState.zones = Array.from(zoneMap.entries()).map(([id, count]) => ({
-          id,
-          name: id.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), // Format zone names
-          personCount: count
-        }));
-        
-        // Make all zones visible by default
-        populationState.zones.forEach(zone => {
-          populationState.selectedZones.add(zone.id);
-        });
-        
-        console.log('Processed population state:', {
-          personsCount: populationState.persons.size,
-          zonesCount: populationState.zones.length,
-          zones: populationState.zones
-        });
       } catch (error) {
         console.error('Failed to load population data:', error);
       }
@@ -69,7 +33,7 @@
     }
   });
 
-  function handleAddNewPerson() {
+  async function handleAddNewPerson() {
     // Generate new person ID
     const timestamp = Date.now();
     const newId = `person_${timestamp}`;
@@ -99,6 +63,12 @@
     
     // Open secondary sidebar
     appState.secondarySidebar = 'EXPANDED';
+    
+    // Update total count
+    populationState.totalPersons++;
+    
+    // Recalculate total pages if needed
+    populationState.totalPages = Math.ceil(populationState.totalPersons / populationState.pageSize);
   }
 
   function handlePersonClick(personId: string) {
@@ -129,7 +99,7 @@
     populationState.zones = populationState.zones.filter(zone => zone.id !== zoneId);
   }
 
-  function handleDeletePerson(personId: string, event: Event) {
+  async function handleDeletePerson(personId: string, event: Event) {
     event.stopPropagation(); // Prevent triggering person selection
     
     const person = populationState.persons.get(personId);
@@ -150,6 +120,17 @@
       if (populationState.selectedPersonId === personId) {
         populationState.selectedPersonId = null;
         appState.secondarySidebar = 'HIDDEN';
+      }
+      
+      // Update total count
+      populationState.totalPersons--;
+      
+      // Recalculate total pages
+      populationState.totalPages = Math.ceil(populationState.totalPersons / populationState.pageSize);
+      
+      // If current page is now empty and not the first page, go to previous page
+      if (populationState.persons.size === 0 && populationState.currentPage > 1) {
+        await handlePageNavigation(populationState.currentPage - 1);
       }
     }
   }
@@ -182,6 +163,28 @@
 
   // Get persons to display based on selected zones
   const displayPersons = $derived(getPersonsInSelectedZones());
+  
+  // Handle zone toggle with pagination refresh
+  async function handleToggleZone(zoneId: string) {
+    toggleZone(zoneId);
+    // Reload data with new zone filter
+    if (editingSession.tableName) {
+      await handleZoneFilterChange(editingSession.tableName);
+    }
+  }
+  
+  // Handle page navigation
+  async function handlePageNavigation(page: number) {
+    if (!editingSession.tableName) return;
+    
+    await handlePageChange(page, editingSession.tableName, async () => {
+      const confirmed = confirm('You have unsaved changes. Save before switching pages?');
+      if (confirmed) {
+        await syncChanges();
+      }
+      return confirmed;
+    });
+  }
 </script>
 
 <div class="h-full flex flex-col">
@@ -247,7 +250,7 @@
           <label class="flex items-center gap-2 flex-1 cursor-pointer">
             <Checkbox 
               checked={populationState.selectedZones.has(zone.id)}
-              onchange={() => toggleZone(zone.id)}
+              onchange={() => handleToggleZone(zone.id)}
             />
             <span class="flex-1 text-white">{zone.name}</span>
             <span class="text-xs text-gray-300">({zone.personCount} persons)</span>
@@ -267,37 +270,81 @@
 
   <!-- People Section -->
   <section class="flex-1 overflow-hidden flex flex-col p-4">
-    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-      People
-    </h3>
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+        People
+      </h3>
+      <span class="text-xs text-gray-400">
+        {populationState.totalPersons} total
+      </span>
+    </div>
     
     <div class="flex-1 overflow-y-auto pr-2">
       <div class="space-y-1">
-        {#each displayPersons as person}
-          <div class="group flex items-center gap-2 rounded p-1 hover:bg-gray-700
-                      {populationState.selectedPersonId === person.id ? 'bg-blue-900 hover:bg-blue-900' : ''}">
-            <Checkbox 
-              checked={populationState.visiblePersons.has(person.id)}
-              onchange={() => togglePersonVisibility(person.id)}
-              onclick={(e: Event) => e.stopPropagation()}
-            />
-            <button
-              class="flex-1 text-left px-2 py-1 text-sm
-                     {populationState.selectedPersonId === person.id ? 'text-blue-200' : 'text-white'}"
-              onclick={() => handlePersonClick(person.id)}
-            >
-              {person.id}
-            </button>
-            <Button 
-              size="xs" 
-              color="red" 
-              onclick={(e: Event) => handleDeletePerson(person.id, e)}
-              class="p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <TrashBinOutline class="w-3 h-3" />
-            </Button>
+        {#if populationState.isLoadingPage}
+          <div class="flex justify-center py-4">
+            <div class="text-gray-400">Loading...</div>
           </div>
-        {/each}
+        {:else}
+          {#each displayPersons as person}
+            <div class="group flex items-center gap-2 rounded p-1 hover:bg-gray-700
+                        {populationState.selectedPersonId === person.id ? 'bg-blue-900 hover:bg-blue-900' : ''}">
+              <Checkbox 
+                checked={populationState.visiblePersons.has(person.id)}
+                onchange={() => togglePersonVisibility(person.id)}
+                onclick={(e: Event) => e.stopPropagation()}
+              />
+              <button
+                class="flex-1 text-left px-2 py-1 text-sm
+                       {populationState.selectedPersonId === person.id ? 'text-blue-200' : 'text-white'}"
+                onclick={() => handlePersonClick(person.id)}
+              >
+                {person.id}
+              </button>
+              <Button 
+                size="xs" 
+                color="red" 
+                onclick={(e: Event) => handleDeletePerson(person.id, e)}
+                class="p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <TrashBinOutline class="w-3 h-3" />
+              </Button>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    </div>
+    
+    <!-- Pagination Controls -->
+    <div class="mt-4 pt-4 border-t border-gray-600">
+      <div class="flex items-center justify-between mb-2">
+        <Button 
+          size="xs" 
+          color="alternative"
+          disabled={populationState.currentPage === 1 || populationState.isLoadingPage}
+          onclick={() => handlePageNavigation(populationState.currentPage - 1)}
+        >
+          Previous
+        </Button>
+        
+        <span class="text-sm text-gray-300">
+          Page {populationState.currentPage} of {populationState.totalPages}
+        </span>
+        
+        <Button 
+          size="xs" 
+          color="alternative"
+          disabled={populationState.currentPage === populationState.totalPages || populationState.isLoadingPage}
+          onclick={() => handlePageNavigation(populationState.currentPage + 1)}
+        >
+          Next
+        </Button>
+      </div>
+      
+      <div class="text-center">
+        <span class="text-xs text-gray-400">
+          Showing {displayPersons.length} of {populationState.totalPersons} persons
+        </span>
       </div>
     </div>
   </section>

@@ -2,9 +2,10 @@
   import { Button, Modal, Badge } from "flowbite-svelte";
   import { ExclamationCircleOutline, CogOutline, DownloadOutline, CloseOutline, FloppyDiskOutline } from "flowbite-svelte-icons";
   import { slide } from "svelte/transition";
-  import { appState } from "../../store.svelte";
-  import { ExitApplication, SyncChanges } from "../../../wailsjs/go/gui/App";
+  import { appState, commandArgs, editingSession } from "../../store.svelte";
+  import { ExitApplication, SyncChanges, SaveFile, ExportPopulationFile, ExportNetworkFile, ExportPTFile, GetExportInfo } from "../../../wailsjs/go/gui/App";
   import { changeTracker } from "../../lib/changeTracker.svelte";
+  import { showSuccess, showError, showInfo, showWarning } from "../../lib/toast.svelte";
   import SettingsModal from "../SettingsModal.svelte";
   
   let showExitConfirmation = $state(false);
@@ -26,28 +27,105 @@
     changeTracker.pendingChanges = [];
   }
   
-  function handleExport() {
-    // TODO: Implement export functionality
-    console.log('Export clicked');
+  async function handleExport() {
+    try {
+      // Get export info based on current edit mode
+      const exportInfo = await GetExportInfo(commandArgs.fileEditMode);
+      
+      if (!exportInfo.canExport) {
+        showWarning('Export is not available for this file type');
+        return;
+      }
+      
+      // Check if we have pending changes
+      if (changeTracker.pendingChanges.length > 0) {
+        const shouldSave = confirm('You have unsaved changes. Would you like to save them before exporting?');
+        if (shouldSave) {
+          await handleSync();
+        }
+      }
+      
+      // Open save file dialog
+      const defaultFileName = exportInfo.defaultFileName || 'export';
+      const fileType = exportInfo.exportTypes?.[0] || 'xml';
+      const outputPath = await SaveFile(defaultFileName, fileType);
+      
+      if (!outputPath) {
+        // User cancelled
+        return;
+      }
+      
+      // Export based on file type
+      showInfo('Exporting data...');
+      
+      switch (commandArgs.fileEditMode) {
+        case 'POPULATION':
+          if (!editingSession.tableName) {
+            showError('No population table available for export');
+            return;
+          }
+          await ExportPopulationFile(editingSession.tableName, outputPath);
+          break;
+          
+        case 'NETWORK':
+          if (!editingSession.processId) {
+            showError('No network process available for export');
+            return;
+          }
+          // Export entire network (empty bounding box array means all data)
+          await ExportNetworkFile(editingSession.processId, outputPath, []);
+          break;
+          
+        case 'PT':
+          if (!editingSession.processId) {
+            showError('No PT process available for export');
+            return;
+          }
+          await ExportPTFile(editingSession.processId, outputPath);
+          break;
+          
+        default:
+          showError('Unknown file type for export');
+          return;
+      }
+      
+      showSuccess(`Data exported successfully to ${outputPath.split('/').pop() || outputPath}`);
+    } catch (error) {
+      console.error('Export failed:', error);
+      showError(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
   
   async function handleSync() {
     if (changeTracker.pendingChanges.length === 0) {
-      console.log('No changes to sync');
+      showInfo('No changes to sync');
       return;
     }
     
     changeTracker.isSyncing = true;
+    const changeCount = changeTracker.pendingChanges.length;
     
     try {
+      console.log('Syncing changes:', changeTracker.pendingChanges);
       const result = await SyncChanges(changeTracker.pendingChanges);
-      console.log('Successfully synced', changeTracker.pendingChanges.length, 'changes');
+      console.log('Successfully synced', changeCount, 'changes');
       
       // Clear pending changes after successful sync
       changeTracker.pendingChanges = [];
+      
+      // Show success notification
+      showSuccess(`Successfully saved ${changeCount} change${changeCount > 1 ? 's' : ''}`);
     } catch (error) {
       console.error('Sync failed:', error);
-      // TODO: Show error toast or modal
+      // Check if error has details about the specific failure
+      if (error instanceof Error) {
+        console.error('Error details:', error.message);
+        if (error.stack) {
+          console.error('Stack trace:', error.stack);
+        }
+      }
+      // Show error notification with specific error message
+      showError(`Failed to save changes: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       changeTracker.isSyncing = false;
     }
