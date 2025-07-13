@@ -5,8 +5,26 @@
   import type { Map } from 'maplibre-gl';
   import type { FeatureCollection } from 'geojson';
   import 'maplibre-gl/dist/maplibre-gl.css';
+  import PopulationMapLayer from './services/edit/population/PopulationMapLayer.svelte';
+  import { populationState } from './services/edit/population/populationStore.svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   
   let map: Map | undefined = $state();
+  
+  // Listen for clear editable layer event  
+  $effect(() => {
+    if (typeof window !== 'undefined') {
+      const handler = () => {
+        console.log('Clearing editable layer');
+        editableData = {
+          type: 'FeatureCollection',
+          features: []
+        };
+      };
+      window.addEventListener('clearEditableLayer', handler);
+      return () => window.removeEventListener('clearEditableLayer', handler);
+    }
+  });
   
   // Initial center point - Montreal
   let center = { lng: -73.7, lat: 45.55 };
@@ -24,10 +42,55 @@
   let selectedFeatureIndexes = $state<number[]>([]);
   let currentMode = $state<any>(DrawPolygonMode);
   
-  // Props for parent component access
-  // Demo: Uncomment to enable drawing functionality
-  // let { isEditingEnabled = false }: { isEditingEnabled: boolean } = $props();
-  let isEditingEnabled = false; // Set to true to enable drawing, or make it a prop
+  // Enable drawing when creating a new zone
+  const isEditingEnabled = $derived(populationState.isDrawingZone);
+  
+  // Handle map clicks for activity location selection
+  $effect(() => {
+    if (map && populationState.isSelectingActivityLocation) {
+      const handleMapClick = (e: any) => {
+        if (populationState.isSelectingActivityLocation && populationState.selectingActivityId) {
+          const lngLat = e.lngLat;
+          const coordinates: [number, number] = [lngLat.lng, lngLat.lat];
+          
+          // Update the activity location
+          const person = populationState.persons.get(populationState.selectedPersonId!);
+          if (person) {
+            const updatedPerson = {
+              ...person,
+              plans: person.plans.map(plan => ({
+                ...plan,
+                activities: plan.activities.map(activity =>
+                  activity.id === populationState.selectingActivityId
+                    ? { ...activity, location: coordinates }
+                    : activity
+                )
+              }))
+            };
+            
+            populationState.persons.set(person.id, updatedPerson);
+          }
+          
+          // Reset selection state
+          populationState.isSelectingActivityLocation = false;
+          populationState.selectingActivityId = null;
+        }
+      };
+      
+      map.on('click', handleMapClick);
+      return () => map.off('click', handleMapClick);
+    }
+  });
+  
+  // Change cursor when selecting location
+  $effect(() => {
+    if (map && populationState.isSelectingActivityLocation) {
+      map.getCanvas().style.cursor = 'crosshair';
+      return () => {
+        map.getCanvas().style.cursor = '';
+      };
+    }
+  });
   
   // Debug logging - uncomment for troubleshooting
   // $effect(() => {
@@ -65,6 +128,38 @@
     if (info && info.updatedData) {
       // console.log('Updating editableData with:', info.updatedData);
       editableData = info.updatedData;
+      
+      // Check if a new feature was added (zone creation)
+      if (info.editType === 'addFeature' && populationState.isDrawingZone) {
+        console.log('Zone creation - editType:', info.editType, 'features:', info.updatedData.features);
+        const newFeature = info.updatedData.features[info.updatedData.features.length - 1];
+        if (newFeature) {
+          console.log('New zone geometry:', newFeature.geometry);
+          const timestamp = Date.now();
+          const newZoneId = `zone_${timestamp}`;
+          
+          // Create new zone with geometry
+          const newZone = {
+            id: newZoneId,
+            name: `Zone ${populationState.zones.length + 1}`,
+            personCount: 0,
+            geometry: newFeature.geometry
+          };
+          
+          console.log('Creating zone:', newZone);
+          
+          // Add to zones array - force reactivity with assignment
+          populationState.zones = [...populationState.zones, newZone];
+          
+          // Make new zone visible by default - force reactivity
+          populationState.selectedZones = new SvelteSet([...populationState.selectedZones, newZoneId]);
+          
+          // Exit drawing mode
+          populationState.isDrawingZone = false;
+          
+          // Don't clear the editable layer - let the zone show in both layers
+        }
+      }
     }
   };
   
@@ -126,10 +221,12 @@
   {center}
   {zoom}
   bind:map
+  interactive={true}
+  cooperativeGestures={false}
 >
   <NavigationControl position="bottom-left" />
   
-  <!-- Editable GeoJSON Layer - Must be on top to receive events -->
+  <!-- Editable GeoJSON Layer -->
   {#if isEditingEnabled}
     <DeckGlLayer
       type={EditableGeoJsonLayer}
@@ -160,24 +257,36 @@
   {/if}
   
   <!-- ScatterplotLayer for data visualization -->
-  <DeckGlLayer
-    type={ScatterplotLayer}
-    {data}
-    id="scatterplot-layer"
-    pickable={true}
-    opacity={0.8}
-    stroked={true}
-    filled={true}
-    radiusScale={6}
-    radiusMinPixels={1}
-    radiusMaxPixels={100}
-    lineWidthMinPixels={1}
-    getPosition={d => d.coordinates}
-    getRadius={d => Math.sqrt(d.exits)}
-    getFillColor={d => [255, 140, 0]}
-    getLineColor={d => [0, 0, 0]}
-  />
+  {#if data.length > 0}
+    <DeckGlLayer
+      type={ScatterplotLayer}
+      {data}
+      id="scatterplot-layer"
+      pickable={true}
+      opacity={0.8}
+      stroked={true}
+      filled={true}
+      radiusScale={6}
+      radiusMinPixels={1}
+      radiusMaxPixels={100}
+      lineWidthMinPixels={1}
+      getPosition={d => d.coordinates}
+      getRadius={d => Math.sqrt(d.exits)}
+      getFillColor={d => [255, 140, 0]}
+      getLineColor={d => [0, 0, 0]}
+    />
+  {/if}
+  
+  <!-- Population layers - render last (on top) to receive clicks -->
+  <PopulationMapLayer />
 </MapLibre>
+
+<!-- Location Selection Indicator -->
+{#if populationState.isSelectingActivityLocation}
+  <div class="absolute top-4 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-4 py-2 rounded-lg shadow-lg z-20">
+    <p class="text-sm font-medium">Click on the map to set activity location</p>
+  </div>
+{/if}
 
 <!-- 
   Demo Controls - Uncomment to enable drawing controls
