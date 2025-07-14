@@ -1,8 +1,8 @@
 <script lang="ts">
   import { Label, P, Helper } from "flowbite-svelte";
   import { commandArgs, type FileEditMode } from "$lib/stores/app.svelte.ts";
-  import EzRadioGroup from "../EzRadioGroup.svelte";
-  import EzRadioOption from "../EzRadioOption.svelte";
+  import EzRadioGroup from "../../EzRadioGroup.svelte";
+  import EzRadioOption from "../../EzRadioOption.svelte";
 
   // Handle file edit mode selection
   function handleEditModeSelect(value: string) {

@@ -78,7 +78,7 @@ function generateLegs(activities: Activity[]): Leg[] {
     legs.push({
       fromActivityId: activities[i].id,
       toActivityId: activities[i + 1].id,
-      mode: 'car', // Default mode
+      mode: "person's choice", // Default mode
       duration: 30  // Default duration in minutes
     });
   }

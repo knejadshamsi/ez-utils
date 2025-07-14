@@ -14,6 +14,7 @@ export default defineConfig({
     alias: {
       '@wailsjs': path.resolve(__dirname, 'wailsjs'),
       '$lib': path.resolve(__dirname, 'src/lib'),
+      '$layers': path.resolve(__dirname, 'src/layers'),
     },
   },
 })

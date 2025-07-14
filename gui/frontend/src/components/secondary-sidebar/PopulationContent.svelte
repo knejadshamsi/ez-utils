@@ -276,7 +276,7 @@
       newLegs.push({
         fromActivityId: fromId,
         toActivityId: toId,
-        mode: existingLeg?.mode || 'car',
+        mode: existingLeg?.mode || "person's choice",
         duration: existingLeg?.duration || 30
       });
     }
@@ -358,7 +358,7 @@
 </script>
 
 {#if selectedPerson}
-  <div class="h-full flex flex-col bg-gray-800 my-2">
+  <div class="h-full flex flex-col bg-gray-800">
     <!-- Header -->
     <div class="flex items-center justify-between p-4 border-b border-gray-600">
       <h2 class="text-lg font-semibold text-white">{selectedPerson.id}</h2>
@@ -446,7 +446,7 @@
               {#if leg}
                 <div class="mx-4 my-3 relative">
                   <div class="absolute left-4 top-0 w-0.5 h-full bg-gray-500"></div>
-                  <div class="bg-gray-750 rounded-lg p-3 ml-8 border border-gray-600">
+                  <div class="bg-gray-700 rounded-lg p-3 ml-8 border border-gray-600">
                     <div class="flex items-center gap-2">
                       <span class="text-xs text-gray-400">Travel by:</span>
                       <CompactSelect 
@@ -461,8 +461,9 @@
                         type="number" 
                         size="sm" 
                         value={leg.duration}
+                        disabled={leg.mode === "person's choice"}
                         onchange={(e) => updateLegDuration(leg, parseInt((e.target as HTMLInputElement).value) || 0)}
-                        class="bg-gray-600 text-white border-gray-500 h-6 w-20 text-xs"
+                        class="bg-gray-600 text-white border-gray-500 h-6 w-20 text-xs {leg.mode === "person's choice" ? 'opacity-50 cursor-not-allowed' : ''}"
                       />
                       <span class="text-xs text-gray-400">minutes</span>
                     </div>

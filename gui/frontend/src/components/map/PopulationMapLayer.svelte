@@ -1,28 +1,54 @@
 <script lang="ts">
   import { DeckGlLayer } from 'svelte-maplibre';
-  import { ScatterplotLayer, PathLayer, PolygonLayer, TextLayer } from '@deck.gl/layers';
+  import { PolygonLayer, ScatterplotLayer, PathLayer, TextLayer } from '@deck.gl/layers';
   import { populationState } from '$lib/stores/population.svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { appState } from '$lib/stores/app.svelte.ts';
-  
-  // Debug zones
-  $effect(() => {
-    console.log('PopulationMapLayer - zones updated:', populationState.zones.length, 
-      populationState.zones.map(z => ({ id: z.id, hasGeometry: !!z.geometry })));
+
+  // Function to trim path segments by radius from start/end points  
+  function trimPathSegments(coordinates: [number, number][], trimRadiusPixels: number): Array<{path: [number, number][]}> {
+    if (coordinates.length < 2) return [];
     
-    const zonesWithGeometry = populationState.zones.filter(zone => zone.geometry);
-    console.log('Zones with geometry:', zonesWithGeometry);
+    const segments: Array<{path: [number, number][]}>  = [];
     
-    if (zonesWithGeometry.length > 0) {
-      const firstZone = zonesWithGeometry[0];
-      console.log('First zone polygon data:', {
-        id: firstZone.id,
-        geometryType: firstZone.geometry.type,
-        coordinates: firstZone.geometry.coordinates
-      });
+    for (let i = 0; i < coordinates.length - 1; i++) {
+      const start = coordinates[i];
+      const end = coordinates[i + 1];
+      
+      // Calculate the distance between points in geographic coordinates
+      const dx = end[0] - start[0];
+      const dy = end[1] - start[1];
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      // Convert pixel radius to geographic coordinates (rough approximation)
+      // At zoom level ~11 (Montreal scale), 1 pixel ≈ 0.0001 degrees
+      // This is an approximation that works reasonably well for mid-latitude locations
+      const trimRadiusInDegrees = trimRadiusPixels * 0.0001;
+      
+      // If the segment is too short to trim, skip it
+      if (distance <= trimRadiusInDegrees * 2) continue;
+      
+      // Calculate unit vector
+      const unitX = dx / distance;
+      const unitY = dy / distance;
+      
+      // Calculate trimmed start and end points
+      const trimmedStart: [number, number] = [
+        start[0] + unitX * trimRadiusInDegrees,
+        start[1] + unitY * trimRadiusInDegrees
+      ];
+      
+      const trimmedEnd: [number, number] = [
+        end[0] - unitX * trimRadiusInDegrees,
+        end[1] - unitY * trimRadiusInDegrees
+      ];
+      
+      segments.push({ path: [trimmedStart, trimmedEnd] });
     }
-  });
-  
+    
+    return segments;
+  }
+
   // Prepare zones data
   const zonesData = $derived(
     populationState.zones.filter(zone => zone.geometry).map(zone => ({
@@ -39,33 +65,27 @@
     id="zones-layer"
     data={zonesData}
     getPolygon={d => d.polygon}
-  getFillColor={d => populationState.selectedZones.has(d.id) ? [0, 100, 255, 100] : [100, 100, 100, 30]}
-  getLineColor={d => populationState.selectedZones.has(d.id) ? [0, 100, 255] : [100, 100, 100]}
-  getLineWidth={2}
-  lineWidthMinPixels={2}
-  filled={true}
-  stroked={true}
-  pickable={true}
-  onClick={(info) => {
-    if (info.object) {
-      if (populationState.selectedZones.has(info.object.id)) {
-        populationState.selectedZones.delete(info.object.id);
-      } else {
-        populationState.selectedZones.add(info.object.id);
+    getFillColor={d => populationState.selectedZones.has(d.id) ? [0, 100, 255, 100] : [100, 100, 100, 30]}
+    getLineColor={d => populationState.selectedZones.has(d.id) ? [0, 100, 255] : [100, 100, 100]}
+    getLineWidth={2}
+    lineWidthMinPixels={2}
+    filled={true}
+    stroked={true}
+    pickable={true}
+    onClick={(info) => {
+      if (info.object) {
+        if (populationState.selectedZones.has(info.object.id)) {
+          populationState.selectedZones.delete(info.object.id);
+        } else {
+          populationState.selectedZones.add(info.object.id);
+        }
+        populationState.selectedZones = new SvelteSet(populationState.selectedZones);
       }
-      // Force update
-      populationState.selectedZones = new SvelteSet(populationState.selectedZones);
-    }
-  }}
-  updateTriggers={{
-    data: populationState.zones.length,
-    getFillColor: populationState.selectedZones.size,
-    getLineColor: populationState.selectedZones.size
-  }}
+    }}
   />
 {/if}
 
-<!-- All Persons Layer - Small circles for all visible persons (hidden when someone is selected) -->
+<!-- All Persons Layer -->
 {#if populationState.visibility.persons && !populationState.selectedPersonId}
   {@const visiblePersons = Array.from(populationState.persons.values())
     .filter(person => populationState.visiblePersons.has(person.id))}
@@ -85,7 +105,7 @@
       id="all-persons-layer"
       data={personsData}
       getPosition={d => d.position}
-      getFillColor={[100, 200, 100, 200]} 
+      getFillColor={[100, 200, 100, 200]}
       getRadius={80}
       radiusMinPixels={5}
       radiusMaxPixels={8}
@@ -93,14 +113,11 @@
       stroked={true}
       getLineColor={[255, 255, 255]}
       lineWidthMinPixels={1}
-      updateTriggers={{
-        data: populationState.visiblePersons.size
-      }}
     />
   {/if}
 {/if}
 
-<!-- Background Plans Layer - Show other people's plans subtly -->
+<!-- Background Plans Layer -->
 {#if populationState.visibility.plans}
   {@const backgroundPaths = []}
   {#each Array.from(populationState.persons.values()).filter(person => 
@@ -108,7 +125,7 @@
   ) as person}
     {#each person.plans as plan}
       {#if plan.activities.length > 1}
-        {@const validActivities = plan.activities.filter(a => a.location[0] !== 0 || a.location[1] !== 0)}
+        {@const validActivities = plan.activities.filter(a => a.location && (a.location[0] !== 0 || a.location[1] !== 0))}
         {#if validActivities.length > 1}
           {@const path = validActivities.map(a => a.location)}
           {@const _ = backgroundPaths.push({ path, color: [200, 200, 200, 50] })}
@@ -131,7 +148,7 @@
   {/if}
 {/if}
 
-<!-- Selected Person's Plan - Bold visualization -->
+<!-- Selected Person Layers -->
 {#if populationState.selectedPersonId && populationState.visibility.plans}
   {@const selectedPerson = populationState.persons.get(populationState.selectedPersonId)}
   {#if selectedPerson}
@@ -139,26 +156,24 @@
     {#if currentPlan}
       {@const validActivities = currentPlan.activities
         .map((activity, index) => ({ ...activity, index }))
-        .filter(a => a.location[0] !== 0 || a.location[1] !== 0)}
+        .filter(a => a.location && (a.location[0] !== 0 || a.location[1] !== 0))}
       
-      <!-- Plan Path - Bold line (rendered first so it's below dots) -->
+      <!-- Path Layer -->
       {#if validActivities.length > 1}
+        {@const trimmedPaths = trimPathSegments(validActivities.map(a => a.location), 24)}
         <DeckGlLayer
           type={PathLayer}
           id="selected-plan-path"
-          data={[{ path: validActivities.map(a => a.location) }]}
+          data={trimmedPaths}
           getPath={d => d.path}
           getColor={[0, 100, 255, 255]}
-          getWidth={5}
-          widthMinPixels={5}
+          getWidth={2}
+          widthMinPixels={2}
           pickable={false}
-          updateTriggers={{
-            data: populationState.currentPlanIndex
-          }}
         />
       {/if}
       
-      <!-- Activity Dots - Large and numbered (rendered on top of lines) -->
+      <!-- Activity Dots -->
       {#if validActivities.length > 0}
         <DeckGlLayer
           type={ScatterplotLayer}
@@ -180,17 +195,12 @@
           getLineColor={[255, 255, 255]}
           lineWidthMinPixels={3}
           onClick={() => {
-            // Clicking on any activity dot of the selected person should toggle off
             populationState.selectedPersonId = null;
             appState.secondarySidebar = 'HIDDEN';
           }}
-          updateTriggers={{
-            data: populationState.currentPlanIndex,
-            getFillColor: populationState.selectingActivityId
-          }}
         />
         
-        <!-- Activity Numbers (rendered on top of dots) -->
+        <!-- Activity Numbers -->
         <DeckGlLayer
           type={TextLayer}
           id="activity-numbers"
@@ -207,9 +217,6 @@
           sizeScale={1}
           sizeMinPixels={16}
           sizeMaxPixels={24}
-          updateTriggers={{
-            data: populationState.currentPlanIndex
-          }}
         />
       {/if}
     {/if}

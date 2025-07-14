@@ -14,10 +14,12 @@ function convertPersonToXML(person: Person): string {
     plan.activities.forEach((activity, index) => {
       xml += `<activity type="${activity.type}" start_time="${activity.startTime}" end_time="${activity.endTime}" x="${activity.location[0]}" y="${activity.location[1]}" />`;
       
-      // Add leg if not last activity
+      // Add leg if not last activity and not "person's choice"
       if (index < plan.activities.length - 1 && plan.legs[index]) {
         const leg = plan.legs[index];
-        xml += `<leg mode="${leg.mode}" duration="${leg.duration}" />`;
+        if (leg.mode !== "person's choice") {
+          xml += `<leg mode="${leg.mode}" duration="${leg.duration}" />`;
+        }
       }
     });
     
@@ -28,19 +30,59 @@ function convertPersonToXML(person: Person): string {
   return xml;
 }
 
+function extractCoordinatesFromPerson(person: Person): string {
+  // Extract coordinates from the first activity of the first plan
+  const firstActivity = person.plans[0]?.activities[0];
+  if (firstActivity && firstActivity.location && (firstActivity.location[0] !== 0 || firstActivity.location[1] !== 0)) {
+    return `${firstActivity.location[0]},${firstActivity.location[1]}`;
+  }
+  return '0,0';
+}
+
 export function trackPersonChange(person: Person, action: 'create' | 'update' | 'delete') {
   if (!editingSession.tableName) return;
   
-  // Remove any existing changes for this person
-  changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
+  // Check if there's already a pending "add" action for this person
+  const existingAddAction = changeTracker.pendingChanges.find(
     (change) => {
-      if (change.type === 'population' && change.elementType === 'person') {
-        if ('personId' in change && change.personId === person.id) return false;
-        if ('data' in change && change.data.id === person.id) return false;
+      if (change.type === 'population' && change.elementType === 'person' && change.action === 'add') {
+        return 'data' in change && change.data.id === person.id;
       }
-      return true;
+      return false;
     }
   );
+  
+  // If we have a pending "add" action and this is an "update", 
+  // just update the "add" action instead of creating a separate "update"
+  if (existingAddAction && action === 'update') {
+    // Update the existing add action with new data
+    const addActionIndex = changeTracker.pendingChanges.indexOf(existingAddAction);
+    if (addActionIndex !== -1) {
+      const updatedAddAction: SyncAction = {
+        ...existingAddAction,
+        data: {
+          id: person.id,
+          coords: extractCoordinatesFromPerson(person),
+          rawXML: convertPersonToXML(person)
+        }
+      };
+      changeTracker.pendingChanges[addActionIndex] = updatedAddAction;
+      return;
+    }
+  }
+  
+  // Remove any existing changes for this person (only if not preserving add action)
+  if (!(existingAddAction && action === 'update')) {
+    changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
+      (change) => {
+        if (change.type === 'population' && change.elementType === 'person') {
+          if ('personId' in change && change.personId === person.id) return false;
+          if ('data' in change && change.data.id === person.id) return false;
+        }
+        return true;
+      }
+    );
+  }
   
   if (action === 'create') {
     const addAction: SyncAction = {
@@ -50,11 +92,11 @@ export function trackPersonChange(person: Person, action: 'create' | 'update' | 
       tableName: editingSession.tableName,
       data: {
         id: person.id,
-        coords: '0,0', // Default coordinates, should be updated when placed on map
+        coords: extractCoordinatesFromPerson(person),
         rawXML: convertPersonToXML(person)
       }
     };
-    changeTracker.pendingChanges.push(addAction);
+    changeTracker.pendingChanges = [...changeTracker.pendingChanges, addAction];
   } else if (action === 'update') {
     const updateAction: SyncAction = {
       type: 'population',
@@ -64,7 +106,7 @@ export function trackPersonChange(person: Person, action: 'create' | 'update' | 
       personId: person.id,
       planXML: convertPersonToXML(person)
     };
-    changeTracker.pendingChanges.push(updateAction);
+    changeTracker.pendingChanges = [...changeTracker.pendingChanges, updateAction];
   } else if (action === 'delete') {
     const deleteAction: SyncAction = {
       type: 'population',
@@ -73,7 +115,7 @@ export function trackPersonChange(person: Person, action: 'create' | 'update' | 
       tableName: editingSession.tableName,
       personId: person.id
     };
-    changeTracker.pendingChanges.push(deleteAction);
+    changeTracker.pendingChanges = [...changeTracker.pendingChanges, deleteAction];
   }
 }
 
