@@ -90,7 +90,7 @@ export const buildXMLFromPlans = (person) => {
       '@_id': person.id,
       plan: person.plans.map((planArray, index) => ({
         '@_selected': index === 0 ? 'yes' : 'no',
-        ...planArray.reduce((acc, item, idx) => {
+        ...planArray.reduce((acc, item) => {
           if (item.type === 'activity') {
             if (!acc.activity) acc.activity = [];
             acc.activity.push({

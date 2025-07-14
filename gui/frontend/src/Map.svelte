@@ -5,8 +5,11 @@
   import type { Map } from 'maplibre-gl';
   import type { FeatureCollection } from 'geojson';
   import 'maplibre-gl/dist/maplibre-gl.css';
+  import { commandArgs } from './store.svelte';
+  import { PTMapInteraction } from './services/edit/pt';
   
   let map: Map | undefined = $state();
+  let ptMapInteraction: any = $state();
   
   // Initial center point - Montreal
   let center = { lng: -73.7, lat: 45.55 };
@@ -95,6 +98,16 @@
     selectedFeatureIndexes = [];
   };
   
+  // Export function for PT map interaction
+  export function startAddingStop() {
+    if (ptMapInteraction) {
+      ptMapInteraction.startAddingStop?.();
+      console.log('[Map] Starting add stop mode');
+    } else {
+      console.warn('[Map] PTMapInteraction not available');
+    }
+  }
+  
   // Add test feature - for testing layer functionality
   const addTestFeature = () => {
     // console.log('Adding test feature');
@@ -177,6 +190,11 @@
     getFillColor={d => [255, 140, 0]}
     getLineColor={d => [0, 0, 0]}
   />
+  
+  <!-- PT Map Interaction component -->
+  {#if commandArgs.fileEditMode === 'PT' && map}
+    <PTMapInteraction bind:this={ptMapInteraction} {map} />
+  {/if}
 </MapLibre>
 
 <!-- 

@@ -3,6 +3,7 @@
   import { CheckCircleOutline } from "flowbite-svelte-icons";
   import { appState, commandArgs, type ProcessStatus } from "../store.svelte";
   import { welcomeModalState } from "./welcome-modal/welcome.svelte";
+  import { PTService } from "../services/edit/pt/ptService";
   import { 
     ProcessPopulationFile, 
     ProcessNetworkFile, 
@@ -185,8 +186,18 @@
   }
 
   // Handle begin editing button click
-  function handleBeginEditing() {
+  async function handleBeginEditing() {
     clearPolling();
+    
+    // Load PT data if in PT editing mode
+    if (commandArgs.fileEditMode === 'PT') {
+      try {
+        await PTService.loadPTData();
+      } catch (error) {
+        console.error('Failed to load PT data:', error);
+      }
+    }
+    
     appState.display = 'EDITING';
   }
 
