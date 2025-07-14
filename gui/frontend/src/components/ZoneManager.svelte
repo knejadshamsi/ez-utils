@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Button, Modal, Input, Label } from 'flowbite-svelte';
   import { PlusOutline, TrashBinOutline, EditOutline } from 'flowbite-svelte-icons';
-  import { GetAllZones, SaveZone, DeleteZone, CreateZoneFromGeoJSON } from '../../wailsjs/go/gui/App';
+  import { GetAllZones, SaveZone, DeleteZone, CreateZoneFromGeoJSON } from '@wailsjs/go/gui/App';
   import { onMount } from 'svelte';
   
   let zones: any[] = [];

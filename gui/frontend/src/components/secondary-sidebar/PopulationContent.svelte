@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Button, Select, Input, CloseButton } from 'flowbite-svelte';
   import { TrashBinOutline, PlusOutline, MapPinOutline } from 'flowbite-svelte-icons';
-  import CompactSelect from '../ui/CompactSelect.svelte';
+  import CompactSelect from '../CompactSelect.svelte';
   import { 
     populationState,
     activityTypeConfig,
@@ -10,12 +10,12 @@
     type Leg,
     type ActivityType,
     type TravelMode
-  } from '../../services/edit/population/populationStore.svelte';
-  import { appState } from '../../store.svelte';
-  import { GetPerson } from '../../../wailsjs/go/gui/App';
-  import { editingSession } from '../../store.svelte';
-  import { trackActivityChange } from '../../services/edit/population/changeTracking';
-  import { parsePersonXML } from '../../services/edit/population/xmlParser';
+  } from '$lib/stores/population.svelte';
+  import { appState } from '$lib/stores/app.svelte.ts';
+  import { GetPerson } from '@wailsjs/go/gui/App';
+  import { editingSession } from '$lib/stores/app.svelte.ts';
+  import { trackActivityChange } from '$lib/utils/populationChangeTracking';
+  import { parsePersonXML } from '$lib/utils/populationXmlParser';
   
   // Get selected person
   const selectedPerson = $derived(

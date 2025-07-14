@@ -4,8 +4,8 @@
   // export let isEditingEnabled = false;
   // export let onToggleEditing = () => {};
   
-  import { commandArgs } from '../../store.svelte';
-  import NetworkModeToggle from '../../services/edit/network/NetworkModeToggle.svelte';
+  import { commandArgs } from '$lib/stores/app.svelte.ts';
+  import NetworkModeToggle from './NetworkModeToggle.svelte';
 </script>
 
 <div class="flex items-center justify-center h-full">

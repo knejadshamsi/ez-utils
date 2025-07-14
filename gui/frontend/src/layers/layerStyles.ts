@@ -1,4 +1,4 @@
-import type { FileEditMode } from '../store.svelte';
+import type { FileEditMode } from '$lib/stores/app.svelte.ts';
 
 export interface ColorTheme {
   primary: [number, number, number, number];

@@ -2,11 +2,11 @@
   import { Button, Modal, Badge } from "flowbite-svelte";
   import { ExclamationCircleOutline, CogOutline, DownloadOutline, CloseOutline, FloppyDiskOutline } from "flowbite-svelte-icons";
   import { slide } from "svelte/transition";
-  import { appState, commandArgs, editingSession } from "../../store.svelte";
-  import { ExitApplication, SyncChanges, SaveFile, ExportPopulationFile, ExportNetworkFile, ExportPTFile, GetExportInfo } from "../../../wailsjs/go/gui/App";
+  import { appState, commandArgs, editingSession } from "$lib/stores/app.svelte.ts";
+  import { ExitApplication, SyncChanges, SaveFile, ExportPopulationFile, ExportNetworkFile, ExportPTFile, GetExportInfo } from "@wailsjs/go/gui/App";
   import { changeTracker } from "../../lib/changeTracker.svelte";
   import { showSuccess, showError, showInfo, showWarning } from "../../lib/toast.svelte";
-  import SettingsModal from "../SettingsModal.svelte";
+  import SettingsModal from "../modals/SettingsModal.svelte";
   
   let showExitConfirmation = $state(false);
   let showSettingsModal = $state(false);

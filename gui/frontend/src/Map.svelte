@@ -5,11 +5,11 @@
   import type { Map } from 'maplibre-gl';
   import type { FeatureCollection } from 'geojson';
   import 'maplibre-gl/dist/maplibre-gl.css';
-  import PopulationMapLayer from './services/edit/population/PopulationMapLayer.svelte';
-  import { populationState } from './services/edit/population/populationStore.svelte';
+  import PopulationMapLayer from './components/map/PopulationMapLayer.svelte';
+  import { populationState } from '$lib/stores/population.svelte';
   import { SvelteSet } from 'svelte/reactivity';
-  import { commandArgs } from './store.svelte';
-  import { PTMapInteraction } from './services/edit/pt';
+  import { commandArgs } from '$lib/stores/app.svelte.ts';
+  import PTMapInteraction from './components/map/PTMapInteraction.svelte';
   
   let map: Map | undefined = $state();
   let ptMapInteraction: any = $state();

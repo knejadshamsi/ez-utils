@@ -1,13 +1,11 @@
 <script lang="ts">
   import { Drawer } from 'flowbite-svelte';
   import { sineIn } from 'svelte/easing';
-  import type { SidebarState } from './store.svelte';
-  import { commandArgs } from './store.svelte';
+  import type { SidebarState } from '$lib/stores/app.svelte.ts';
+  import { commandArgs } from '$lib/stores/app.svelte.ts';
   import PopulationContent from './components/secondary-sidebar/PopulationContent.svelte';
   import NetworkContent from './components/secondary-sidebar/NetworkContent.svelte';
   import PTContent from './components/secondary-sidebar/PTContent.svelte';
-  import { SecondaryPTSidebar } from './services/edit/pt';
-  import NetworkSecondarySidebar from './services/edit/network/NetworkSecondarySidebar.svelte';
   
   export let state: SidebarState = 'HIDDEN';
   
@@ -32,9 +30,9 @@
     {#if commandArgs.fileEditMode === 'POPULATION'}
       <PopulationContent />
     {:else if commandArgs.fileEditMode === 'NETWORK'}
-      <NetworkSecondarySidebar />
+      <NetworkContent />
     {:else if commandArgs.fileEditMode === 'PT'}
-      <SecondaryPTSidebar />
+      <PTContent />
     {/if}
   </div>
 </Drawer>

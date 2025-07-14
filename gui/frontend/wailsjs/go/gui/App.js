@@ -78,17 +78,16 @@ export function GetDebugLogs() {
   return window['go']['gui']['App']['GetDebugLogs']();
 }
 
-<<<<<<< HEAD
 export function GetExportInfo(arg1) {
   return window['go']['gui']['App']['GetExportInfo'](arg1);
-=======
+}
+
 export function GetLinksInBBox(arg1, arg2) {
   return window['go']['gui']['App']['GetLinksInBBox'](arg1, arg2);
 }
 
 export function GetNodesInBBox(arg1, arg2) {
   return window['go']['gui']['App']['GetNodesInBBox'](arg1, arg2);
->>>>>>> network-gui
 }
 
 export function GetPTDepartures(arg1, arg2) {

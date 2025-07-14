@@ -1,7 +1,7 @@
 import { EditableGeoJsonLayer, DrawPointMode, DrawLineStringMode, DrawPolygonMode, ModifyMode } from '@deck.gl-community/editable-layers';
 import { PathLayer, ScatterplotLayer } from '@deck.gl/layers';
 import type { FeatureCollection, Feature, Point, LineString, Polygon } from 'geojson';
-import type { FileEditMode } from '../store.svelte';
+import type { FileEditMode } from '$lib/stores/app.svelte.ts';
 
 export type DrawingMode = 'POINT' | 'LINE' | 'POLYGON' | 'MODIFY' | 'VIEW';
 

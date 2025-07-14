@@ -3,3 +3,4 @@ build
 test
 ez-utils-binding-gen.log
 ez-utils-gui.log
+ez_utils_gui.db

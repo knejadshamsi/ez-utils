@@ -7,12 +7,12 @@
     toggleVisibility, 
     selectPerson,
     getPersonsInSelectedZones 
-  } from '../../services/edit/population/populationStore.svelte';
-  import { appState, editingSession } from '../../store.svelte';
+  } from '$lib/stores/population.svelte';
+  import { appState, editingSession } from '$lib/stores/app.svelte.ts';
   import { onMount } from 'svelte';
-  import { trackPersonChange } from '../../services/edit/population/changeTracking';
-  import { loadPopulationPage, loadZones, handlePageChange, handleZoneFilterChange } from '../../services/edit/population/paginationService';
-  import { syncChanges } from '../../lib/syncManager';
+  import { trackPersonChange } from '$lib/utils/populationChangeTracking';
+  import { loadPopulationPage, loadZones, handlePageChange, handleZoneFilterChange } from '$lib/services/populationPagination';
+  import { syncChanges } from '$lib/syncManager';
 
   // Load population data from backend
   onMount(async () => {

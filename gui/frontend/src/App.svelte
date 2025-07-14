@@ -4,13 +4,13 @@
   import Map from "./Map.svelte";
   import PrimarySidebar from "./PrimarySidebar.svelte";
   import SecondarySidebar from "./SecondarySidebar.svelte";
-  // import WelcomeModal from "./WelcomeModal.svelte"; // TEMPORARY: Commented for development
-  import ProcessingModal from "./components/ProcessingModal.svelte";
+  // import WelcomeModal from "./components/modals/WelcomeModal.svelte"; // TEMPORARY: Commented for development
+  import ProcessingModal from "./components/modals/ProcessingModal.svelte";
   import ToastContainer from "./components/ToastContainer.svelte";
-  import { appState, commandArgs, mapComponent } from "./store.svelte";
-  import { PTService } from "./services/edit/pt/ptService";
-  import NetworkController from "./services/edit/network/NetworkController.svelte";
-  import { networkState } from "./services/edit/network/networkStore.svelte";
+  import { appState, commandArgs, mapComponent } from "$lib/stores/app.svelte.ts";
+  import { PTService } from "$lib/api/pt";
+  import NetworkController from "./components/network/NetworkController.svelte";
+  import { networkState } from "$lib/stores/network.svelte";
   
   let mapInstance: any;
   

@@ -1,4 +1,4 @@
-import { SyncChanges } from '../../wailsjs/go/gui/App';
+import { SyncChanges } from '@wailsjs/go/gui/App';
 import { changeTracker } from './changeTracker.svelte';
 import { showSuccess, showError } from './toast.svelte';
 
