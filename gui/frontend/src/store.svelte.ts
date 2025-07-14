@@ -32,11 +32,11 @@ export const commandArgs = $state<{
   isFilePathProvided: boolean,
   validationStatus: ValidationStatus
 }>({
-  fileEditMode: 'POPULATION', // TEMPORARY: Default to POPULATION for development
-  filePath: '/dummy/population.xml', // TEMPORARY: Dummy path for development
+  fileEditMode: 'PT', // TEMPORARY: Default to PT for development
+  filePath: '/dummy/pt.xml', // TEMPORARY: Dummy path for development
   isFileEditModeProvided: true, // TEMPORARY: Set to true for development
   isFilePathProvided: true, // TEMPORARY: Set to true for development
-  validationStatus: 'VALIDATED_POPULATION' // TEMPORARY: Skip validation for development
+  validationStatus: 'VALIDATED_PT' // TEMPORARY: Skip validation for development
 });
 
 // TEMPORARY: Add state for current editing session - for development
@@ -47,3 +47,8 @@ export const editingSession = $state<{
   processId: 999, // TEMPORARY: Dummy process ID for development
   tableName: 'population_data_999' // TEMPORARY: Dummy table name for development
 });
+
+// Map component reference for cross-component communication
+export const mapComponent = $state<{
+  startAddingStop?: (lineId: string, routeId: string) => void
+}>({});

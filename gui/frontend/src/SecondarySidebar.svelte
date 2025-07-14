@@ -6,6 +6,7 @@
   import PopulationContent from './components/secondary-sidebar/PopulationContent.svelte';
   import NetworkContent from './components/secondary-sidebar/NetworkContent.svelte';
   import PTContent from './components/secondary-sidebar/PTContent.svelte';
+  import { SecondaryPTSidebar } from './services/edit/pt';
   
   export let state: SidebarState = 'HIDDEN';
   
@@ -32,7 +33,7 @@
     {:else if commandArgs.fileEditMode === 'NETWORK'}
       <NetworkContent />
     {:else if commandArgs.fileEditMode === 'PT'}
-      <PTContent />
+      <SecondaryPTSidebar />
     {/if}
   </div>
 </Drawer>

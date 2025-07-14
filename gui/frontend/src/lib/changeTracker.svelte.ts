@@ -140,6 +140,23 @@ interface BatchUpdateStopsAction {
   updates: Record<string, any>; // Record<string, PTStopUpdate>
 }
 
+interface AddLineAction {
+  type: 'pt';
+  elementType: 'line';
+  action: 'add';
+  processId: number;
+  line: any; // PTLine type
+}
+
+interface UpdateLineAction {
+  type: 'pt';
+  elementType: 'line';
+  action: 'update';
+  processId: number;
+  lineId: string;
+  update: any; // PTLineUpdate type
+}
+
 interface DeleteLineAction {
   type: 'pt';
   elementType: 'line';
@@ -148,12 +165,47 @@ interface DeleteLineAction {
   lineId: string;
 }
 
+interface AddRouteAction {
+  type: 'pt';
+  elementType: 'route';
+  action: 'add';
+  processId: number;
+  route: any; // PTRoute type
+}
+
+interface UpdateRouteAction {
+  type: 'pt';
+  elementType: 'route';
+  action: 'update';
+  processId: number;
+  routeId: string;
+  update: any; // PTRouteUpdate type
+}
+
 interface DeleteRouteAction {
   type: 'pt';
   elementType: 'route';
   action: 'delete';
   processId: number;
   routeId: string;
+}
+
+interface AddRouteStopAction {
+  type: 'pt';
+  elementType: 'routeStop';
+  action: 'add';
+  processId: number;
+  routeStop: any; // PTRouteStop type
+}
+
+interface UpdateRouteStopAction {
+  type: 'pt';
+  elementType: 'routeStop';
+  action: 'update';
+  processId: number;
+  routeId: string;
+  stopOrder: number;
+  update: any; // PTRouteStopUpdate type
 }
 
 interface DeleteRouteStopAction {
@@ -184,7 +236,7 @@ interface DeleteProcessAction {
 // ===== UNION TYPES =====
 type PopulationAction = AddPersonAction | UpdatePersonAction | DeletePersonAction | BatchUpdatePersonsAction;
 type NetworkAction = UpdateNodeAction | DeleteNodeAction | BatchUpdateNodesAction | BatchDeleteNodesAction | CreateLinkAction | UpdateLinkAction | DeleteLinkAction;
-type PTAction = AddStopAction | UpdateStopAction | DeleteStopAction | BatchUpdateStopsAction | DeleteLineAction | DeleteRouteAction | DeleteRouteStopAction | DeleteDepartureAction;
+type PTAction = AddStopAction | UpdateStopAction | DeleteStopAction | BatchUpdateStopsAction | AddLineAction | UpdateLineAction | DeleteLineAction | AddRouteAction | UpdateRouteAction | DeleteRouteAction | AddRouteStopAction | UpdateRouteStopAction | DeleteRouteStopAction | DeleteDepartureAction;
 type ProcessAction = DeleteProcessAction;
 export type SyncAction = PopulationAction | NetworkAction | PTAction | ProcessAction;
 

@@ -8,8 +8,11 @@
   import PopulationMapLayer from './services/edit/population/PopulationMapLayer.svelte';
   import { populationState } from './services/edit/population/populationStore.svelte';
   import { SvelteSet } from 'svelte/reactivity';
+  import { commandArgs } from './store.svelte';
+  import { PTMapInteraction } from './services/edit/pt';
   
   let map: Map | undefined = $state();
+  let ptMapInteraction: any = $state();
   
   // Listen for clear editable layer event  
   $effect(() => {
@@ -190,6 +193,16 @@
     selectedFeatureIndexes = [];
   };
   
+  // Export function for PT map interaction
+  export function startAddingStop() {
+    if (ptMapInteraction) {
+      ptMapInteraction.startAddingStop?.();
+      console.log('[Map] Starting add stop mode');
+    } else {
+      console.warn('[Map] PTMapInteraction not available');
+    }
+  }
+  
   // Add test feature - for testing layer functionality
   const addTestFeature = () => {
     // console.log('Adding test feature');
@@ -279,6 +292,28 @@
   
   <!-- Population layers - render last (on top) to receive clicks -->
   <PopulationMapLayer />
+  <DeckGlLayer
+    type={ScatterplotLayer}
+    {data}
+    id="scatterplot-layer"
+    pickable={true}
+    opacity={0.8}
+    stroked={true}
+    filled={true}
+    radiusScale={6}
+    radiusMinPixels={1}
+    radiusMaxPixels={100}
+    lineWidthMinPixels={1}
+    getPosition={d => d.coordinates}
+    getRadius={d => Math.sqrt(d.exits)}
+    getFillColor={d => [255, 140, 0]}
+    getLineColor={d => [0, 0, 0]}
+  />
+  
+  <!-- PT Map Interaction component -->
+  {#if commandArgs.fileEditMode === 'PT' && map}
+    <PTMapInteraction bind:this={ptMapInteraction} {map} />
+  {/if}
 </MapLibre>
 
 <!-- Location Selection Indicator -->
