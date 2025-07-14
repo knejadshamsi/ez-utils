@@ -15,7 +15,11 @@ export async function syncChanges(): Promise<boolean> {
   const changeCount = changeTracker.pendingChanges.length;
   
   try {
-    console.log('Syncing changes:', changeTracker.pendingChanges);
+    console.log('=== SYNC MANAGER DEBUG ===');
+    console.log('Total pending changes:', changeCount);
+    console.log('Pending changes structure:', JSON.stringify(changeTracker.pendingChanges, null, 2));
+    console.log('Calling SyncChanges...');
+    
     await SyncChanges(changeTracker.pendingChanges);
     console.log('Successfully synced', changeCount, 'changes');
     

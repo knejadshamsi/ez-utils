@@ -4,10 +4,20 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 )
 
 // ExecuteAction executes a single action from the frontend
 func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
+	log.Printf("[ExecuteAction] Processing action: %s", string(actionJSON))
+	
+	// Add panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[ExecuteAction] PANIC RECOVERED: %v", r)
+		}
+	}()
+	
 	// First, get the type info to determine which action to execute
 	var typeInfo struct {
 		Type        string `json:"type"`
@@ -16,11 +26,13 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 	}
 	
 	if err := json.Unmarshal(actionJSON, &typeInfo); err != nil {
+		log.Printf("[ExecuteAction] Failed to unmarshal type info: %v", err)
 		return fmt.Errorf("failed to unmarshal action type info: %w", err)
 	}
 	
 	// Create the switch key
 	key := fmt.Sprintf("%s.%s.%s", typeInfo.Type, typeInfo.ElementType, typeInfo.Action)
+	log.Printf("[ExecuteAction] Action key: %s", key)
 	
 	switch key {
 	// ===== POPULATION ACTIONS =====
@@ -281,18 +293,53 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 		return a.deleteProcess(act.ProcessID)
 		
 	default:
+		log.Printf("[ExecuteAction] Unknown action key: %s", key)
 		return fmt.Errorf("unknown action: %s", key)
 	}
+	
+	log.Printf("[ExecuteAction] Action %s completed successfully", key)
 }
 
 // SyncChanges applies a batch of changes from the frontend
 func (a *App) SyncChanges(actions []json.RawMessage) error {
-	return a.db.WithTransaction(func(tx *sql.Tx) error {
+	log.Printf("[SyncChanges] Starting sync with %d actions", len(actions))
+	
+	// Add panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("[SyncChanges] PANIC RECOVERED: %v", r)
+		}
+	}()
+	
+	if len(actions) == 0 {
+		log.Printf("[SyncChanges] No actions to sync")
+		return nil
+	}
+	
+	// Log each action for debugging
+	for i, action := range actions {
+		log.Printf("[SyncChanges] Action %d: %s", i, string(action))
+	}
+	
+	err := a.db.WithTransaction(func(tx *sql.Tx) error {
+		log.Printf("[SyncChanges] Transaction started")
 		for i, action := range actions {
+			log.Printf("[SyncChanges] Executing action %d", i)
 			if err := a.ExecuteAction(action); err != nil {
+				log.Printf("[SyncChanges] Action %d failed: %v", i, err)
 				return fmt.Errorf("action %d failed: %w", i, err)
 			}
+			log.Printf("[SyncChanges] Action %d completed successfully", i)
 		}
+		log.Printf("[SyncChanges] All actions completed, committing transaction")
 		return nil
 	})
+	
+	if err != nil {
+		log.Printf("[SyncChanges] Transaction failed: %v", err)
+		return err
+	}
+	
+	log.Printf("[SyncChanges] Sync completed successfully")
+	return nil
 }

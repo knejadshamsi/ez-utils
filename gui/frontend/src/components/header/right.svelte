@@ -106,8 +106,17 @@
     const changeCount = changeTracker.pendingChanges.length;
     
     try {
-      console.log('Syncing changes:', changeTracker.pendingChanges);
+      console.log('=== SYNC DEBUG INFO ===');
+      console.log('Total pending changes:', changeCount);
+      console.log('Pending changes structure:', JSON.stringify(changeTracker.pendingChanges, null, 2));
+      console.log('Individual changes:');
+      changeTracker.pendingChanges.forEach((change, index) => {
+        console.log(`Change ${index}:`, change);
+      });
+      console.log('Calling SyncChanges with:', changeTracker.pendingChanges);
+      
       const result = await SyncChanges(changeTracker.pendingChanges);
+      console.log('SyncChanges result:', result);
       console.log('Successfully synced', changeCount, 'changes');
       
       // Clear pending changes after successful sync

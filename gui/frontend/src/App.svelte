@@ -4,7 +4,7 @@
   import Map from "./Map.svelte";
   import PrimarySidebar from "./PrimarySidebar.svelte";
   import SecondarySidebar from "./SecondarySidebar.svelte";
-  // import WelcomeModal from "./components/modals/WelcomeModal.svelte"; // TEMPORARY: Commented for development
+  import WelcomeModal from "./components/modals/WelcomeModal.svelte";
   import ProcessingModal from "./components/modals/ProcessingModal.svelte";
   import ToastContainer from "./components/ToastContainer.svelte";
   import { appState, commandArgs, mapComponent } from "$lib/stores/app.svelte.ts";
@@ -74,8 +74,7 @@
 <PrimarySidebar state={appState.primarySidebar} />
 <SecondarySidebar state={appState.secondarySidebar} />
 
-<!-- TEMPORARY: Commented out for development - UNCOMMENT BEFORE COMMIT -->
-<!-- <WelcomeModal /> -->
+<WelcomeModal />
 <ProcessingModal />
 <ToastContainer />
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Modal, P, Spinner, Button } from "flowbite-svelte";
   import { CheckCircleOutline } from "flowbite-svelte-icons";
-  import { appState, commandArgs, type ProcessStatus } from "$lib/stores/app.svelte.ts";
+  import { appState, commandArgs, editingSession, type ProcessStatus } from "$lib/stores/app.svelte.ts";
   import { welcomeModalState } from "./welcome-modal/welcome.svelte";
   import { PTService } from "$lib/api/pt";
   import { 
@@ -188,6 +188,32 @@
   // Handle begin editing button click
   async function handleBeginEditing() {
     clearPolling();
+    
+    // Set the editing session values
+    if (currentProcessId) {
+      editingSession.processId = currentProcessId;
+      
+      // Set table name based on file edit mode
+      switch (commandArgs.fileEditMode) {
+        case 'POPULATION':
+          editingSession.tableName = `population_data_${currentProcessId}`;
+          break;
+        case 'NETWORK':
+          // Network might use a different naming convention
+          editingSession.tableName = `network_${currentProcessId}`;
+          break;
+        case 'PT':
+          // PT might use a different naming convention
+          editingSession.tableName = `pt_${currentProcessId}`;
+          break;
+      }
+      
+      console.log('Editing session initialized:', {
+        processId: editingSession.processId,
+        tableName: editingSession.tableName,
+        fileEditMode: commandArgs.fileEditMode
+      });
+    }
     
     // Load PT data if in PT editing mode
     if (commandArgs.fileEditMode === 'PT') {

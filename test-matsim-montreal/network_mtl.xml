@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE network SYSTEM "http://www.matsim.org/files/dtd/network_v2.dtd">
+<network>
+    <nodes>
+        <!-- Downtown Montreal nodes -->
+        <node id="1" x="-73.5665" y="45.5017" />  <!-- Downtown core -->
+        <node id="2" x="-73.5747" y="45.5048" />  <!-- McGill University -->
+        <node id="3" x="-73.5544" y="45.5088" />  <!-- Old Montreal -->
+        <node id="4" x="-73.5833" y="45.5213" />  <!-- Plateau Mont-Royal -->
+        
+        <!-- West Island nodes -->
+        <node id="5" x="-73.6131" y="45.4680" />  <!-- NDG -->
+        <node id="6" x="-73.5789" y="45.4968" />  <!-- Concordia University -->
+        
+        <!-- Additional connectivity nodes -->
+        <node id="7" x="-73.5674" y="45.5080" />  <!-- Mont-Royal Avenue -->
+        <node id="8" x="-73.5789" y="45.5165" />  <!-- Jean-Talon Market area -->
+        <node id="9" x="-73.5950" y="45.5120" />  <!-- Mile End -->
+        <node id="10" x="-73.5520" y="45.4950" /> <!-- Griffintown -->
+    </nodes>
+    
+    <links>
+        <!-- Major arterial roads -->
+        <link id="1" from="1" to="2" length="1000" freespeed="13.89" capacity="2000" permlanes="3" />
+        <link id="2" from="2" to="1" length="1000" freespeed="13.89" capacity="2000" permlanes="3" />
+        
+        <link id="3" from="1" to="3" length="1500" freespeed="11.11" capacity="1800" permlanes="2" />
+        <link id="4" from="3" to="1" length="1500" freespeed="11.11" capacity="1800" permlanes="2" />
+        
+        <link id="5" from="1" to="7" length="800" freespeed="8.33" capacity="1500" permlanes="2" />
+        <link id="6" from="7" to="1" length="800" freespeed="8.33" capacity="1500" permlanes="2" />
+        
+        <!-- Plateau connections -->
+        <link id="7" from="4" to="7" length="1200" freespeed="8.33" capacity="1200" permlanes="2" />
+        <link id="8" from="7" to="4" length="1200" freespeed="8.33" capacity="1200" permlanes="2" />
+        
+        <link id="9" from="4" to="8" length="600" freespeed="5.56" capacity="800" permlanes="1" />
+        <link id="10" from="8" to="4" length="600" freespeed="5.56" capacity="800" permlanes="1" />
+        
+        <!-- West connections -->
+        <link id="11" from="5" to="6" length="4000" freespeed="16.67" capacity="2500" permlanes="3" />
+        <link id="12" from="6" to="5" length="4000" freespeed="16.67" capacity="2500" permlanes="3" />
+        
+        <link id="13" from="6" to="1" length="2000" freespeed="11.11" capacity="2000" permlanes="2" />
+        <link id="14" from="1" to="6" length="2000" freespeed="11.11" capacity="2000" permlanes="2" />
+        
+        <!-- Additional connectivity -->
+        <link id="15" from="4" to="9" length="1000" freespeed="8.33" capacity="1000" permlanes="2" />
+        <link id="16" from="9" to="4" length="1000" freespeed="8.33" capacity="1000" permlanes="2" />
+        
+        <link id="17" from="3" to="10" length="500" freespeed="5.56" capacity="1000" permlanes="1" />
+        <link id="18" from="10" to="3" length="500" freespeed="5.56" capacity="1000" permlanes="1" />
+        
+        <link id="19" from="10" to="1" length="800" freespeed="8.33" capacity="1500" permlanes="2" />
+        <link id="20" from="1" to="10" length="800" freespeed="8.33" capacity="1500" permlanes="2" />
+    </links>
+</network>

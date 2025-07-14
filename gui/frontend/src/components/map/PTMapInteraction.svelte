@@ -5,6 +5,8 @@
   import { changeTracker } from '$lib/changeTracker.svelte';
   import { getCurrentProcessId } from '$lib/utils/processId';
   import { generateId } from '$lib/utils/generateId';
+  import { createPTStopsLayer, createPTStopsSelectedLayer } from '$layers/PTStopsLayer';
+  import { createPTRoutesLayer, getPTRoutesLayerSelectedPaint } from '$layers/PTRoutesLayer';
 
   let { map }: { map: MaplibreMap | null } = $props();
 
@@ -203,55 +205,23 @@
     }
 
     if (!map.getLayer('pt-routes-layer')) {
-      map.addLayer({
-        id: 'pt-routes-layer',
-        type: 'line',
-        source: 'pt-routes',
-        paint: {
-          'line-color': ['get', 'color'],
-          'line-width': [
-            'case',
-            ['==', ['get', 'id'], ptState.selectedRouteId || ''],
-            4,
-            2
-          ],
-          'line-opacity': [
-            'case',
-            ['==', ['get', 'id'], ptState.selectedRouteId || ''],
-            1,
-            0.6
-          ]
-        }
+      map.addLayer(createPTRoutesLayer());
+    }
+    
+    // Update paint properties based on selection
+    if (map.getLayer('pt-routes-layer')) {
+      const paint = getPTRoutesLayerSelectedPaint(ptState.selectedRouteId);
+      Object.entries(paint).forEach(([prop, value]) => {
+        map.setPaintProperty('pt-routes-layer', prop, value);
       });
     }
 
     if (!map.getLayer('pt-stops-layer')) {
-      map.addLayer({
-        id: 'pt-stops-layer',
-        type: 'circle',
-        source: 'pt-stops',
-        paint: {
-          'circle-radius': 6,
-          'circle-color': '#ffffff',
-          'circle-stroke-color': '#333333',
-          'circle-stroke-width': 2
-        }
-      });
+      map.addLayer(createPTStopsLayer());
     }
 
     if (!map.getLayer('pt-stops-selected')) {
-      map.addLayer({
-        id: 'pt-stops-selected',
-        type: 'circle',
-        source: 'pt-stops',
-        filter: ['==', ['get', 'id'], ''],
-        paint: {
-          'circle-radius': 8,
-          'circle-color': '#3B82F6',
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 3
-        }
-      });
+      map.addLayer(createPTStopsSelectedLayer());
     }
 
     const selectedStopIds = new Set<string>();

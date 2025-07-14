@@ -1,7 +1,8 @@
 <script lang="ts">
   import { MapLibre, DeckGlLayer, NavigationControl } from 'svelte-maplibre';
-  import { ScatterplotLayer, PolygonLayer } from '@deck.gl/layers';
-  import { EditableGeoJsonLayer, DrawPolygonMode, DrawLineStringMode, ModifyMode } from '@deck.gl-community/editable-layers';
+  import { ScatterplotLayer } from '@deck.gl/layers';
+  import { createEditableLayer, DrawPolygonMode, DrawLineStringMode, ModifyMode } from '$layers/EditableLayer';
+  import { createSelectionPolygonLayer } from '$layers/SelectionPolygonLayer';
   import type { Map } from 'maplibre-gl';
   import type { FeatureCollection } from 'geojson';
   import 'maplibre-gl/dist/maplibre-gl.css';
@@ -273,49 +274,26 @@
 >
   <NavigationControl position="bottom-left" />
   
-  <!-- Editable GeoJSON Layer -->
+  <!-- Editable GeoJSON Layer - rendered first so it's below everything else -->
   {#if finalEditingEnabled}
     <DeckGlLayer
-      type={EditableGeoJsonLayer}
-      id="editable-layer"
-      data={editableData}
-      mode={currentMode}
-      selectedFeatureIndexes={selectedFeatureIndexes}
-      onEdit={handleEdit}
-      pickable={true}
-      stroked={true}
-      filled={true}
-      getFillColor={[0, 100, 255, 50]}
-      getLineColor={[0, 100, 255, 255]}
-      getLineWidth={4}
-      getPointRadius={8}
-      getEditHandlePointColor={[255, 255, 0]}
-      getEditHandlePointRadius={8}
-      getTentativeLineColor={[0, 0, 255]}
-      getTentativeLineWidth={3}
-      getTentativeFillColor={[0, 0, 255, 80]}
-      autoHighlight={true}
-      highlightColor={[255, 255, 0, 100]}
-      onClick={(info) => {/* console.log('Layer clicked:', info) */}}
-      onHover={(info) => {/* console.log('Layer hover:', info) */}}
-      getCursor={() => 'crosshair'}
-      interleaved={true}
+      layer={createEditableLayer({
+        id: 'editable-layer',
+        data: editableData,
+        mode: currentMode,
+        selectedFeatureIndexes: selectedFeatureIndexes,
+        onEdit: handleEdit
+      })}
     />
   {/if}
   
-  <!-- Polygon Layer for showing selection (always visible when polygon exists) -->
+  <!-- Polygon Layer for showing selection (below data layers) -->
   {#if selectionPolygonData.length > 0}
     <DeckGlLayer
-      type={PolygonLayer}
-      data={selectionPolygonData}
-      id="selection-polygon-layer"
-      pickable={false}
-      stroked={true}
-      filled={true}
-      getFillColor={[0, 100, 255, 30]}
-      getLineColor={[0, 100, 255, 255]}
-      getLineWidth={3}
-      getPolygon={d => d.polygon}
+      layer={createSelectionPolygonLayer({
+        id: 'selection-polygon-layer',
+        data: selectionPolygonData
+      })}
     />
   {/if}
   
@@ -342,23 +320,6 @@
   
   <!-- Population layers - render last (on top) to receive clicks -->
   <PopulationMapLayer />
-  <DeckGlLayer
-    type={ScatterplotLayer}
-    {data}
-    id="scatterplot-layer"
-    pickable={true}
-    opacity={0.8}
-    stroked={true}
-    filled={true}
-    radiusScale={6}
-    radiusMinPixels={1}
-    radiusMaxPixels={100}
-    lineWidthMinPixels={1}
-    getPosition={d => d.coordinates}
-    getRadius={d => Math.sqrt(d.exits)}
-    getFillColor={d => [255, 140, 0]}
-    getLineColor={d => [0, 0, 0]}
-  />
   
   <!-- PT Map Interaction component -->
   {#if commandArgs.fileEditMode === 'PT' && map}

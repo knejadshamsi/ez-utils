@@ -23,7 +23,7 @@ export const appState = $state<{
   secondarySidebar: SidebarState,
   networkMode: NetworkMode
 }>({ 
-  display: 'EDITING', // TEMPORARY: Changed from 'WELCOME' for development - CHANGE BACK TO 'WELCOME' BEFORE COMMIT
+  display: 'WELCOME',
   primarySidebar: 'EXPANDED',
   secondarySidebar: 'HIDDEN',
   networkMode: 'VIEW'
@@ -37,20 +37,20 @@ export const commandArgs = $state<{
   isFilePathProvided: boolean,
   validationStatus: ValidationStatus
 }>({
-  fileEditMode: 'POPULATION', // TEMPORARY: Default to POPULATION for development
-  filePath: '/dummy/population.xml', // TEMPORARY: Dummy path for development
-  isFileEditModeProvided: true, // TEMPORARY: Set to true for development
-  isFilePathProvided: true, // TEMPORARY: Set to true for development
-  validationStatus: 'VALIDATED_POPULATION' // TEMPORARY: Skip validation for development
+  fileEditMode: 'POPULATION',
+  filePath: '',
+  isFileEditModeProvided: false,
+  isFilePathProvided: false,
+  validationStatus: 'NOT'
 });
 
-// TEMPORARY: Add state for current editing session - for development
+// State for current editing session
 export const editingSession = $state<{
   processId: number,
   tableName: string
 }>({
-  processId: 999, // TEMPORARY: Dummy process ID for development
-  tableName: 'population_data_999' // TEMPORARY: Dummy table name for development
+  processId: 0,
+  tableName: ''
 });
 
 // Map component reference for cross-component communication

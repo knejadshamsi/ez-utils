@@ -1,7 +1,7 @@
 import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 export type ActivityType = 'home' | 'work' | 'school' | 'shop' | 'eat' | 'recreation' | 'other';
-export type TravelMode = 'car' | 'walk' | 'transit' | 'bike';
+export type TravelMode = "person's choice" | 'car' | 'walk' | 'bus' | 'metro' | 'tram' | 'bike';
 export type PlanType = 'weekday' | 'weekend' | 'holiday';
 
 export interface Activity {
@@ -177,8 +177,11 @@ export const activityTypeConfig = {
 
 // Travel mode metadata
 export const travelModeConfig = {
+  "person's choice": { icon: '🧭', label: "Person's Choice" },
   car: { icon: '🚗', label: 'Car' },
   walk: { icon: '🚶', label: 'Walk' },
-  transit: { icon: '🚌', label: 'Transit' },
+  bus: { icon: '🚌', label: 'Bus' },
+  metro: { icon: '🚇', label: 'Metro' },
+  tram: { icon: '🚊', label: 'Tram' },
   bike: { icon: '🚲', label: 'Bike' }
 };
