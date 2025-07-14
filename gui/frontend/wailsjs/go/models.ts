@@ -30,6 +30,42 @@ export namespace gui {
 	
 	    }
 	}
+	export class LinkResult {
+	    id: string;
+	    from_node: string;
+	    to_node: string;
+	    raw_xml: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LinkResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.from_node = source["from_node"];
+	        this.to_node = source["to_node"];
+	        this.raw_xml = source["raw_xml"];
+	    }
+	}
+	export class NodeResult {
+	    id: string;
+	    x: number;
+	    y: number;
+	    raw_xml: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new NodeResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.x = source["x"];
+	        this.y = source["y"];
+	        this.raw_xml = source["raw_xml"];
+	    }
+	}
 	export class PTDeparture {
 	    id: string;
 	    route_id: string;

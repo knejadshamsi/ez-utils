@@ -7,6 +7,7 @@
   import NetworkContent from './components/primary-sidebar/NetworkContent.svelte';
   import PTContent from './components/primary-sidebar/PTContent.svelte';
   import { PrimaryPTSidebar } from './services/edit/pt';
+  import NetworkPrimarySidebar from './services/edit/network/NetworkPrimarySidebar.svelte';
   
   export let state: SidebarState = 'EXPANDED';
   
@@ -31,17 +32,9 @@
     {#if commandArgs.fileEditMode === 'POPULATION'}
       <PopulationContent />
     {:else if commandArgs.fileEditMode === 'NETWORK'}
-      <NetworkContent />
+      <NetworkPrimarySidebar />
     {:else if commandArgs.fileEditMode === 'PT'}
-      <PTContent />
-    {#if commandArgs.fileEditMode === 'PT'}
       <PrimaryPTSidebar />
-    {:else if commandArgs.fileEditMode === 'POPULATION'}
-      <!-- Population mode sidebar -->
-      <div class="p-4">Population mode not implemented</div>
-    {:else if commandArgs.fileEditMode === 'NETWORK'}
-      <!-- Network mode sidebar -->
-      <div class="p-4">Network mode not implemented</div>
     {/if}
   </div>
 </Drawer>

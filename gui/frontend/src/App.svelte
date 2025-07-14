@@ -9,8 +9,13 @@
   import ToastContainer from "./components/ToastContainer.svelte";
   import { appState, commandArgs, mapComponent } from "./store.svelte";
   import { PTService } from "./services/edit/pt/ptService";
+  import NetworkController from "./services/edit/network/NetworkController.svelte";
+  import { networkState } from "./services/edit/network/networkStore.svelte";
   
   let mapInstance: any;
+  
+  // Simple boolean to control map editing for network mode
+  let mapEditingEnabled = $state(false);
   
   $effect(() => {
     // Update global mapComponent reference when mapInstance is available
@@ -35,12 +40,35 @@
       });
     }
   });
+  
+  // Watch for network drawing state changes and clear polygon when starting new drawing
+  $effect(() => {
+    if (networkState.isDrawingPolygon) {
+      console.log('Enabling map editing for polygon drawing');
+      mapEditingEnabled = true;
+      // Clear any existing selection polygon when starting new drawing
+      networkState.selection.selectedPolygon = null;
+    }
+  });
+  
+  // Handle polygon completion
+  function handlePolygonComplete(polygon: number[][]) {
+    console.log('Polygon completed:', polygon);
+    networkState.selection.selectedPolygon = polygon;
+    networkState.isDrawingPolygon = false;
+    mapEditingEnabled = false;
+  }
 </script>
 
 <Header />
 
 <div class="h-[calc(100vh-72px)] bg-gray-50">
-  <Map bind:this={mapInstance} />
+  <Map 
+    bind:this={mapInstance}
+    isEditingEnabled={mapEditingEnabled} 
+    onPolygonComplete={handlePolygonComplete}
+    selectionPolygon={networkState.selection.selectedPolygon} 
+  />
 </div>
 
 <PrimarySidebar state={appState.primarySidebar} />
@@ -50,4 +78,8 @@
 <!-- <WelcomeModal /> -->
 <ProcessingModal />
 <ToastContainer />
+
+{#if commandArgs.fileEditMode === 'NETWORK'}
+  <NetworkController />
+{/if}
 

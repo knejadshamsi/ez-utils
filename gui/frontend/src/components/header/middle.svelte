@@ -3,6 +3,9 @@
   // Demo props - can be uncommented to enable drawing toggle
   // export let isEditingEnabled = false;
   // export let onToggleEditing = () => {};
+  
+  import { commandArgs } from '../../store.svelte';
+  import NetworkModeToggle from '../../services/edit/network/NetworkModeToggle.svelte';
 </script>
 
 <div class="flex items-center justify-center h-full">
@@ -14,5 +17,7 @@
     {isEditingEnabled ? 'Disable' : 'Enable'} Drawing
   </button> -->
   
-  <!-- Middle section content will go here -->
+  {#if commandArgs.fileEditMode === 'NETWORK' && commandArgs.validationStatus === 'VALIDATED_NETWORK'}
+    <NetworkModeToggle />
+  {/if}
 </div>

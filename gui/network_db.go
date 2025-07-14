@@ -247,6 +247,30 @@ func (db *Database) UpdateNetworkTelemetry(processID int, bytesRead, nodesRead, 
 	return err
 }
 
+// DeleteLinksByNode deletes all links connected to a specific node
+func (db *Database) DeleteLinksByNode(processID int, nodeID string) error {
+	tableName := fmt.Sprintf("network_links_%d", processID)
+	query := fmt.Sprintf("DELETE FROM %s WHERE from_node = ? OR to_node = ?", tableName)
+	_, err := db.execQuery(query, fmt.Sprintf("failed to delete links connected to node from %s", tableName), nodeID, nodeID)
+	return err
+}
+
+// InsertNetworkNode inserts a new node into the network
+func (db *Database) InsertNetworkNode(processID int, nodeID string, x, y float64, rawXML string) error {
+	tableName := fmt.Sprintf("network_nodes_%d", processID)
+	query := fmt.Sprintf("INSERT INTO %s (id, x, y, raw_xml) VALUES (?, ?, ?, ?)", tableName)
+	_, err := db.execQuery(query, fmt.Sprintf("failed to insert node into %s", tableName), nodeID, x, y, rawXML)
+	return err
+}
+
+// InsertNetworkLink inserts a new link into the network
+func (db *Database) InsertNetworkLink(processID int, linkID string, fromNode, toNode string, rawXML string) error {
+	tableName := fmt.Sprintf("network_links_%d", processID)
+	query := fmt.Sprintf("INSERT INTO %s (id, from_node, to_node, raw_xml) VALUES (?, ?, ?, ?)", tableName)
+	_, err := db.execQuery(query, fmt.Sprintf("failed to insert link into %s", tableName), linkID, fromNode, toNode, rawXML)
+	return err
+}
+
 // UpdateNode updates a network node's coordinates in the database
 func (db *Database) UpdateNode(processID int, nodeID string, x, y float64) error {
 	// Generate the new XML representation

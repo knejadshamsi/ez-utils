@@ -7,6 +7,9 @@ export type SidebarState = 'HIDDEN' | 'COLLAPSED' | 'EXPANDED';
 // Define the type for file edit modes
 export type FileEditMode = 'POPULATION' | 'NETWORK' | 'PT';
 
+// Define the type for network modes (View/Edit/Create)
+export type NetworkMode = 'VIEW' | 'EDIT' | 'CREATE';
+
 // Define the type for validation status
 export type ValidationStatus = 'NOT' | 'VALIDATING' | 'FAIL' | 'VALIDATED_POPULATION' | 'VALIDATED_NETWORK' | 'VALIDATED_PT';
 
@@ -17,11 +20,13 @@ export type ProcessStatus = 'PENDING' | 'INITIALIZING' | 'PROCESSING' | 'COMPLET
 export const appState = $state<{ 
   display: DisplayState,
   primarySidebar: SidebarState,
-  secondarySidebar: SidebarState
+  secondarySidebar: SidebarState,
+  networkMode: NetworkMode
 }>({ 
   display: 'EDITING', // TEMPORARY: Changed from 'WELCOME' for development - CHANGE BACK TO 'WELCOME' BEFORE COMMIT
   primarySidebar: 'EXPANDED',
-  secondarySidebar: 'HIDDEN'
+  secondarySidebar: 'HIDDEN',
+  networkMode: 'VIEW'
 });
 
 // Create separate state for command arguments
@@ -32,11 +37,11 @@ export const commandArgs = $state<{
   isFilePathProvided: boolean,
   validationStatus: ValidationStatus
 }>({
-  fileEditMode: 'PT', // TEMPORARY: Default to PT for development
-  filePath: '/dummy/pt.xml', // TEMPORARY: Dummy path for development
+  fileEditMode: 'POPULATION', // TEMPORARY: Default to POPULATION for development
+  filePath: '/dummy/population.xml', // TEMPORARY: Dummy path for development
   isFileEditModeProvided: true, // TEMPORARY: Set to true for development
   isFilePathProvided: true, // TEMPORARY: Set to true for development
-  validationStatus: 'VALIDATED_PT' // TEMPORARY: Skip validation for development
+  validationStatus: 'VALIDATED_POPULATION' // TEMPORARY: Skip validation for development
 });
 
 // TEMPORARY: Add state for current editing session - for development

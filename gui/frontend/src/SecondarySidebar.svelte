@@ -7,6 +7,7 @@
   import NetworkContent from './components/secondary-sidebar/NetworkContent.svelte';
   import PTContent from './components/secondary-sidebar/PTContent.svelte';
   import { SecondaryPTSidebar } from './services/edit/pt';
+  import NetworkSecondarySidebar from './services/edit/network/NetworkSecondarySidebar.svelte';
   
   export let state: SidebarState = 'HIDDEN';
   
@@ -27,11 +28,11 @@
   bodyScrolling={true}
   class="top-[72px] h-[calc(100vh-72px)] {state === 'COLLAPSED' ? 'w-16' : 'w-[420px]'}"
 >
-  <div class="h-full shadow-xl">
+  <div class="h-full border-l border-gray-200 shadow-xl">
     {#if commandArgs.fileEditMode === 'POPULATION'}
       <PopulationContent />
     {:else if commandArgs.fileEditMode === 'NETWORK'}
-      <NetworkContent />
+      <NetworkSecondarySidebar />
     {:else if commandArgs.fileEditMode === 'PT'}
       <SecondaryPTSidebar />
     {/if}

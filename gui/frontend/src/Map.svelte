@@ -1,6 +1,6 @@
 <script lang="ts">
   import { MapLibre, DeckGlLayer, NavigationControl } from 'svelte-maplibre';
-  import { ScatterplotLayer } from '@deck.gl/layers';
+  import { ScatterplotLayer, PolygonLayer } from '@deck.gl/layers';
   import { EditableGeoJsonLayer, DrawPolygonMode, DrawLineStringMode, ModifyMode } from '@deck.gl-community/editable-layers';
   import type { Map } from 'maplibre-gl';
   import type { FeatureCollection } from 'geojson';
@@ -45,8 +45,22 @@
   let selectedFeatureIndexes = $state<number[]>([]);
   let currentMode = $state<any>(DrawPolygonMode);
   
-  // Enable drawing when creating a new zone
-  const isEditingEnabled = $derived(populationState.isDrawingZone);
+  // Props for parent component access
+  let { 
+    isEditingEnabled = false,
+    onPolygonComplete = null,
+    selectionPolygon = null
+  }: { 
+    isEditingEnabled?: boolean;
+    onPolygonComplete?: ((polygon: number[][]) => void) | null;
+    selectionPolygon?: number[][] | null;
+  } = $props();
+  
+  // Enable drawing when creating a new zone (for population mode)
+  const isEditingEnabledForZone = $derived(populationState.isDrawingZone);
+  
+  // Combined editing state - either from props (network mode) or from population state
+  const finalEditingEnabled = $derived(isEditingEnabled || isEditingEnabledForZone);
   
   // Handle map clicks for activity location selection
   $effect(() => {
@@ -95,14 +109,21 @@
     }
   });
   
-  // Debug logging - uncomment for troubleshooting
-  // $effect(() => {
-  //   console.log('=== State Update ===');
-  //   console.log('isEditingEnabled:', isEditingEnabled);
-  //   console.log('Current mode:', currentMode?.name);
-  //   console.log('Features count:', editableData.features.length);
-  //   console.log('editableData:', $state.snapshot(editableData));
-  // });
+  // Convert selection polygon to deck.gl format
+  let selectionPolygonData = $derived(
+    selectionPolygon ? [{
+      polygon: selectionPolygon,
+      id: 'selection'
+    }] : []
+  );
+  
+  // Debug logging
+  $effect(() => {
+    console.log('=== Map State Update ===');
+    console.log('isEditingEnabled:', isEditingEnabled);
+    console.log('Current mode:', currentMode?.name);
+    console.log('Features count:', editableData.features.length);
+  });
   
   // Debug map events - uncomment for troubleshooting
   // $effect(() => {
@@ -132,35 +153,48 @@
       // console.log('Updating editableData with:', info.updatedData);
       editableData = info.updatedData;
       
-      // Check if a new feature was added (zone creation)
-      if (info.editType === 'addFeature' && populationState.isDrawingZone) {
-        console.log('Zone creation - editType:', info.editType, 'features:', info.updatedData.features);
+      // Check if a new feature was added
+      if (info.editType === 'addFeature' && info.updatedData.features.length > 0) {
         const newFeature = info.updatedData.features[info.updatedData.features.length - 1];
-        if (newFeature) {
-          console.log('New zone geometry:', newFeature.geometry);
-          const timestamp = Date.now();
-          const newZoneId = `zone_${timestamp}`;
-          
-          // Create new zone with geometry
-          const newZone = {
-            id: newZoneId,
-            name: `Zone ${populationState.zones.length + 1}`,
-            personCount: 0,
-            geometry: newFeature.geometry
-          };
-          
-          console.log('Creating zone:', newZone);
-          
-          // Add to zones array - force reactivity with assignment
-          populationState.zones = [...populationState.zones, newZone];
-          
-          // Make new zone visible by default - force reactivity
-          populationState.selectedZones = new SvelteSet([...populationState.selectedZones, newZoneId]);
-          
-          // Exit drawing mode
-          populationState.isDrawingZone = false;
-          
-          // Don't clear the editable layer - let the zone show in both layers
+        
+        // Handle zone creation for population mode
+        if (populationState.isDrawingZone) {
+          console.log('Zone creation - editType:', info.editType, 'features:', info.updatedData.features);
+          if (newFeature) {
+            console.log('New zone geometry:', newFeature.geometry);
+            const timestamp = Date.now();
+            const newZoneId = `zone_${timestamp}`;
+            
+            // Create new zone with geometry
+            const newZone = {
+              id: newZoneId,
+              name: `Zone ${populationState.zones.length + 1}`,
+              personCount: 0,
+              geometry: newFeature.geometry
+            };
+            
+            console.log('Creating zone:', newZone);
+            
+            // Add to zones array - force reactivity with assignment
+            populationState.zones = [...populationState.zones, newZone];
+            
+            // Make new zone visible by default - force reactivity
+            populationState.selectedZones = new SvelteSet([...populationState.selectedZones, newZoneId]);
+            
+            // Exit drawing mode
+            populationState.isDrawingZone = false;
+            
+            // Don't clear the editable layer - let the zone show in both layers
+          }
+        }
+        
+        // Handle polygon completion for network mode
+        if (newFeature.geometry.type === 'Polygon' && onPolygonComplete) {
+          const coordinates = newFeature.geometry.coordinates[0];
+          // Convert to simple coordinate array (remove last duplicate point)
+          const polygon = coordinates.slice(0, -1).map((coord: any) => [coord[0], coord[1]]);
+          onPolygonComplete(polygon);
+          // Don't clear the polygon - let it remain visible
         }
       }
     }
@@ -240,7 +274,7 @@
   <NavigationControl position="bottom-left" />
   
   <!-- Editable GeoJSON Layer -->
-  {#if isEditingEnabled}
+  {#if finalEditingEnabled}
     <DeckGlLayer
       type={EditableGeoJsonLayer}
       id="editable-layer"
@@ -251,9 +285,9 @@
       pickable={true}
       stroked={true}
       filled={true}
-      getFillColor={[255, 0, 0, 100]}
-      getLineColor={[255, 0, 0]}
-      getLineWidth={3}
+      getFillColor={[0, 100, 255, 50]}
+      getLineColor={[0, 100, 255, 255]}
+      getLineWidth={4}
       getPointRadius={8}
       getEditHandlePointColor={[255, 255, 0]}
       getEditHandlePointRadius={8}
@@ -266,6 +300,22 @@
       onHover={(info) => {/* console.log('Layer hover:', info) */}}
       getCursor={() => 'crosshair'}
       interleaved={true}
+    />
+  {/if}
+  
+  <!-- Polygon Layer for showing selection (always visible when polygon exists) -->
+  {#if selectionPolygonData.length > 0}
+    <DeckGlLayer
+      type={PolygonLayer}
+      data={selectionPolygonData}
+      id="selection-polygon-layer"
+      pickable={false}
+      stroked={true}
+      filled={true}
+      getFillColor={[0, 100, 255, 30]}
+      getLineColor={[0, 100, 255, 255]}
+      getLineWidth={3}
+      getPolygon={d => d.polygon}
     />
   {/if}
   
@@ -327,7 +377,7 @@
   Demo Controls - Uncomment to enable drawing controls
   Usage: Uncomment the block below and ensure isEditingEnabled prop is passed
   
-  {#if isEditingEnabled}
+  {#if finalEditingEnabled}
     <div class="absolute top-20 left-4 z-10 bg-white p-4 rounded shadow-lg">
       <div class="flex flex-col gap-2">
         <button 

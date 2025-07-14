@@ -11,7 +11,15 @@ export function ClearAllZones():Promise<void>;
 
 export function CreateDemoZones():Promise<void>;
 
+export function CreateNetworkLink(arg1:number,arg2:string,arg3:string,arg4:string,arg5:string):Promise<void>;
+
+export function CreateNetworkNode(arg1:number,arg2:string,arg3:number,arg4:number,arg5:string):Promise<void>;
+
 export function CreateZoneFromGeoJSON(arg1:Record<string, any>):Promise<void>;
+
+export function DeleteNetworkLink(arg1:number,arg2:string):Promise<void>;
+
+export function DeleteNetworkNode(arg1:number,arg2:string):Promise<void>;
 
 export function DeleteZone(arg1:string):Promise<void>;
 
@@ -34,6 +42,10 @@ export function GetAllZones():Promise<Array<gui.Zone>>;
 export function GetDebugLogs():Promise<Record<string, string>>;
 
 export function GetExportInfo(arg1:string):Promise<Record<string, any>>;
+
+export function GetLinksInBBox(arg1:number,arg2:Array<string>):Promise<Array<gui.LinkResult>>;
+
+export function GetNodesInBBox(arg1:number,arg2:gui.BoundingBox):Promise<Array<gui.NodeResult>>;
 
 export function GetPTDepartures(arg1:number,arg2:string):Promise<Array<gui.PTDeparture>>;
 
@@ -98,6 +110,10 @@ export function SelectFile():Promise<string>;
 export function SetDatabase(arg1:gui.Database):Promise<void>;
 
 export function SyncChanges(arg1:Array<json.RawMessage>):Promise<void>;
+
+export function UpdateNetworkLink(arg1:number,arg2:string,arg3:string):Promise<void>;
+
+export function UpdateNetworkNode(arg1:number,arg2:string,arg3:number,arg4:number,arg5:string):Promise<void>;
 
 export function ValidateNetworkXML(arg1:string):Promise<gui.ValidationResult>;
 

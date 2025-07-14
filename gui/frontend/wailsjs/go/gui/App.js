@@ -18,8 +18,24 @@ export function CreateDemoZones() {
   return window['go']['gui']['App']['CreateDemoZones']();
 }
 
+export function CreateNetworkLink(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['gui']['App']['CreateNetworkLink'](arg1, arg2, arg3, arg4, arg5);
+}
+
+export function CreateNetworkNode(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['gui']['App']['CreateNetworkNode'](arg1, arg2, arg3, arg4, arg5);
+}
+
 export function CreateZoneFromGeoJSON(arg1) {
   return window['go']['gui']['App']['CreateZoneFromGeoJSON'](arg1);
+}
+
+export function DeleteNetworkLink(arg1, arg2) {
+  return window['go']['gui']['App']['DeleteNetworkLink'](arg1, arg2);
+}
+
+export function DeleteNetworkNode(arg1, arg2) {
+  return window['go']['gui']['App']['DeleteNetworkNode'](arg1, arg2);
 }
 
 export function DeleteZone(arg1) {
@@ -62,8 +78,17 @@ export function GetDebugLogs() {
   return window['go']['gui']['App']['GetDebugLogs']();
 }
 
+<<<<<<< HEAD
 export function GetExportInfo(arg1) {
   return window['go']['gui']['App']['GetExportInfo'](arg1);
+=======
+export function GetLinksInBBox(arg1, arg2) {
+  return window['go']['gui']['App']['GetLinksInBBox'](arg1, arg2);
+}
+
+export function GetNodesInBBox(arg1, arg2) {
+  return window['go']['gui']['App']['GetNodesInBBox'](arg1, arg2);
+>>>>>>> network-gui
 }
 
 export function GetPTDepartures(arg1, arg2) {
@@ -192,6 +217,14 @@ export function SetDatabase(arg1) {
 
 export function SyncChanges(arg1) {
   return window['go']['gui']['App']['SyncChanges'](arg1);
+}
+
+export function UpdateNetworkLink(arg1, arg2, arg3) {
+  return window['go']['gui']['App']['UpdateNetworkLink'](arg1, arg2, arg3);
+}
+
+export function UpdateNetworkNode(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['gui']['App']['UpdateNetworkNode'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function ValidateNetworkXML(arg1) {
