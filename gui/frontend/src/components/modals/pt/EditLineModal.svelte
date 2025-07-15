@@ -117,7 +117,7 @@
 
   const modeOptions = [
     { value: TransportMode.Bus, name: '🚌 Bus' },
-    { value: TransportMode.Rail, name: '🚇 Rail' },
+    { value: TransportMode.Metro, name: '🚇 Metro' },
     { value: TransportMode.Tram, name: '🚊 Tram' }
   ];
 </script>

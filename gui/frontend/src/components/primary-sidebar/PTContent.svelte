@@ -6,6 +6,7 @@
   import { changeTracker } from '$lib/changeTracker.svelte';
   import { getCurrentProcessId } from '$lib/utils/processId';
   import { generateId } from '$lib/utils/generateId';
+  import { trackRouteChange } from '$lib/utils/ptChangeTracking';
   import AddLineModal from '../modals/pt/AddLineModal.svelte';
   import EditLineModal from '../modals/pt/EditLineModal.svelte';
 
@@ -84,17 +85,11 @@
       raw_xml: ''
     };
     
-    // Add to change tracker
-    changeTracker.pendingChanges.push({
-      type: 'pt',
-      elementType: 'route',
-      action: 'add',
-      processId: getCurrentProcessId(),
-      route: newRoute
-    });
-    
     // Add to line
     line.routes.push(newRoute);
+    
+    // Track the new route
+    trackRouteChange(newRoute, 'add');
     
     // Update state to trigger reactivity
     const newLines = new Map(ptState.lines);

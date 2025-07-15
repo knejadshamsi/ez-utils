@@ -4,9 +4,8 @@ import type { PTLineExtended, PTRouteExtended, PTStopExtended, PTRouteStopExtend
 
 export enum TransportMode {
   Bus = 'bus',
-  Rail = 'rail',
-  Tram = 'tram',
-  Ferry = 'ferry'
+  Metro = 'metro',
+  Tram = 'tram'
 }
 
 export interface StopTime {
@@ -33,7 +32,7 @@ export interface PTVisibility {
 class PTState {
   modes = $state<Set<TransportMode>>(new Set([
     TransportMode.Bus,
-    TransportMode.Rail,
+    TransportMode.Metro,
     TransportMode.Tram
   ]));
   
@@ -43,7 +42,7 @@ class PTState {
   selectedRouteId = $state<string | null>(null);
   visibleModes = $state<Set<TransportMode>>(new Set([
     TransportMode.Bus,
-    TransportMode.Rail,
+    TransportMode.Metro,
     TransportMode.Tram
   ]));
   
@@ -53,6 +52,8 @@ class PTState {
   });
   
   isAddingStop = $state<boolean>(false);
+  isSelectingStopLocation = $state<boolean>(false);
+  selectingStopId = $state<string | null>(null);
   updateVersion = $state<number>(0);
 
   selectedLine = $derived(
@@ -269,11 +270,69 @@ class PTState {
   getModeIcon(mode: TransportMode): string {
     const icons = {
       [TransportMode.Bus]: '🚌',
-      [TransportMode.Rail]: '🚇',
-      [TransportMode.Tram]: '🚊',
-      [TransportMode.Ferry]: '⛴️'
+      [TransportMode.Metro]: '🚇',
+      [TransportMode.Tram]: '🚊'
     };
     return icons[mode] || '🚌';
+  }
+
+  getModeAbbreviation(mode: TransportMode): string {
+    const abbreviations = {
+      [TransportMode.Bus]: 'B',
+      [TransportMode.Metro]: 'M',
+      [TransportMode.Tram]: 'T'
+    };
+    return abbreviations[mode] || 'B';
+  }
+
+  getStopName(stopId: string): string {
+    const stop = this.stops.get(stopId);
+    return stop?.name || `Stop ${stopId}`;
+  }
+
+  getStopCoords(stopId: string): string {
+    const stop = this.stops.get(stopId);
+    if (stop?.x !== undefined && stop?.y !== undefined) {
+      return `${stop.x.toFixed(4)}, ${stop.y.toFixed(4)}`;
+    }
+    return 'No coordinates';
+  }
+
+  getLinesForStop(stopId: string): LineWithRoutes[] {
+    const linesSet = new Set<string>();
+    const result: LineWithRoutes[] = [];
+    
+    // Check all lines and their routes
+    for (const line of this.lines.values()) {
+      for (const route of line.routes) {
+        // Check if this route contains the stop
+        if (route.stopSequence.some(stop => stop.stopId === stopId)) {
+          if (!linesSet.has(line.id)) {
+            linesSet.add(line.id);
+            result.push(line);
+          }
+        }
+      }
+    }
+    
+    return result;
+  }
+
+  deleteRoute(lineId: string, routeId: string): void {
+    const line = this.lines.get(lineId);
+    if (!line) return;
+    
+    // Remove the route from the line's routes array
+    line.routes = line.routes.filter(r => r.id !== routeId);
+    
+    // If this was the selected route, clear selection
+    if (this.selectedRouteId === routeId) {
+      this.selectedRouteId = null;
+      this.selectedLineId = null;
+    }
+    
+    // Trigger reactivity by updating the Map
+    this.lines.set(lineId, { ...line });
   }
 }
 
