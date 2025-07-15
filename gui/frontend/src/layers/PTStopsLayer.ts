@@ -28,3 +28,18 @@ export function createPTStopsSelectedLayer(): LayerSpecification {
     }
   };
 }
+
+export function createPTStopLocationSelectLayer(): LayerSpecification {
+  return {
+    id: 'pt-stop-location-select',
+    type: 'circle',
+    source: 'pt-stops',
+    filter: ['==', ['get', 'id'], ''],
+    paint: {
+      'circle-radius': 10,
+      'circle-color': '#FFFF00', // Yellow like population activity selection
+      'circle-stroke-color': '#333333',
+      'circle-stroke-width': 2
+    }
+  };
+}

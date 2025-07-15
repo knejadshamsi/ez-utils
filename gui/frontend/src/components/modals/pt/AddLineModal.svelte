@@ -4,6 +4,7 @@
   import { changeTracker } from '$lib/changeTracker.svelte';
   import { getCurrentProcessId } from '$lib/utils/processId';
   import { generateId } from '$lib/utils/generateId';
+  import { trackLineChange } from '$lib/utils/ptChangeTracking';
 
   let { open = $bindable() }: { open: boolean } = $props();
   let name = $state('');
@@ -57,18 +58,13 @@
       routes: []
     };
 
-    changeTracker.pendingChanges.push({
-      type: 'pt',
-      elementType: 'line',
-      action: 'add',
-      processId: getCurrentProcessId(),
-      line: newLine
-    });
-
     // Create new Map to trigger Svelte 5 reactivity
     const newLines = new Map(ptState.lines);
     newLines.set(newLine.id, newLine);
     ptState.lines = newLines;
+    
+    // Track the new line
+    trackLineChange(newLine, 'add');
     ptState.setSelectedLine(newLine.id);
     
     open = false;
@@ -82,7 +78,7 @@
 
   const modeOptions = [
     { value: TransportMode.Bus, name: '🚌 Bus' },
-    { value: TransportMode.Rail, name: '🚇 Rail' },
+    { value: TransportMode.Metro, name: '🚇 Metro' },
     { value: TransportMode.Tram, name: '🚊 Tram' }
   ];
 </script>

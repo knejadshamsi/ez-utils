@@ -465,7 +465,7 @@
                         onchange={(e) => updateLegDuration(leg, parseInt((e.target as HTMLInputElement).value) || 0)}
                         class="bg-gray-600 text-white border-gray-500 h-6 w-20 text-xs {leg.mode === "person's choice" ? 'opacity-50 cursor-not-allowed' : ''}"
                       />
-                      <span class="text-xs text-gray-400">minutes</span>
+                      <span class="text-xs text-gray-400">mins</span>
                     </div>
                   </div>
                 </div>

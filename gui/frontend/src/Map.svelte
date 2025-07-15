@@ -8,9 +8,12 @@
   import 'maplibre-gl/dist/maplibre-gl.css';
   import PopulationMapLayer from './components/map/PopulationMapLayer.svelte';
   import { populationState } from '$lib/stores/population.svelte';
+  import { ptState } from '$lib/stores/pt.svelte';
   import { SvelteSet } from 'svelte/reactivity';
   import { commandArgs } from '$lib/stores/app.svelte.ts';
   import PTMapInteraction from './components/map/PTMapInteraction.svelte';
+  import PTMapLayer from './components/map/PTMapLayer.svelte';
+  import { trackStopChange } from '$lib/utils/ptChangeTracking';
   
   let map: Map | undefined = $state();
   let ptMapInteraction: any = $state();
@@ -100,9 +103,58 @@
     }
   });
   
+  // Handle map clicks for PT stop location selection
+  $effect(() => {
+    if (map && ptState.isSelectingStopLocation) {
+      const handlePTMapClick = (e: any) => {
+        if (ptState.isSelectingStopLocation && ptState.selectingStopId) {
+          const lngLat = e.lngLat;
+          const coordinates: [number, number] = [lngLat.lng, lngLat.lat];
+          
+          // Update the stop location
+          const stop = ptState.stops.get(ptState.selectingStopId);
+          if (stop) {
+            const updatedStop = {
+              ...stop,
+              location: coordinates,
+              x: coordinates[0],
+              y: coordinates[1]
+            };
+            
+            // Update stops map to trigger reactivity
+            const newStops = new Map(ptState.stops);
+            newStops.set(stop.id, updatedStop);
+            ptState.stops = newStops;
+            
+            // Track the stop update
+            trackStopChange(updatedStop, 'update');
+          }
+          
+          // Reset selection state
+          ptState.isSelectingStopLocation = false;
+          ptState.selectingStopId = null;
+        }
+      };
+      
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape' && ptState.isSelectingStopLocation) {
+          ptState.isSelectingStopLocation = false;
+          ptState.selectingStopId = null;
+        }
+      };
+      
+      map.on('click', handlePTMapClick);
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        map.off('click', handlePTMapClick);
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  });
+  
   // Change cursor when selecting location
   $effect(() => {
-    if (map && populationState.isSelectingActivityLocation) {
+    if (map && (populationState.isSelectingActivityLocation || ptState.isSelectingStopLocation)) {
       map.getCanvas().style.cursor = 'crosshair';
       return () => {
         map.getCanvas().style.cursor = '';
@@ -318,10 +370,17 @@
     />
   {/if}
   
-  <!-- Population layers - render last (on top) to receive clicks -->
-  <PopulationMapLayer />
+  <!-- Population layers -->
+  {#if commandArgs.fileEditMode === 'POPULATION'}
+    <PopulationMapLayer />
+  {/if}
   
-  <!-- PT Map Interaction component -->
+  <!-- PT layers -->
+  {#if commandArgs.fileEditMode === 'PT'}
+    <PTMapLayer />
+  {/if}
+  
+  <!-- PT Map Interaction component (for handling add stop logic) -->
   {#if commandArgs.fileEditMode === 'PT' && map}
     <PTMapInteraction bind:this={ptMapInteraction} {map} />
   {/if}

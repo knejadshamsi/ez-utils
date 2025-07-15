@@ -62,7 +62,7 @@
 
     const dwell = parseInt(dwellMinutes);
     if (isNaN(dwell) || dwell < 0 || dwell > 60) {
-      error = 'Dwell time must be between 0 and 60 minutes';
+      error = 'Dwell time must be between 0 and 60 mins';
       return false;
     }
 
@@ -205,7 +205,7 @@
       </div>
 
       <div>
-        <Label for="dwell" class="mb-2">Dwell Time (minutes) *</Label>
+        <Label for="dwell" class="mb-2">Dwell Time (mins) *</Label>
         <Input
           id="dwell"
           type="number"

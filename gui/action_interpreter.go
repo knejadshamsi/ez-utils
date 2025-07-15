@@ -298,6 +298,7 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 	}
 	
 	log.Printf("[ExecuteAction] Action %s completed successfully", key)
+	return nil
 }
 
 // SyncChanges applies a batch of changes from the frontend

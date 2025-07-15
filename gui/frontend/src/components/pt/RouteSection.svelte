@@ -129,7 +129,7 @@
 
   {#if route.stopSequence.length >= 2}
     <div class="px-4 py-2 bg-gray-50 dark:bg-gray-800 text-sm text-gray-600 dark:text-gray-400">
-      Total time: {totalTime} minutes
+      Total time: {totalTime} mins
     </div>
   {/if}
 
