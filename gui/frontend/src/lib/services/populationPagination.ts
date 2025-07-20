@@ -1,8 +1,17 @@
-import { GetPopulationPaginated, GetZonesWithCounts, GetAllZones, GetZoneStats } from '@wailsjs/go/gui/App';
+import { 
+  GetPopulationPaginated, 
+  CreateFilterSession,
+  AddZoneToSession,
+  RemoveZoneFromSession,
+  CloseFilterSession
+} from '@wailsjs/go/gui/App';
 import { populationState, updatePageCache, isPageCached, clearPageCache } from '$lib/stores/population.svelte';
 import { parsePersonXML } from '$lib/utils/populationXmlParser';
 import { changeTracker } from '$lib/changeTracker.svelte';
 import type { Person } from '$lib/stores/population.svelte';
+
+// Store the current filter session ID
+let currentSessionId: string | null = null;
 
 // Load a specific page of population data
 export async function loadPopulationPage(tableName: string, page: number, forceReload = false) {
@@ -25,16 +34,12 @@ export async function loadPopulationPage(tableName: string, page: number, forceR
   populationState.isLoadingPage = true;
   
   try {
-    // Get selected zones for filtering
-    // If no zones are selected, we still pass empty array to get empty result
-    const zoneFilter = Array.from(populationState.selectedZones);
-    
-    // Fetch paginated data
+    // Fetch paginated data - pass sessionId if we have one (from zones)
     const response = await GetPopulationPaginated(
       tableName, 
       page, 
       populationState.pageSize, 
-      zoneFilter
+      currentSessionId || '' // Empty string means no filtering
     );
     
     console.log(`Loaded page ${page}:`, response.persons?.length || 0, 'persons');
@@ -88,35 +93,77 @@ function loadPersonsIntoState(persons: Person[]) {
   });
 }
 
-// Load zones independently of pagination
-export async function loadZones(tableName: string) {
+// Initialize filter session for the table
+export async function initializeFilterSession(tableName: string) {
   if (!tableName) {
     console.error('No table name provided');
     return;
   }
 
   try {
-    // Get all zones
-    const zones = await GetAllZones();
+    // Close any existing session
+    if (currentSessionId) {
+      await CloseFilterSession(currentSessionId);
+    }
     
-    // Get zone statistics
-    const zoneStats = await GetZoneStats(tableName);
+    // Create new filter session
+    currentSessionId = await CreateFilterSession(tableName);
+    console.log('Created filter session:', currentSessionId);
     
-    // Convert to Zone format with person counts
-    populationState.zones = (zones || []).map(zone => ({
-      id: zone.id,
-      name: zone.name,
-      personCount: zoneStats[zone.id]?.personCount || 0
-    }));
+    // Clear zones since they're frontend-only now
+    populationState.zones = [];
+    populationState.selectedZones.clear();
     
-    // Select all zones by default
-    populationState.zones.forEach(zone => {
-      populationState.selectedZones.add(zone.id);
-    });
-    
-    console.log('Loaded zones:', populationState.zones.length);
   } catch (error) {
-    console.error('Failed to load zones:', error);
+    console.error('Failed to initialize filter session:', error);
+    currentSessionId = null;
+  }
+}
+
+// Add a zone to the filter session
+export async function addZoneToFilter(
+  zoneId: string, 
+  polygon: [number, number][],
+  tableName: string
+) {
+  if (!currentSessionId || !tableName) {
+    console.error('No active session or table');
+    return;
+  }
+  
+  try {
+    // Send polygon to backend - bbox calculation happens there
+    await AddZoneToSession(
+      currentSessionId,
+      zoneId,
+      polygon.map(p => ({ x: p[0], y: p[1] }))
+    );
+    
+    // Clear cache and reload
+    clearPageCache();
+    await loadPopulationPage(tableName, 1, true);
+    
+  } catch (error) {
+    console.error('Failed to add zone to filter:', error);
+  }
+}
+
+// Remove a zone from the filter session
+export async function removeZoneFromFilter(zoneId: string, tableName: string) {
+  if (!currentSessionId || !tableName) {
+    console.error('No active session or table');
+    return;
+  }
+  
+  try {
+    await RemoveZoneFromSession(currentSessionId, zoneId);
+    
+    // Clear cache and reload
+    clearPageCache();
+    await loadPopulationPage(tableName, 1, true);
+    
+  } catch (error) {
+    console.error('Failed to remove zone from filter:', error);
   }
 }
 

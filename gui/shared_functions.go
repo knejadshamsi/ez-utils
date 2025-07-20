@@ -2,6 +2,9 @@ package gui
 
 import (
 	"encoding/xml"
+	"fmt"
+	"strconv"
+	"strings"
 )
 
 // No shared constants currently - each workflow defines its own constants
@@ -35,4 +38,64 @@ func extractAttribute(attrs []xml.Attr, name string) string {
 		}
 	}
 	return ""
+}
+
+// ParseCoordinates parses a coordinate string "x,y" into float64 values
+// Used by: population workflow, zone filtering
+func ParseCoordinates(coords string) (x, y float64, err error) {
+	parts := strings.Split(coords, ",")
+	if len(parts) != 2 {
+		return 0, 0, fmt.Errorf("invalid coordinate format: %s", coords)
+	}
+	
+	x, err = strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid x coordinate: %s", parts[0])
+	}
+	
+	y, err = strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+	if err != nil {
+		return 0, 0, fmt.Errorf("invalid y coordinate: %s", parts[1])
+	}
+	
+	return x, y, nil
+}
+
+// IsPointInPolygon checks if a point is inside a polygon using ray casting algorithm
+// Used by: population filtering with zones
+func IsPointInPolygon(point Point, polygon []Point) bool {
+	if len(polygon) < 3 {
+		return false
+	}
+	
+	inside := false
+	p1 := polygon[0]
+	
+	for i := 1; i <= len(polygon); i++ {
+		p2 := polygon[i%len(polygon)]
+		
+		minY, maxY := p1.Y, p2.Y
+		if p1.Y > p2.Y {
+			minY, maxY = p2.Y, p1.Y
+		}
+		
+		if point.Y > minY && point.Y <= maxY {
+			maxX := p1.X
+			if p2.X > maxX {
+				maxX = p2.X
+			}
+			
+			if point.X <= maxX {
+				if p1.Y != p2.Y {
+					xinters := (point.Y-p1.Y)*(p2.X-p1.X)/(p2.Y-p1.Y) + p1.X
+					if p1.X == p2.X || point.X <= xinters {
+						inside = !inside
+					}
+				}
+			}
+		}
+		p1 = p2
+	}
+	
+	return inside
 }
