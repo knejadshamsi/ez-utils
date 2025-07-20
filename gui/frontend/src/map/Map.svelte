@@ -134,4 +134,19 @@
     font-size: 14px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
   }
+  
+  /* Square network node */
+  :global(.network-node-icon .network-node-square) {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    cursor: pointer;
+    white-space: nowrap;
+    padding: 0 8px;
+  }
 </style>

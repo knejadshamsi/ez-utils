@@ -33,7 +33,7 @@ export function handleAddNodeClick(event: L.LeafletMouseEvent) {
   };
   
   // Create node marker with custom icon and color
-  const nodeIcon = createNetworkNodeIcon(timestamp.toString().slice(-4), mapState.network.defaultNodeColor);
+  const nodeIcon = createNetworkNodeIcon(nodeId, mapState.network.defaultNodeColor);
   
   const marker = L.marker(latlng, {
     draggable: false,  // Will be enabled in move mode
@@ -69,7 +69,7 @@ export function handleAddNodeClick(event: L.LeafletMouseEvent) {
   marker.on('mouseover', () => {
     if (nodeState === 'idle' && mapState.network.selectedNodeId !== node.id) { // Don't change color if selected
       nodeState = 'hovered';
-      const hoverIcon = createNetworkNodeIcon(getNodeDisplayId(node.id), mapState.network.hoverNodeColor);
+      const hoverIcon = createNetworkNodeIcon(node.id, mapState.network.hoverNodeColor);
       marker.setIcon(hoverIcon);
     }
   });
@@ -77,7 +77,7 @@ export function handleAddNodeClick(event: L.LeafletMouseEvent) {
   marker.on('mouseout', () => {
     if (nodeState === 'hovered') {
       nodeState = 'idle';
-      const normalIcon = createNetworkNodeIcon(getNodeDisplayId(node.id), mapState.network.defaultNodeColor);
+      const normalIcon = createNetworkNodeIcon(node.id, mapState.network.defaultNodeColor);
       marker.setIcon(normalIcon);
     }
   });
@@ -158,139 +158,13 @@ export function setupLinkMode() {
   });
 }
 
-export function setupAttributeMode() {
-  // Set up click handlers for nodes
-  mapState.network.nodes.forEach(node => {
-    node.marker.on('click', () => {
-      if (mapState.mode !== 'editing-attributes' || !mapState.map) return;
-      
-      const popupContent = createNodeAttributePopup(node);
-      
-      L.popup()
-        .setLatLng(node.position)
-        .setContent(popupContent)
-        .openOn(mapState.map);
-    });
-  });
-  
-  // Set up click handlers for links
-  mapState.network.links.forEach(link => {
-    link.polyline.on('click', (e: L.LeafletMouseEvent) => {
-      if (mapState.mode !== 'editing-attributes' || !mapState.map) return;
-      
-      const popupContent = createLinkAttributePopup(link);
-      
-      L.popup()
-        .setLatLng(e.latlng)
-        .setContent(popupContent)
-        .openOn(mapState.map);
-    });
-  });
-}
+// Attribute editing is now handled via sidebar, not popups
 
-function createNodeAttributePopup(node: NetworkNode): HTMLElement {
-  const attrs = node.attributes;
-  const container = document.createElement('div');
-  container.innerHTML = `
-    <div style="min-width: 200px;">
-      <h4 style="margin: 0 0 10px 0;">Node Attributes</h4>
-      <div style="margin: 10px 0; padding: 8px; background: #fef3c7; border-radius: 4px;">
-        <div style="font-size: 12px; color: #92400e; margin-bottom: 5px;">Global State:</div>
-        <div class="state-display" style="font-weight: bold; color: #d97706;">${mapState.testMessage}</div>
-      </div>
-      <table style="width: 100%; font-size: 12px;">
-        <tr>
-          <td><strong>ID:</strong></td>
-          <td>${node.id}</td>
-        </tr>
-        <tr>
-          <td><strong>Label:</strong></td>
-          <td>${attrs.label || 'N/A'}</td>
-        </tr>
-        <tr>
-          <td><strong>Type:</strong></td>
-          <td>${attrs.type || 'default'}</td>
-        </tr>
-        <tr>
-          <td><strong>Position:</strong></td>
-          <td>[${node.position.lng.toFixed(4)}, ${node.position.lat.toFixed(4)}]</td>
-        </tr>
-      </table>
-      <div style="margin: 10px 0;">
-        <input type="text" 
-               class="state-input"
-               placeholder="Update state from node" 
-               style="width: 100%; padding: 4px; border: 1px solid #e5e7eb; border-radius: 4px; margin-bottom: 5px;">
-        <button class="update-btn" 
-                style="width: 100%; padding: 4px 8px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;">
-          Update from Node Popup
-        </button>
-      </div>
-      <button onclick="alert('Edit functionality coming soon!')" 
-              style="margin-top: 10px; width: 100%; padding: 5px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer;">
-        Edit Attributes
-      </button>
-    </div>
-  `;
-  
-  // Add event listeners
-  const input = container.querySelector('.state-input') as HTMLInputElement;
-  const updateBtn = container.querySelector('.update-btn') as HTMLButtonElement;
-  const stateDisplay = container.querySelector('.state-display') as HTMLDivElement;
-  
-  updateBtn.onclick = () => {
-    if (input.value) {
-      setTestMessage(input.value);
-      // Update the display in the popup immediately
-      stateDisplay.textContent = input.value;
-      input.value = '';
-    }
-  };
-  
-  return container;
-}
-
-function createLinkAttributePopup(link: NetworkLink): string {
-  const attrs = link.attributes;
-  const fromNode = mapState.network.nodes.find(n => n.id === link.fromNodeId);
-  const toNode = mapState.network.nodes.find(n => n.id === link.toNodeId);
-  
-  return `
-    <div style="min-width: 200px;">
-      <h4 style="margin: 0 0 10px 0;">Link Attributes</h4>
-      <table style="width: 100%; font-size: 12px;">
-        <tr>
-          <td><strong>ID:</strong></td>
-          <td>${link.id}</td>
-        </tr>
-        <tr>
-          <td><strong>From:</strong></td>
-          <td>${fromNode?.attributes.label || 'Unknown'}</td>
-        </tr>
-        <tr>
-          <td><strong>To:</strong></td>
-          <td>${toNode?.attributes.label || 'Unknown'}</td>
-        </tr>
-        <tr>
-          <td><strong>Lanes:</strong></td>
-          <td>${attrs.lanes || 1}</td>
-        </tr>
-        <tr>
-          <td><strong>Speed:</strong></td>
-          <td>${attrs.speed || 50} km/h</td>
-        </tr>
-      </table>
-      <button onclick="alert('Edit functionality coming soon!')" 
-              style="margin-top: 10px; width: 100%; padding: 5px; background: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer;">
-        Edit Attributes
-      </button>
-    </div>
-  `;
-}
+// Popover functions removed - using sidebar for editing
 
 export function updateNodeStyle(node: NetworkNode, selected: boolean) {
   const color = selected ? '#f59e0b' : mapState.network.defaultNodeColor;
-  const nodeIcon = createNetworkNodeIcon(getNodeDisplayId(node.id), color);
+  const nodeIcon = createNetworkNodeIcon(node.id, color);
   if (selected) {
     nodeIcon.options.className = 'network-node-icon selected';
   }
@@ -305,19 +179,24 @@ export function setupMoveNodesMode() {
     // Remove any existing drag handlers first to prevent duplicates
     node.marker.off('drag');
     
-    // Update connected links when dragging
+    // Update position and connected links when dragging
     node.marker.on('drag', () => {
       const newPosition = node.marker.getLatLng();
       node.position = newPosition;
       
       // Update all connected links
       mapState.network.links.forEach(link => {
-        if (link.fromNodeId === node.id || link.toNodeId === node.id) {
-          const fromNode = mapState.network.nodes.find(n => n.id === link.fromNodeId);
+        if (link.fromNodeId === node.id) {
+          // This node is the 'from' node of the link
           const toNode = mapState.network.nodes.find(n => n.id === link.toNodeId);
-          
-          if (fromNode && toNode) {
-            link.polyline.setLatLngs([fromNode.position, toNode.position]);
+          if (toNode) {
+            link.polyline.setLatLngs([newPosition, toNode.position]);
+          }
+        } else if (link.toNodeId === node.id) {
+          // This node is the 'to' node of the link
+          const fromNode = mapState.network.nodes.find(n => n.id === link.fromNodeId);
+          if (fromNode) {
+            link.polyline.setLatLngs([fromNode.position, newPosition]);
           }
         }
       });

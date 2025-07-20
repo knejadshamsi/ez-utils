@@ -4,8 +4,7 @@
   // export let isEditingEnabled = false;
   // export let onToggleEditing = () => {};
   
-  import { commandArgs } from '$lib/stores/app.svelte.ts';
-  import NetworkModeToggle from './NetworkModeToggle.svelte';
+  import { commandArgs } from '$lib/stores/app.svelte';
 </script>
 
 <div class="flex items-center justify-center h-full">
@@ -17,7 +16,5 @@
     {isEditingEnabled ? 'Disable' : 'Enable'} Drawing
   </button> -->
   
-  {#if commandArgs.fileEditMode === 'NETWORK' && commandArgs.validationStatus === 'VALIDATED_NETWORK'}
-    <NetworkModeToggle />
-  {/if}
+  <!-- Network mode toggle moved to primary sidebar -->
 </div>

@@ -9,9 +9,8 @@
   import ToastContainer from "./components/ToastContainer.svelte";
   import { appState, commandArgs, mapComponent } from "$lib/stores/app.svelte.ts";
   import { PTService } from "$lib/api/pt";
-  // MAP_TODO: Restore Network imports
-  // import NetworkController from "./components/network/NetworkController.svelte";
-  // import { networkState } from "$lib/stores/network.svelte";
+  import NetworkController from "./components/network/NetworkController.svelte";
+  import { networkState } from "$lib/stores/network.svelte";
   
   // Load PT data when editing PT files - using onMount instead of $effect
   import { onMount } from 'svelte';
@@ -43,9 +42,7 @@
 <ProcessingModal />
 <ToastContainer />
 
-<!-- MAP_TODO: Restore network controller
 {#if commandArgs.fileEditMode === 'NETWORK'}
   <NetworkController />
 {/if}
--->
 

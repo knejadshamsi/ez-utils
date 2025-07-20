@@ -2,7 +2,7 @@
   import { Button, Input } from 'flowbite-svelte';
   import { CloseOutline, PlusOutline, TrashBinOutline, MapPinOutline, EditOutline } from 'flowbite-svelte-icons';
   import { ptState } from '$lib/stores/pt.svelte';
-  import { appState, mapComponent, editingSession } from '$lib/stores/app.svelte';
+  import { appState, mapComponent, editingSession } from '$lib/stores/app.svelte.ts';
   import { changeTracker } from '$lib/changeTracker.svelte';
   import { trackStopChange, trackRouteChange, trackRouteStopChange } from '$lib/utils/ptChangeTracking';
   import { updatePTVisualization } from '../../map/updatePTVisualization';
