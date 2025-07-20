@@ -1,7 +1,9 @@
 import { GetNodesInBBox, GetLinksInBBox, UpdateNetworkNode, UpdateNetworkLink, DeleteNetworkNode, DeleteNetworkLink, CreateNetworkNode, CreateNetworkLink } from '@wailsjs/go/gui/App';
 import type { gui } from '@wailsjs/go/models';
 import { networkState, type NetworkNode, type NetworkLink } from '$lib/stores/network.svelte';
-import { editingSession } from '$lib/stores/app.svelte.ts';
+import { editingSession } from '$lib/stores/app.svelte';
+import { trackNodeChange, trackLinkChange } from '$lib/utils/networkChangeTracking';
+import { updateNetworkVisualization } from '../../map/updateNetworkVisualization';
 
 // Load network data for a given bounding box
 export async function loadNetworkInBBox(bbox: gui.BoundingBox) {
@@ -31,6 +33,9 @@ export async function loadNetworkInBBox(bbox: gui.BoundingBox) {
       from: l.from_node,
       to: l.to_node
     }));
+    
+    // Update visualization after loading
+    updateNetworkVisualization();
     
   } catch (error) {
     console.error('Failed to load network data:', error);
@@ -64,6 +69,12 @@ export async function updateNode(node: NetworkNode) {
     if (index !== -1) {
       networkState.nodes[index] = node;
     }
+    
+    // Track the change
+    trackNodeChange(node, 'update');
+    
+    // Update visualization
+    updateNetworkVisualization();
   } catch (error) {
     console.error('Failed to update node:', error);
     throw error;
@@ -83,6 +94,12 @@ export async function updateLink(link: NetworkLink) {
     if (index !== -1) {
       networkState.links[index] = link;
     }
+    
+    // Track the change
+    trackLinkChange(link, 'update');
+    
+    // Update visualization
+    updateNetworkVisualization();
   } catch (error) {
     console.error('Failed to update link:', error);
     throw error;
@@ -104,6 +121,12 @@ export async function deleteNode(nodeId: string) {
     if (networkState.selection.selectedNodeId === nodeId) {
       networkState.selection.selectedNodeId = null;
     }
+    
+    // Track the deletion
+    trackNodeChange({ id: nodeId, label: nodeId, x: 0, y: 0 }, 'delete');
+    
+    // Update visualization
+    updateNetworkVisualization();
   } catch (error) {
     console.error('Failed to delete node:', error);
     throw error;
@@ -124,6 +147,12 @@ export async function deleteLink(linkId: string) {
     if (networkState.selection.selectedLinkId === linkId) {
       networkState.selection.selectedLinkId = null;
     }
+    
+    // Track the deletion
+    trackLinkChange({ id: linkId, label: linkId, from: '', to: '' }, 'delete');
+    
+    // Update visualization
+    updateNetworkVisualization();
   } catch (error) {
     console.error('Failed to delete link:', error);
     throw error;
@@ -147,6 +176,12 @@ export async function createNode(x: number, y: number): Promise<string> {
       y
     };
     networkState.nodes = [...networkState.nodes, newNode];
+    
+    // Track the creation
+    trackNodeChange(newNode, 'add');
+    
+    // Update visualization
+    updateNetworkVisualization();
     
     return nodeId;
   } catch (error) {
@@ -172,6 +207,12 @@ export async function createLink(fromNodeId: string, toNodeId: string): Promise<
       to: toNodeId
     };
     networkState.links = [...networkState.links, newLink];
+    
+    // Track the creation
+    trackLinkChange(newLink, 'add');
+    
+    // Update visualization
+    updateNetworkVisualization();
     
     return linkId;
   } catch (error) {

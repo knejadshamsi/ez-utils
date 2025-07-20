@@ -9,7 +9,6 @@ import {
 import {
   handleAddNodeClick,
   setupLinkMode,
-  setupAttributeMode,
   setupMoveNodesMode,
   handleNodeMoveStart,
   updateNodeStyle
@@ -189,7 +188,7 @@ function initializeMode(mode: ToolMode) {
       break;
       
     case 'editing-attributes':
-      setupAttributeMode();
+      // Attribute editing is handled via sidebar
       break;
       
     case 'moving-nodes':
@@ -307,13 +306,19 @@ export function createNumberedIcon(number: number, color: string, mode?: string)
 
 // Helper function to create network node icon
 export function createNetworkNodeIcon(id: string, color: string): L.DivIcon {
+  // Calculate size based on ID length to ensure it fits
+  const minSize = 40;
+  const charWidth = 7; // Approximate width per character
+  const padding = 16; // Total horizontal padding
+  const width = Math.max(minSize, id.length * charWidth + padding);
+  
   return L.divIcon({
     className: 'network-node-icon',
-    html: `<div class="network-node" style="background: ${color}">
+    html: `<div class="network-node-square" style="background: ${color}; width: ${width}px;">
       <span>${id}</span>
     </div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15]
+    iconSize: [width, minSize],
+    iconAnchor: [width / 2, minSize / 2]
   });
 }
 
@@ -322,6 +327,14 @@ export function handleMapEvent(event: L.LeafletEvent, type: MapEventType) {
   if (!mapState.map) return;
   
   console.log(`Map event: ${type} in mode: ${mapState.mode}`);
+  
+  // Check for network-specific handling first
+  if (type === 'click') {
+    // Import at the top of the file to avoid circular dependency
+    import('./updateNetworkVisualization').then(module => {
+      module.handleNetworkMapClick(event as L.LeafletMouseEvent);
+    });
+  }
   
   switch (mapState.mode) {
     case 'drawing-connected':

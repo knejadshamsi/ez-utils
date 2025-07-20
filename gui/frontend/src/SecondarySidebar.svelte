@@ -5,8 +5,7 @@
   import { commandArgs } from '$lib/stores/app.svelte.ts';
   import PopulationContent from './components/secondary-sidebar/PopulationContent.svelte';
   import PTContent from './components/secondary-sidebar/PTContent.svelte';
-  // MAP_TODO: Restore Network content
-  // import NetworkContent from './components/secondary-sidebar/NetworkContent.svelte';
+  import NetworkContent from './components/secondary-sidebar/NetworkContent.svelte';
   
   export let state: SidebarState = 'HIDDEN';
   
@@ -31,8 +30,7 @@
     {#if commandArgs.fileEditMode === 'POPULATION'}
       <PopulationContent />
     {:else if commandArgs.fileEditMode === 'NETWORK'}
-      <!-- MAP_TODO: <NetworkContent /> -->
-      <div class="p-4 text-gray-400">Network details temporarily disabled</div>
+      <NetworkContent />
     {:else if commandArgs.fileEditMode === 'PT'}
       <PTContent />
     {/if}

@@ -3,6 +3,7 @@
   import { commandArgs, appState } from '$lib/stores/app.svelte.ts';
   import { loadAllNetworkData } from '$lib/api/network';
   import { networkState } from '$lib/stores/network.svelte';
+  import { updateNetworkVisualization } from '../../map/updateNetworkVisualization';
   
   let isLoading = false;
   let error: string | null = null;
@@ -20,6 +21,8 @@
     try {
       await loadAllNetworkData();
       console.log(`Loaded ${networkState.nodes.length} nodes and ${networkState.links.length} links`);
+      // Update map visualization
+      updateNetworkVisualization();
     } catch (err) {
       error = err.message || 'Failed to load network data';
       console.error('Failed to load network data:', err);

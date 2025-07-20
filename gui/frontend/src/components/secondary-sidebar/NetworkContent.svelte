@@ -3,11 +3,26 @@
   import { CloseOutline, TrashBinOutline, ExclamationCircleOutline } from 'flowbite-svelte-icons';
   import { appState } from '$lib/stores/app.svelte.ts';
   import { networkState, getNodeById, getLinkById, canDeleteNode, clearSelection } from '$lib/stores/network.svelte';
-  import { updateNode, updateLink, deleteNode as deleteNetworkNode, deleteLink as deleteNetworkLink } from '$lib/api/network';
+  import { updateNode, updateLink, deleteNode, deleteLink } from '$lib/api/network';
+  import { trackNodeChange, trackLinkChange } from '$lib/utils/networkChangeTracking';
   
-  $: selectedNode = networkState.selection.selectedNodeId ? getNodeById(networkState.selection.selectedNodeId) : null;
-  $: selectedLink = networkState.selection.selectedLinkId ? getLinkById(networkState.selection.selectedLinkId) : null;
-  $: deletionCheck = networkState.selection.selectedNodeId ? canDeleteNode(networkState.selection.selectedNodeId) : null;
+  const selectedNode = $derived(
+    networkState.selection.selectedNodeId 
+      ? getNodeById(networkState.selection.selectedNodeId) 
+      : null
+  );
+  
+  const selectedLink = $derived(
+    networkState.selection.selectedLinkId 
+      ? getLinkById(networkState.selection.selectedLinkId) 
+      : null
+  );
+  
+  const deletionCheck = $derived(
+    networkState.selection.selectedNodeId 
+      ? canDeleteNode(networkState.selection.selectedNodeId) 
+      : null
+  );
   
   function closePanel() {
     clearSelection();
@@ -17,10 +32,10 @@
   async function deleteEntity() {
     try {
       if (networkState.selection.selectedNodeId) {
-        await deleteNetworkNode(networkState.selection.selectedNodeId);
+        await deleteNode(networkState.selection.selectedNodeId);
         appState.secondarySidebar = 'HIDDEN';
       } else if (networkState.selection.selectedLinkId) {
-        await deleteNetworkLink(networkState.selection.selectedLinkId);
+        await deleteLink(networkState.selection.selectedLinkId);
         appState.secondarySidebar = 'HIDDEN';
       }
     } catch (error) {
@@ -35,19 +50,15 @@
         const updatedNode = { ...networkState.nodes[nodeIndex], [property]: value };
         networkState.nodes[nodeIndex] = updatedNode;
         
-        // Debounce API calls
-        clearTimeout(updateNodeProperty.timeout);
-        updateNodeProperty.timeout = setTimeout(async () => {
-          try {
-            await updateNode(updatedNode);
-          } catch (error) {
-            console.error('Failed to update node:', error);
-          }
-        }, 500);
+        try {
+          await updateNode(updatedNode);
+          trackNodeChange(updatedNode, 'update');
+        } catch (error) {
+          console.error('Failed to update node:', error);
+        }
       }
     }
   }
-  updateNodeProperty.timeout = null;
   
   async function updateLinkProperty(property: keyof typeof selectedLink, value: any) {
     if (selectedLink) {
@@ -56,19 +67,15 @@
         const updatedLink = { ...networkState.links[linkIndex], [property]: value };
         networkState.links[linkIndex] = updatedLink;
         
-        // Debounce API calls
-        clearTimeout(updateLinkProperty.timeout);
-        updateLinkProperty.timeout = setTimeout(async () => {
-          try {
-            await updateLink(updatedLink);
-          } catch (error) {
-            console.error('Failed to update link:', error);
-          }
-        }, 500);
+        try {
+          await updateLink(updatedLink);
+          trackLinkChange(updatedLink, 'update');
+        } catch (error) {
+          console.error('Failed to update link:', error);
+        }
       }
     }
   }
-  updateLinkProperty.timeout = null;
 </script>
 
 <div class="p-4 h-full overflow-y-auto bg-white dark:bg-gray-800">
@@ -82,7 +89,7 @@
         No Selection
       {/if}
     </Heading>
-    <Button size="xs" color="alternative" on:click={closePanel}>
+    <Button size="xs" color="alternative" onclick={closePanel}>
       <CloseOutline class="w-4 h-4" />
     </Button>
   </div>
