@@ -1,7 +1,6 @@
 package gui
 
 import (
-	"fmt"
 	"math"
 )
 
@@ -105,15 +104,6 @@ func isPointOnSegment(px, py, x1, y1, x2, y2 float64) bool {
 	return math.Abs(cross) < epsilon
 }
 
-// ParseCoordinates extracts x,y coordinates from a comma-separated string
-func ParseCoordinates(coords string) (float64, float64, error) {
-	var x, y float64
-	_, err := fmt.Sscanf(coords, "%f,%f", &x, &y)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid coordinates format: %s", coords)
-	}
-	return x, y, nil
-}
 
 // ToGeoJSON converts the zone to a GeoJSON Feature
 func (z *Zone) ToGeoJSON() map[string]interface{} {

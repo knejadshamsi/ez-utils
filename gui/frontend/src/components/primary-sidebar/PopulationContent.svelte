@@ -1,4 +1,5 @@
 <script lang="ts">
+  console.log('[PopulationContent] Component instantiated');
   import { Button, Checkbox } from 'flowbite-svelte';
   import { PlusOutline, TrashBinOutline, EditOutline } from 'flowbite-svelte-icons';
   import { 
@@ -12,7 +13,7 @@
   import { appState, editingSession } from '$lib/stores/app.svelte.ts';
   import { onMount } from 'svelte';
   import { trackPersonChange } from '$lib/utils/populationChangeTracking';
-  import { loadPopulationPage, loadZones, handlePageChange, handleZoneFilterChange } from '$lib/services/populationPagination';
+  import { loadPopulationPage, handlePageChange, handleZoneFilterChange, initializeFilterSession, addZoneToFilter, removeZoneFromFilter } from '$lib/services/populationPagination';
   import { syncChanges } from '$lib/syncManager';
   import { mapState } from '../../map/mapState.svelte';
   import { startPolygonDrawing, stopPolygonDrawing, enableZoneEditing, disableZoneEditing, deleteZone as deleteMapZone } from '../../map/polygonDrawing';
@@ -21,16 +22,19 @@
   import type * as L from 'leaflet';
   
   let editingZoneId = $state<string | null>(null);
+  
+  console.log('[PopulationContent] After imports - commandArgs:', commandArgs);
+  console.log('[PopulationContent] After imports - editingSession:', editingSession);
 
   // Load population data from backend
   onMount(async () => {
     console.log('PopulationContent onMount - editingSession.tableName:', editingSession.tableName);
     if (editingSession.tableName) {
       try {
-        // Load zones first
-        await loadZones(editingSession.tableName);
+        // Initialize filter session
+        await initializeFilterSession(editingSession.tableName);
         
-        // Load first page of population data
+        // Load first page of population data (no zones initially)
         await loadPopulationPage(editingSession.tableName, 1);
         
       } catch (error) {
@@ -211,42 +215,23 @@
         
         console.log('Creating zone with coordinates:', coordinates);
         
-        // Get persons in polygon
-        const response = await GetPersonsInPolygon(
-          editingSession.tableName,
-          zone.polygon,
-          1, // page
-          50 // pageSize
+        // Add zone to filter session
+        await addZoneToFilter(
+          zoneId,
+          coordinates, // [lng, lat] pairs
+          editingSession.tableName
         );
         
-        console.log('Backend response:', response);
-        
-        // Add zone to state (stored locally)
+        // Add zone to frontend state (local only)
         const newZone = {
           id: zoneId,
           name: zone.name,
-          personCount: response.totalCount || 0,
-          geometry: { type: 'Polygon', coordinates: [coordinates] }
+          polygon: coordinates,
+          color: '#' + Math.floor(Math.random()*16777215).toString(16) // Random color
         };
         
         console.log('Adding zone to state:', newZone);
         populationState.zones.push(newZone);
-        
-        // Add persons to state
-        if (response.persons && response.persons.length > 0) {
-          console.log(`Found ${response.persons.length} persons in zone`);
-          response.persons.forEach((person: any) => {
-            // Parse the person data and add to state
-            const personData = {
-              id: person.ID || person.id,
-              zoneId: zoneId,
-              plans: [] // Will be populated from XML if needed
-            };
-            populationState.persons.set(personData.id, personData);
-          });
-        } else {
-          console.log('No persons found in this zone');
-        }
         
         // Select the new zone
         populationState.selectedZones.add(zoneId);
@@ -298,10 +283,17 @@
   
   // Handle zone toggle with pagination refresh
   async function handleToggleZone(zoneId: string) {
-    toggleZone(zoneId);
-    // Reload data with new zone filter
-    if (editingSession.tableName) {
-      await handleZoneFilterChange(editingSession.tableName);
+    const zone = populationState.zones.find(z => z.id === zoneId);
+    if (!zone) return;
+    
+    if (populationState.selectedZones.has(zoneId)) {
+      // Remove zone
+      populationState.selectedZones.delete(zoneId);
+      await removeZoneFromFilter(zoneId, editingSession.tableName);
+    } else {
+      // Add zone
+      populationState.selectedZones.add(zoneId);
+      await addZoneToFilter(zoneId, zone.polygon, editingSession.tableName);
     }
   }
   
@@ -386,7 +378,6 @@
               onchange={() => handleToggleZone(zone.id)}
             />
             <span class="flex-1 text-white">{zone.name}</span>
-            <span class="text-xs text-gray-300">({zone.personCount} persons)</span>
           </label>
           <Button 
             size="xs" 

@@ -96,19 +96,75 @@ func (a *App) GetPerson(tableName string, personId string) (*Person, error) {
 }
 
 // GetPopulationPaginated retrieves paginated population data
-func (a *App) GetPopulationPaginated(tableName string, page int, pageSize int, zoneFilter []string) (*PaginatedResponse, error) {
+// Now supports both simple pagination (no zones) and session-based filtering
+func (a *App) GetPopulationPaginated(tableName string, page int, pageSize int, sessionID string) (*PaginatedResponse, error) {
 	if page < 1 {
 		page = 1
 	}
 	if pageSize < 1 || pageSize > 1000 {
 		pageSize = 50 // Default page size
 	}
-	return a.db.GetPopulationPaginated(tableName, page, pageSize, zoneFilter)
+	
+	// If sessionID is provided, use filter session
+	if sessionID != "" {
+		return a.GetFilteredPopulationPage(sessionID, page, pageSize)
+	}
+	
+	// Otherwise, simple pagination without filtering
+	return a.GetPopulationSimple(tableName, page, pageSize)
 }
 
-// GetZonesWithCounts retrieves all zones with their person counts
+// GetPopulationSimple retrieves population without any zone filtering
+// Used for initial load - just gets the requested page of persons
+func (a *App) GetPopulationSimple(tableName string, page int, pageSize int) (*PaginatedResponse, error) {
+	// Count total persons
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)
+	var totalCount int
+	err := a.db.conn.QueryRow(countQuery).Scan(&totalCount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count population: %w", err)
+	}
+	
+	// Calculate pagination
+	totalPages := (totalCount + pageSize - 1) / pageSize
+	offset := (page - 1) * pageSize
+	
+	// Query page of persons
+	query := fmt.Sprintf(`
+		SELECT id, coords, raw_xml 
+		FROM %s 
+		ORDER BY id 
+		LIMIT ? OFFSET ?
+	`, tableName)
+	
+	rows, err := a.db.conn.Query(query, pageSize, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query population: %w", err)
+	}
+	defer rows.Close()
+	
+	var persons []Person
+	for rows.Next() {
+		var p Person
+		if err := rows.Scan(&p.ID, &p.Coords, &p.RawXML); err != nil {
+			return nil, fmt.Errorf("failed to scan person: %w", err)
+		}
+		persons = append(persons, p)
+	}
+	
+	return &PaginatedResponse{
+		Persons:     persons,
+		TotalCount:  totalCount,
+		CurrentPage: page,
+		TotalPages:  totalPages,
+		PageSize:    pageSize,
+	}, nil
+}
+
+// GetZonesWithCounts - DEPRECATED: Zones are now frontend-only
 func (a *App) GetZonesWithCounts(tableName string) ([]ZoneCount, error) {
-	return a.db.GetZonesWithCounts(tableName)
+	// Return empty array since zones are no longer persisted
+	return []ZoneCount{}, nil
 }
 
 // addPerson adds a new person to a population table (internal function for interpreter)
