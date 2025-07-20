@@ -100,7 +100,36 @@ function setupMarkerEvents(marker: L.Marker, point: ConnectedPoint, activity: an
   });
   
   marker.on('drag', () => {
-    updateConnectedLines(point.id, marker.getLatLng());
+    const currentPos = marker.getLatLng();
+    updateConnectedLines(point.id, currentPos);
+    
+    // Update activity location in real-time during drag
+    const newCoords: [number, number] = [currentPos.lng, currentPos.lat];
+    
+    if (populationState.selectedPersonId) {
+      const person = populationState.persons.get(populationState.selectedPersonId);
+      if (person) {
+        // Create updated person with new activity location
+        const updatedPerson = {
+          ...person,
+          plans: person.plans.map((plan, planIndex) => 
+            planIndex === populationState.currentPlanIndex
+              ? {
+                  ...plan,
+                  activities: plan.activities.map(a => 
+                    a.id === activity.id 
+                      ? { ...a, location: newCoords }
+                      : a
+                  )
+                }
+              : plan
+          )
+        };
+        
+        // Update the store to trigger real-time UI updates
+        populationState.persons.set(person.id, updatedPerson);
+      }
+    }
   });
   
   marker.on('dragend', () => {
@@ -112,14 +141,36 @@ function setupMarkerEvents(marker: L.Marker, point: ConnectedPoint, activity: an
     
     // Update activity location
     const newPos = marker.getLatLng();
-    activity.location = [newPos.lng, newPos.lat];
+    const newCoords: [number, number] = [newPos.lng, newPos.lat];
     
-    // Track change for sync
+    // Update the person in the store to trigger reactivity
     if (populationState.selectedPersonId) {
       const person = populationState.persons.get(populationState.selectedPersonId);
       if (person) {
-        // TODO: Track change with change tracking system
-        console.log('Activity location updated:', activity.id, activity.location);
+        // Create updated person with new activity location
+        const updatedPerson = {
+          ...person,
+          plans: person.plans.map((plan, planIndex) => 
+            planIndex === populationState.currentPlanIndex
+              ? {
+                  ...plan,
+                  activities: plan.activities.map(a => 
+                    a.id === activity.id 
+                      ? { ...a, location: newCoords }
+                      : a
+                  )
+                }
+              : plan
+          )
+        };
+        
+        // Update the store to trigger reactivity
+        populationState.persons.set(person.id, updatedPerson);
+        
+        // Track change for sync
+        import('$lib/utils/populationChangeTracking').then(({ trackActivityChange }) => {
+          trackActivityChange(person.id, updatedPerson);
+        });
       }
     }
   });

@@ -52,7 +52,8 @@ export async function loadPopulationPage(tableName: string, page: number, forceR
     // Process and cache persons
     const processedPersons: Person[] = [];
     
-    response.persons.forEach((person: any) => {
+    if (response.persons && response.persons.length > 0) {
+      response.persons.forEach((person: any) => {
       const parsedData = parsePersonXML(person.raw_xml);
       
       const processedPerson: Person = {
@@ -63,6 +64,7 @@ export async function loadPopulationPage(tableName: string, page: number, forceR
       
       processedPersons.push(processedPerson);
     });
+    }
     
     // Update cache
     updatePageCache(page, processedPersons);
@@ -104,15 +106,12 @@ export async function initializeFilterSession(tableName: string) {
     // Close any existing session
     if (currentSessionId) {
       await CloseFilterSession(currentSessionId);
+      currentSessionId = null;
     }
     
     // Create new filter session
     currentSessionId = await CreateFilterSession(tableName);
     console.log('Created filter session:', currentSessionId);
-    
-    // Clear zones since they're frontend-only now
-    populationState.zones = [];
-    populationState.selectedZones.clear();
     
   } catch (error) {
     console.error('Failed to initialize filter session:', error);
