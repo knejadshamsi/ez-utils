@@ -106,4 +106,32 @@
     font-size: 14px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.3);
   }
+  
+  /* Square marker for metro */
+  :global(.custom-circle-icon .square-marker) {
+    width: 30px;
+    height: 30px;
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+  
+  /* Rectangle marker for tram */
+  :global(.custom-circle-icon .rectangle-marker) {
+    width: 40px;
+    height: 30px;
+    border-radius: 20%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
 </style>

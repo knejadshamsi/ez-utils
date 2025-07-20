@@ -5,6 +5,9 @@
   import { appState, mapComponent, editingSession } from '$lib/stores/app.svelte';
   import { changeTracker } from '$lib/changeTracker.svelte';
   import { trackStopChange, trackRouteChange, trackRouteStopChange } from '$lib/utils/ptChangeTracking';
+  import { updatePTVisualization } from '../../map/updatePTVisualization';
+  import { mapState } from '../../map/mapState.svelte';
+  import type * as L from 'leaflet';
 
   const selectedRouteData = $derived(ptState.selectedRoute());
   const line = $derived(selectedRouteData?.line);
@@ -13,109 +16,167 @@
   // Force re-render when stops change
   const stopCount = $derived(route?.stopSequence.length || 0);
   let editingCoords = $state<{ stopId: string; x: string; y: string } | null>(null);
-  
-  // Debug logging
-  $effect(() => {
-    console.log('[SecondaryPTSidebar] selectedRouteData:', selectedRouteData);
-    console.log('[SecondaryPTSidebar] line:', line);
-    console.log('[SecondaryPTSidebar] route:', route);
-    console.log('[SecondaryPTSidebar] ptState.selectedRouteId:', ptState.selectedRouteId);
-    console.log('[SecondaryPTSidebar] stopCount:', stopCount);
-    if (route) {
-      console.log('[SecondaryPTSidebar] Route stops:', route.stopSequence.length);
-      console.log('[SecondaryPTSidebar] Stop IDs:', route.stopSequence.map((s: any) => s.stopId));
-    }
-  });
 
   function handleClose() {
     ptState.setSelectedRoute(null);
     ptState.setSelectedLine(null);
     appState.secondarySidebar = 'HIDDEN';
+    // Clear the visualization
+    updatePTVisualization();
   }
 
-  function handleAddStopToRoute() {
-    if (!line || !route) return;
+  function startAddingStops() {
+    if (!line || !route || !mapState.map) return;
     
-    console.log('[SecondaryPTSidebar] Adding new stop to route:', route.id);
+    // Enter multi-stop adding mode
+    ptState.isAddingMultipleStops = true;
     
-    // Create a new stop with default values (similar to population activity)
-    const stopId = `stop_${Date.now()}`;
-    const newStop = {
-      id: stopId,
-      name: `New Stop`,
-      location: [0, 0] as [number, number], // Will be set by map click
-      x: 0,
-      y: 0,
-      telemetryId: '',
-      raw_xml: ''
+    // Set up click handler for adding stops
+    const clickHandler = (e: L.LeafletMouseEvent) => {
+      const coords: [number, number] = [e.latlng.lng, e.latlng.lat];
+      
+      // Create a new stop
+      const stopId = `stop_${Date.now()}`;
+      const newStop = {
+        id: stopId,
+        name: `Stop ${route.stopSequence.length + 1}`,
+        location: coords,
+        x: coords[0],
+        y: coords[1],
+        telemetryId: '',
+        raw_xml: ''
+      };
+      
+      // Add stop to the state
+      const newStops = new Map(ptState.stops);
+      newStops.set(stopId, newStop);
+      ptState.stops = newStops;
+      
+      // Track the new stop
+      trackStopChange(newStop, 'add');
+      
+      // Calculate arrival time for the new stop
+      let arrival: string;
+      let dwellMinutes = 2;
+      
+      if (route.stopSequence.length === 0) {
+        arrival = route.firstDeparture || '06:00';
+      } else {
+        const lastStop = route.stopSequence[route.stopSequence.length - 1];
+        const lastDepartureMinutes = ptState.timeToMinutes(lastStop.arrival) + lastStop.dwellMinutes;
+        arrival = ptState.minutesToTime(lastDepartureMinutes + 5);
+      }
+      
+      // Add to route sequence
+      const newStopTime = {
+        stopId: stopId,
+        arrival: arrival,
+        dwellMinutes: dwellMinutes,
+        sequence: route.stopSequence.length + 1
+      };
+      
+      // Update route with new stop - need to get fresh route data
+      const currentRouteData = ptState.selectedRoute();
+      if (!currentRouteData) return;
+      
+      const updatedRoute = {
+        ...currentRouteData.route,
+        stopSequence: [...currentRouteData.route.stopSequence, newStopTime]
+      };
+      
+      const updatedLine = {
+        ...currentRouteData.line,
+        routes: currentRouteData.line.routes.map(r => r.id === updatedRoute.id ? updatedRoute : r)
+      };
+      
+      const newLines = new Map(ptState.lines);
+      newLines.set(updatedLine.id, updatedLine);
+      ptState.lines = newLines;
+      
+      // Track the new route stop
+      trackRouteStopChange({
+        routeId: updatedRoute.id,
+        stopId: stopId,
+        arrival: arrival,
+        dwellMinutes: dwellMinutes,
+        sequence: updatedRoute.stopSequence.length - 1,
+        routeIndex: 0
+      }, 'add');
+      
+      // Also track the route update
+      trackRouteChange(updatedRoute, 'update');
+      
+      // Update visualization
+      updatePTVisualization();
     };
     
-    // Add stop to the state
-    const newStops = new Map(ptState.stops);
-    newStops.set(stopId, newStop);
-    ptState.stops = newStops;
+    mapState.map.on('click', clickHandler);
     
-    // Track the new stop
-    trackStopChange(newStop, 'add');
+    // Store handler reference to remove later
+    (window as any).__addPTStopHandler = clickHandler;
+  }
+  
+  function stopAddingStops() {
+    if (!mapState.map) return;
     
-    // Calculate arrival time for the new stop
-    let arrival: string;
-    let dwellMinutes = 2;
+    ptState.isAddingMultipleStops = false;
     
-    if (route.stopSequence.length === 0) {
-      arrival = route.firstDeparture || '06:00';
-    } else {
-      const lastStop = route.stopSequence[route.stopSequence.length - 1];
-      const lastDepartureMinutes = ptState.timeToMinutes(lastStop.arrival) + lastStop.dwellMinutes;
-      arrival = ptState.minutesToTime(lastDepartureMinutes + 5);
+    // Remove click handler
+    const handler = (window as any).__addPTStopHandler;
+    if (handler) {
+      mapState.map.off('click', handler);
+      delete (window as any).__addPTStopHandler;
     }
-    
-    // Add to route sequence
-    const newStopTime = {
-      stopId: stopId,
-      arrival: arrival,
-      dwellMinutes: dwellMinutes,
-      sequence: route.stopSequence.length + 1
-    };
-    
-    // Update route with new stop
-    const updatedRoute = {
-      ...route,
-      stopSequence: [...route.stopSequence, newStopTime]
-    };
-    
-    const updatedLine = {
-      ...line,
-      routes: line.routes.map(r => r.id === route.id ? updatedRoute : r)
-    };
-    
-    const newLines = new Map(ptState.lines);
-    newLines.set(line.id, updatedLine);
-    ptState.lines = newLines;
-    
-    // Track the new route stop
-    trackRouteStopChange({
-      routeId: route.id,
-      stopId: stopId,
-      arrival: arrival,
-      dwellMinutes: dwellMinutes,
-      sequence: route.stopSequence.length,
-      routeIndex: 0
-    }, 'add');
-    
-    // Also track the route update
-    trackRouteChange(updatedRoute, 'update');
-    
-    // MAP_TODO: Restore stop location selection
-    // ptState.isSelectingStopLocation = true;
-    // ptState.selectingStopId = stopId;
-    
-    console.log('[SecondaryPTSidebar] Created stop, entering location selection mode');
   }
 
   function selectStopLocation(stopId: string) {
+    if (!mapState.map) return;
+    
+    // If already selecting this stop, cancel
+    if (ptState.selectingStopId === stopId) {
+      ptState.isSelectingStopLocation = false;
+      ptState.selectingStopId = null;
+      return;
+    }
+    
     ptState.isSelectingStopLocation = true;
     ptState.selectingStopId = stopId;
+    
+    // Set up one-time click handler
+    const clickHandler = (e: L.LeafletMouseEvent) => {
+      const coords: [number, number] = [e.latlng.lng, e.latlng.lat];
+      
+      // Update stop location
+      const stop = ptState.stops.get(stopId);
+      if (stop) {
+        const updatedStop = {
+          ...stop,
+          x: coords[0],
+          y: coords[1],
+          location: coords
+        };
+        
+        // Update the stop in the state
+        const newStops = new Map(ptState.stops);
+        newStops.set(stopId, updatedStop);
+        ptState.stops = newStops;
+        
+        // Track the change
+        trackStopChange(updatedStop, 'update');
+      }
+      
+      // Reset selection state
+      ptState.isSelectingStopLocation = false;
+      ptState.selectingStopId = null;
+      
+      // Update visualization
+      updatePTVisualization();
+      
+      // Remove handler
+      mapState.map.off('click', clickHandler);
+    };
+    
+    mapState.map.on('click', clickHandler);
   }
   
   function updateStopName(stopId: string, newName: string) {
@@ -128,6 +189,11 @@
       
       // Track the stop update
       trackStopChange(updatedStop, 'update');
+      
+      // Update visualization if this stop is in the current route
+      if (route && route.stopSequence.some(s => s.stopId === stopId)) {
+        updatePTVisualization();
+      }
     }
   }
   
@@ -271,6 +337,9 @@
     
     // Also track the route update
     trackRouteChange(updatedRoute, 'update');
+    
+    // Update visualization
+    updatePTVisualization();
   }
   
   function handleDeleteRoute() {
@@ -317,6 +386,9 @@
       
       // Track the stop update
       trackStopChange(updatedStop, 'update');
+      
+      // Update visualization
+      updatePTVisualization();
     }
     
     editingCoords = null;
@@ -324,6 +396,12 @@
   
   function cancelEditingCoords() {
     editingCoords = null;
+  }
+  
+  function toggleStopDragging() {
+    ptState.isDraggingStop = !ptState.isDraggingStop;
+    // Update the dragging state in visualization
+    updatePTVisualization();
   }
 
 </script>
@@ -370,7 +448,10 @@
             <div class="relative">
               <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 relative">
                 <!-- Stop number indicator -->
-                <div class="absolute -left-3 top-4 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-xs text-white font-medium">
+                <div 
+                  class="absolute -left-3 top-4 w-6 h-6 rounded-full flex items-center justify-center text-xs text-white font-medium"
+                  style="background-color: {line.color || '#3b82f6'}"
+                >
                   {stopIndex + 1}
                 </div>
                 
@@ -488,14 +569,27 @@
     
     <!-- Footer -->
     <div class="p-4 border-t border-gray-600 space-y-2">
+      <Button 
+        color={ptState.isDraggingStop ? "yellow" : "alternative"} 
+        size="sm" 
+        class="w-full" 
+        onclick={toggleStopDragging}
+      >
+        <MapPinOutline class="w-4 h-4 mr-2" />
+        {ptState.isDraggingStop ? 'Done Editing Stop Locations' : 'Edit Stop Locations'}
+      </Button>
       <Button
         size="sm"
-        color="primary"
+        color={ptState.isAddingMultipleStops ? "yellow" : "primary"}
         class="w-full"
-        onclick={handleAddStopToRoute}
+        onclick={ptState.isAddingMultipleStops ? stopAddingStops : startAddingStops}
       >
-        <PlusOutline class="w-4 h-4 mr-2" />
-        Add Stop
+        {#if ptState.isAddingMultipleStops}
+          Done Adding Stops
+        {:else}
+          <PlusOutline class="w-4 h-4 mr-2" />
+          Add Stop
+        {/if}
       </Button>
       <Button
         size="sm"

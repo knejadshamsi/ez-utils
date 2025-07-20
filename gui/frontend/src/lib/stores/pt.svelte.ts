@@ -55,6 +55,8 @@ class PTState {
   isSelectingStopLocation = $state<boolean>(false);
   selectingStopId = $state<string | null>(null);
   updateVersion = $state<number>(0);
+  isDraggingStop = $state<boolean>(false);
+  isAddingMultipleStops = $state<boolean>(false);
 
   selectedLine = $derived(
     this.selectedLineId ? this.lines.get(this.selectedLineId) : null
