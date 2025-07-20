@@ -10,7 +10,8 @@
     "checkJs": false,
     "noEmit": true,
     "paths": {
-      "@wailsjs/*": ["./wailsjs/*"]
+      "@wailsjs/*": ["./wailsjs/*"],
+      "@map/*": ["./src/map/*"]
     }
   },
   "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte", "wailsjs/**/*"],

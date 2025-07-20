@@ -106,9 +106,9 @@
     // Also track the route update
     trackRouteChange(updatedRoute, 'update');
     
-    // Immediately prompt for location selection (like population)
-    ptState.isSelectingStopLocation = true;
-    ptState.selectingStopId = stopId;
+    // MAP_TODO: Restore stop location selection
+    // ptState.isSelectingStopLocation = true;
+    // ptState.selectingStopId = stopId;
     
     console.log('[SecondaryPTSidebar] Created stop, entering location selection mode');
   }

@@ -25,18 +25,17 @@ export function parsePersonXML(rawXML: string): Partial<Person> {
       const activities = parseActivities(personElement);
       if (activities.length > 0) {
         plans.push({
-          type: 'weekday',
+          id: 1,
           activities,
           legs: generateLegs(activities)
         });
       }
     } else {
-      planElements.forEach(planElement => {
-        const planType = (planElement.getAttribute('type') || 'weekday') as Plan['type'];
+      planElements.forEach((planElement, index) => {
         const activities = parseActivities(planElement);
         
         plans.push({
-          type: planType,
+          id: index + 1,
           activities,
           legs: generateLegs(activities)
         });
