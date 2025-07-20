@@ -71,6 +71,8 @@ export function GetPTTelemetry(arg1:number):Promise<gui.PTTelemetry>;
 
 export function GetPerson(arg1:string,arg2:string):Promise<gui.Person>;
 
+export function GetPersonsInPolygon(arg1:string,arg2:Array<gui.Point>,arg3:number,arg4:number):Promise<gui.PaginatedResponse>;
+
 export function GetPopulation(arg1:string):Promise<Array<gui.Person>>;
 
 export function GetPopulationByBbox(arg1:string,arg2:number,arg3:number,arg4:number,arg5:number):Promise<Array<gui.Person>>;

@@ -2,8 +2,6 @@ import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
 export type ActivityType = 'home' | 'work' | 'school' | 'shop' | 'eat' | 'recreation' | 'other';
 export type TravelMode = "person's choice" | 'car' | 'walk' | 'bus' | 'metro' | 'tram' | 'bike';
-export type PlanType = 'weekday' | 'weekend' | 'holiday';
-
 export interface Activity {
   id: string;
   type: ActivityType;
@@ -20,7 +18,7 @@ export interface Leg {
 }
 
 export interface Plan {
-  type: PlanType;
+  id: number; // Plan 1, Plan 2, etc.
   activities: Activity[];
   legs: Leg[];
 }
@@ -52,6 +50,8 @@ export interface PopulationState {
   isDrawingZone: boolean;
   isSelectingActivityLocation: boolean;
   selectingActivityId: string | null;
+  isDraggingActivity: boolean;
+  isAddingActivity: boolean;
   currentPlanIndex: number;
   // Pagination state
   currentPage: number;
@@ -78,6 +78,8 @@ export const populationState = $state<PopulationState>({
   isDrawingZone: false,
   isSelectingActivityLocation: false,
   selectingActivityId: null,
+  isDraggingActivity: false,
+  isAddingActivity: false,
   currentPlanIndex: 0,
   // Pagination state
   currentPage: 1,

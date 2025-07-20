@@ -1,7 +1,6 @@
 package gui
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 )
@@ -192,23 +191,3 @@ func ZoneFromGeoJSON(data map[string]interface{}) (*Zone, error) {
 	return zone, nil
 }
 
-// MarshalJSON implements json.Marshaler for Zone
-func (z Zone) MarshalJSON() ([]byte, error) {
-	return json.Marshal(z.ToGeoJSON())
-}
-
-// UnmarshalJSON implements json.Unmarshaler for Zone
-func (z *Zone) UnmarshalJSON(data []byte) error {
-	var geojson map[string]interface{}
-	if err := json.Unmarshal(data, &geojson); err != nil {
-		return err
-	}
-	
-	zone, err := ZoneFromGeoJSON(geojson)
-	if err != nil {
-		return err
-	}
-	
-	*z = *zone
-	return nil
-}

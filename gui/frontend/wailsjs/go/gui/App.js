@@ -138,6 +138,10 @@ export function GetPerson(arg1, arg2) {
   return window['go']['gui']['App']['GetPerson'](arg1, arg2);
 }
 
+export function GetPersonsInPolygon(arg1, arg2, arg3, arg4) {
+  return window['go']['gui']['App']['GetPersonsInPolygon'](arg1, arg2, arg3, arg4);
+}
+
 export function GetPopulation(arg1) {
   return window['go']['gui']['App']['GetPopulation'](arg1);
 }

@@ -1,18 +1,26 @@
 <script lang="ts">
   import { Button, Checkbox } from 'flowbite-svelte';
-  import { PlusOutline, TrashBinOutline } from 'flowbite-svelte-icons';
+  import { PlusOutline, TrashBinOutline, EditOutline } from 'flowbite-svelte-icons';
   import { 
     populationState, 
     toggleZone, 
     toggleVisibility, 
     selectPerson,
-    getPersonsInSelectedZones 
+    getPersonsInSelectedZones,
+    type Person
   } from '$lib/stores/population.svelte';
   import { appState, editingSession } from '$lib/stores/app.svelte.ts';
   import { onMount } from 'svelte';
   import { trackPersonChange } from '$lib/utils/populationChangeTracking';
   import { loadPopulationPage, loadZones, handlePageChange, handleZoneFilterChange } from '$lib/services/populationPagination';
   import { syncChanges } from '$lib/syncManager';
+  import { mapState } from '../../map/mapState.svelte';
+  import { startPolygonDrawing, stopPolygonDrawing, enableZoneEditing, disableZoneEditing, deleteZone as deleteMapZone } from '../../map/polygonDrawing';
+  import { updateConnectedDots } from '../../map/updateConnectedDots';
+  import { GetPersonsInPolygon } from '@wailsjs/go/gui/App';
+  import type * as L from 'leaflet';
+  
+  let editingZoneId = $state<string | null>(null);
 
   // Load population data from backend
   onMount(async () => {
@@ -34,41 +42,72 @@
   });
 
   async function handleAddNewPerson() {
-    // Generate new person ID
-    const timestamp = Date.now();
-    const newId = `person_${timestamp}`;
+    if (!mapState.map) return;
     
-    // Create new person
-    const newPerson = {
-      id: newId,
-      zoneId: populationState.zones[0]?.id || 'default',
-      plans: [{
-        type: 'weekday' as const,
-        activities: [],
-        legs: []
-      }]
+    // Set a flag to indicate we're waiting for a click
+    populationState.isSelectingActivityLocation = true;
+    appState.secondarySidebar = 'HIDDEN';
+    
+    // Create a temporary handler for the map click
+    const clickHandler = (e: L.LeafletMouseEvent) => {
+      // Reset the flag
+      populationState.isSelectingActivityLocation = false;
+      
+      // Generate new person ID
+      const timestamp = Date.now();
+      const newId = `person_${timestamp}`;
+      const activityId = `activity_${timestamp}_0`;
+      
+      // Get click coordinates
+      const coords: [number, number] = [e.latlng.lng, e.latlng.lat];
+      
+      // Create new person with Plan 1 and home activity at clicked location
+      const newPerson: Person = {
+        id: newId,
+        zoneId: populationState.zones[0]?.id || 'default',
+        plans: [{
+          id: 1,
+          activities: [{
+            id: activityId,
+            type: 'home',
+            location: coords,
+            startTime: '08:00',
+            endTime: '08:30'
+          }],
+          legs: []
+        }]
+      };
+      
+      // Add to store
+      populationState.persons.set(newId, newPerson);
+      
+      // Make visible by default
+      populationState.visiblePersons.add(newId);
+      
+      // Track change
+      trackPersonChange(newPerson, 'create');
+      
+      // Select the new person
+      selectPerson(newId);
+      
+      // Open secondary sidebar
+      appState.secondarySidebar = 'EXPANDED';
+      
+      // Update connected dots for new person
+      updateConnectedDots();
+      
+      // Update total count
+      populationState.totalPersons++;
+      
+      // Recalculate total pages if needed
+      populationState.totalPages = Math.ceil(populationState.totalPersons / populationState.pageSize);
+      
+      // Remove the click handler
+      mapState.map.off('click', clickHandler);
     };
     
-    // Add to store
-    populationState.persons.set(newId, newPerson);
-    
-    // Make visible by default
-    populationState.visiblePersons.add(newId);
-    
-    // Track change
-    trackPersonChange(newPerson, 'create');
-    
-    // Select the new person
-    selectPerson(newId);
-    
-    // Open secondary sidebar
-    appState.secondarySidebar = 'EXPANDED';
-    
-    // Update total count
-    populationState.totalPersons++;
-    
-    // Recalculate total pages if needed
-    populationState.totalPages = Math.ceil(populationState.totalPersons / populationState.pageSize);
+    // Add click handler to map
+    mapState.map.on('click', clickHandler);
   }
 
   function handlePersonClick(personId: string) {
@@ -76,9 +115,13 @@
     if (populationState.selectedPersonId === personId) {
       selectPerson(null);
       appState.secondarySidebar = 'HIDDEN';
+      // Clear connected dots when deselecting
+      updateConnectedDots();
     } else {
       selectPerson(personId);
       appState.secondarySidebar = 'EXPANDED';
+      // Update connected dots for selected person
+      updateConnectedDots();
     }
   }
 
@@ -97,6 +140,14 @@
     
     // Remove zone from zones array
     populationState.zones = populationState.zones.filter(zone => zone.id !== zoneId);
+    
+    // Remove from map
+    deleteMapZone(zoneId);
+    
+    // Stop editing if this zone was being edited
+    if (editingZoneId === zoneId) {
+      editingZoneId = null;
+    }
   }
 
   async function handleDeletePerson(personId: string, event: Event) {
@@ -135,21 +186,102 @@
     }
   }
 
-  function handleAddNewZone() {
-    // Trigger map drawing mode
+  async function handleAddNewZone() {
+    if (!mapState.map || !editingSession.tableName) return;
+    
     populationState.isDrawingZone = true;
-    console.log('Activating map drawing mode for new zone');
+    
+    startPolygonDrawing(mapState.map, async (zoneId: string, coordinates: [number, number][]) => {
+      try {
+        // Create zone object - remove the last point (closing point) for backend
+        const polygonPoints = coordinates.slice(0, -1).map(coord => ({ 
+          x: coord[0], 
+          y: coord[1] 
+        }));
+        
+        const zone = {
+          id: zoneId,
+          name: `Zone ${populationState.zones.length + 1}`,
+          polygon: polygonPoints,
+          boundingBox: null // Will be calculated by backend
+        };
+        
+        console.log('Zone object:', zone);
+        console.log('Polygon points count:', polygonPoints.length);
+        
+        console.log('Creating zone with coordinates:', coordinates);
+        
+        // Get persons in polygon
+        const response = await GetPersonsInPolygon(
+          editingSession.tableName,
+          zone.polygon,
+          1, // page
+          50 // pageSize
+        );
+        
+        console.log('Backend response:', response);
+        
+        // Add zone to state (stored locally)
+        const newZone = {
+          id: zoneId,
+          name: zone.name,
+          personCount: response.totalCount || 0,
+          geometry: { type: 'Polygon', coordinates: [coordinates] }
+        };
+        
+        console.log('Adding zone to state:', newZone);
+        populationState.zones.push(newZone);
+        
+        // Add persons to state
+        if (response.persons && response.persons.length > 0) {
+          console.log(`Found ${response.persons.length} persons in zone`);
+          response.persons.forEach((person: any) => {
+            // Parse the person data and add to state
+            const personData = {
+              id: person.ID || person.id,
+              zoneId: zoneId,
+              plans: [] // Will be populated from XML if needed
+            };
+            populationState.persons.set(personData.id, personData);
+          });
+        } else {
+          console.log('No persons found in this zone');
+        }
+        
+        // Select the new zone
+        populationState.selectedZones.add(zoneId);
+        
+        populationState.isDrawingZone = false;
+      } catch (error) {
+        console.error('Failed to create zone:', error);
+        populationState.isDrawingZone = false;
+        // Remove the drawn polygon
+        deleteMapZone(zoneId);
+        alert('Failed to create zone. Please try again.');
+      }
+    });
   }
 
   function handleCancelZoneDrawing() {
-    // Cancel drawing mode
+    if (mapState.map) {
+      stopPolygonDrawing();
+    }
     populationState.isDrawingZone = false;
-    console.log('Cancelled zone drawing');
-    
-    // Clear any partially drawn features
-    if (typeof window !== 'undefined') {
-      // Dispatch event to clear editable layer
-      window.dispatchEvent(new CustomEvent('clearEditableLayer'));
+  }
+  
+  function handleEditZone(zoneId: string) {
+    if (editingZoneId === zoneId) {
+      // Stop editing
+      disableZoneEditing(zoneId);
+      editingZoneId = null;
+    } else {
+      // Stop editing previous zone
+      if (editingZoneId) {
+        disableZoneEditing(editingZoneId);
+      }
+      // Start editing this zone
+      enableZoneEditing(zoneId);
+      editingZoneId = zoneId;
     }
   }
 
@@ -196,9 +328,10 @@
       size="sm" 
       class="w-full mb-3"
       onclick={handleAddNewPerson}
+      disabled={populationState.isSelectingActivityLocation}
     >
       <PlusOutline class="w-4 h-4 mr-2" />
-      Add New Person
+      {populationState.isSelectingActivityLocation ? 'Click map to place person...' : 'Add New Person'}
     </Button>
     
     <div class="flex items-center gap-4 text-sm">
@@ -255,6 +388,14 @@
             <span class="flex-1 text-white">{zone.name}</span>
             <span class="text-xs text-gray-300">({zone.personCount} persons)</span>
           </label>
+          <Button 
+            size="xs" 
+            color={editingZoneId === zone.id ? 'primary' : 'alternative'}
+            onclick={() => handleEditZone(zone.id)}
+            class="p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <EditOutline class="w-3 h-3" />
+          </Button>
           <Button 
             size="xs" 
             color="red" 
