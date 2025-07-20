@@ -8,29 +8,24 @@
   import ProcessingModal from "./components/modals/ProcessingModal.svelte";
   import ToastContainer from "./components/ToastContainer.svelte";
   import { appState, commandArgs, mapComponent } from "$lib/stores/app.svelte.ts";
-  // MAP_TODO: Restore PT and Network imports
-  // import { PTService } from "$lib/api/pt";
+  import { PTService } from "$lib/api/pt";
+  // MAP_TODO: Restore Network imports
   // import NetworkController from "./components/network/NetworkController.svelte";
   // import { networkState } from "$lib/stores/network.svelte";
   
-  // Map-related code removed - to be replaced with Leaflet implementation
+  // Load PT data when editing PT files - using onMount instead of $effect
+  import { onMount } from 'svelte';
   
-  // Demo: Editable layer state - uncomment to enable drawing functionality
-  // let isEditingEnabled = $state(false);
-  // const toggleEditing = () => {
-  //   isEditingEnabled = !isEditingEnabled;
-  // };
-
-  // MAP_TODO: Restore PT data loading
-  // $effect(() => {
-  //   console.log('[App] Effect triggered - display:', appState.display, 'fileEditMode:', commandArgs.fileEditMode);
-  //   if (appState.display === 'EDITING' && commandArgs.fileEditMode === 'PT') {
-  //     console.log('[App] Loading PT data...');
-  //     PTService.loadPTData().catch(error => {
-  //       console.error('[App] Failed to load PT data on app start:', error);
-  //     });
-  //   }
-  // });
+  onMount(async () => {
+    if (appState.display === 'EDITING' && commandArgs.fileEditMode === 'PT') {
+      console.log('[App] Loading PT data...');
+      try {
+        await PTService.loadPTData();
+      } catch (error) {
+        console.error('[App] Failed to load PT data on app start:', error);
+      }
+    }
+  });
   
   // Network drawing handlers - to be reimplemented with Leaflet
 </script>

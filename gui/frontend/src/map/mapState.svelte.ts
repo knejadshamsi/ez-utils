@@ -277,15 +277,31 @@ export function setNetworkColors(
 }
 
 // Helper function to create numbered icon
-export function createNumberedIcon(number: number, color: string): L.DivIcon {
+export function createNumberedIcon(number: number, color: string, mode?: string): L.DivIcon {
   const showNumber = mapState.connectedDots.showNumbers;
+  
+  // Determine shape class based on mode
+  let shapeClass = 'circle-marker'; // default
+  let iconSize: [number, number] = [30, 30];
+  let iconAnchor: [number, number] = [15, 15];
+  
+  if (mode === 'bus') {
+    shapeClass = 'circle-marker'; // stays circle
+  } else if (mode === 'metro') {
+    shapeClass = 'square-marker';
+  } else if (mode === 'tram') {
+    shapeClass = 'rectangle-marker';
+    iconSize = [40, 30]; // wider for rectangle
+    iconAnchor = [20, 15]; // center it
+  }
+  
   return L.divIcon({
     className: 'custom-circle-icon',
-    html: `<div class="circle-marker" style="background: ${color}">
+    html: `<div class="${shapeClass}" style="background: ${color}">
       ${showNumber ? `<span>${number}</span>` : ''}
     </div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15]
+    iconSize: iconSize,
+    iconAnchor: iconAnchor
   });
 }
 

@@ -9,6 +9,7 @@
   import { trackRouteChange } from '$lib/utils/ptChangeTracking';
   import AddLineModal from '../modals/pt/AddLineModal.svelte';
   import EditLineModal from '../modals/pt/EditLineModal.svelte';
+  import { updatePTVisualization } from '../../map/updatePTVisualization';
 
   let showAddLineModal = $state(false);
   let showEditLineModal = $state(false);
@@ -17,12 +18,6 @@
   let editingLine = $state<any>(null);
   let addingRouteToLine = $state<string | null>(null);
   let newRouteName = $state('');
-  
-  // Debug logging
-  $effect(() => {
-    console.log('[PrimaryPTSidebar] Rendering with lines:', ptState.lines.size);
-    console.log('[PrimaryPTSidebar] All lines:', Array.from(ptState.lines.values()));
-  });
   
   function toggleModeCollapse(mode: TransportMode) {
     const newSet = new Set(collapsedModes);
@@ -53,6 +48,8 @@
     ptState.setSelectedRoute(routeId);
     appState.secondarySidebar = 'EXPANDED';
     console.log('[PrimaryPTSidebar] After selection - selectedRouteId:', ptState.selectedRouteId);
+    // Update visualization
+    updatePTVisualization();
   }
 
   function handleAddLine() {

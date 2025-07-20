@@ -4,9 +4,9 @@
   import type { SidebarState } from '$lib/stores/app.svelte.ts';
   import { commandArgs } from '$lib/stores/app.svelte.ts';
   import PopulationContent from './components/secondary-sidebar/PopulationContent.svelte';
-  // MAP_TODO: Restore PT and Network content
+  import PTContent from './components/secondary-sidebar/PTContent.svelte';
+  // MAP_TODO: Restore Network content
   // import NetworkContent from './components/secondary-sidebar/NetworkContent.svelte';
-  // import PTContent from './components/secondary-sidebar/PTContent.svelte';
   
   export let state: SidebarState = 'HIDDEN';
   
@@ -34,8 +34,7 @@
       <!-- MAP_TODO: <NetworkContent /> -->
       <div class="p-4 text-gray-400">Network details temporarily disabled</div>
     {:else if commandArgs.fileEditMode === 'PT'}
-      <!-- MAP_TODO: <PTContent /> -->
-      <div class="p-4 text-gray-400">PT details temporarily disabled</div>
+      <PTContent />
     {/if}
   </div>
 </Drawer>
