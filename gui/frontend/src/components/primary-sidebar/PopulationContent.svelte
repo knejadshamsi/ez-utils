@@ -1,5 +1,4 @@
 <script lang="ts">
-  console.log('[PopulationContent] Component instantiated');
   import { Button, Checkbox } from 'flowbite-svelte';
   import { PlusOutline, TrashBinOutline, EditOutline } from 'flowbite-svelte-icons';
   import { 
@@ -22,28 +21,25 @@
   import type * as L from 'leaflet';
   
   let editingZoneId = $state<string | null>(null);
-  
-  console.log('[PopulationContent] After imports - commandArgs:', commandArgs);
-  console.log('[PopulationContent] After imports - editingSession:', editingSession);
 
-  // Load population data from backend
-  onMount(async () => {
-    console.log('PopulationContent onMount - editingSession.tableName:', editingSession.tableName);
-    if (editingSession.tableName) {
-      try {
-        // Initialize filter session
-        await initializeFilterSession(editingSession.tableName);
-        
-        // Load first page of population data (no zones initially)
-        await loadPopulationPage(editingSession.tableName, 1);
-        
-      } catch (error) {
-        console.error('Failed to load population data:', error);
-      }
-    } else {
-      console.log('No editingSession.tableName available');
+  // Watch for changes to editingSession.tableName and load data when it's available
+  $effect(() => {
+    if (editingSession.tableName && editingSession.tableName !== '') {
+      // Load data when table name becomes available
+      loadPopulationData();
     }
   });
+  
+  async function loadPopulationData() {
+    try {
+      // Don't initialize filter session yet - we want unfiltered data first
+      // Load first page of population data (no zones initially)
+      await loadPopulationPage(editingSession.tableName, 1);
+      
+    } catch (error) {
+      console.error('Failed to load population data:', error);
+    }
+  }
 
   async function handleAddNewPerson() {
     if (!mapState.map) return;
@@ -210,10 +206,11 @@
           boundingBox: null // Will be calculated by backend
         };
         
-        console.log('Zone object:', zone);
-        console.log('Polygon points count:', polygonPoints.length);
         
-        console.log('Creating zone with coordinates:', coordinates);
+        // Initialize filter session if this is the first zone
+        if (populationState.zones.length === 0) {
+          await initializeFilterSession(editingSession.tableName);
+        }
         
         // Add zone to filter session
         await addZoneToFilter(
@@ -230,7 +227,6 @@
           color: '#' + Math.floor(Math.random()*16777215).toString(16) // Random color
         };
         
-        console.log('Adding zone to state:', newZone);
         populationState.zones.push(newZone);
         
         // Select the new zone

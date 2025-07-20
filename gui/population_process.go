@@ -117,10 +117,25 @@ func (a *App) GetPopulationPaginated(tableName string, page int, pageSize int, s
 // GetPopulationSimple retrieves population without any zone filtering
 // Used for initial load - just gets the requested page of persons
 func (a *App) GetPopulationSimple(tableName string, page int, pageSize int) (*PaginatedResponse, error) {
+	// First check if table exists
+	var tableExists int
+	checkQuery := fmt.Sprintf("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='%s'", tableName)
+	err := a.db.conn.QueryRow(checkQuery).Scan(&tableExists)
+	if err != nil || tableExists == 0 {
+		// Return empty response instead of error
+		return &PaginatedResponse{
+			Persons:     []Person{},
+			TotalCount:  0,
+			CurrentPage: page,
+			TotalPages:  0,
+			PageSize:    pageSize,
+		}, nil
+	}
+	
 	// Count total persons
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)
 	var totalCount int
-	err := a.db.conn.QueryRow(countQuery).Scan(&totalCount)
+	err = a.db.conn.QueryRow(countQuery).Scan(&totalCount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to count population: %w", err)
 	}
