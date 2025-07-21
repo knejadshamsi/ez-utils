@@ -135,7 +135,10 @@ export function trackPersonChange(person: Person, action: 'create' | 'update' | 
       personId: person.id,
       planXML: convertPersonToXML(person)
     };
+    console.log('[trackPersonChange] Creating update action:', updateAction);
+    console.log('[trackPersonChange] Current pending changes before:', changeTracker.pendingChanges.length);
     changeTracker.pendingChanges = [...changeTracker.pendingChanges, updateAction];
+    console.log('[trackPersonChange] Current pending changes after:', changeTracker.pendingChanges.length);
   } else if (action === 'delete') {
     const deleteAction: SyncAction = {
       type: 'population',
