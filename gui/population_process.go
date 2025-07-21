@@ -472,10 +472,13 @@ func (p *Processor) processXML(reader io.Reader, tableName string) error {
 
 					coords := fmt.Sprintf("%f,%f", homeX, homeY)
 
+					// Compact XML before storing to save space
+					compactedXML := compactXML(personBuffer.String())
+					
 					batch = append(batch, PersonData{
 						ID:     id,
 						Coords: coords,
-						RawXML: personBuffer.String(),
+						RawXML: compactedXML,
 					})
 
 					p.telemetryMutex.Lock()

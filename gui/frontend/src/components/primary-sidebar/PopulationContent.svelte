@@ -65,6 +65,7 @@
       const newPerson: Person = {
         id: newId,
         zoneId: populationState.zones[0]?.id || 'default',
+        attributes: [], // New persons start with no attributes
         plans: [{
           id: 1,
           activities: [{

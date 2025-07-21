@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, Select, Input, CloseButton } from 'flowbite-svelte';
-  import { TrashBinOutline, PlusOutline, MapPinOutline } from 'flowbite-svelte-icons';
+  import { TrashBinOutline, PlusOutline, MapPinOutline, CogOutline } from 'flowbite-svelte-icons';
   import CompactSelect from '../CompactSelect.svelte';
   import { 
     populationState,
@@ -476,7 +476,18 @@
   <div class="h-full flex flex-col bg-gray-800">
     <!-- Header -->
     <div class="flex items-center justify-between p-4 border-b border-gray-600">
-      <h2 class="text-lg font-semibold text-white">{selectedPerson.id}</h2>
+      <div class="flex items-center gap-2">
+        <h2 class="text-lg font-semibold text-white">{selectedPerson.id}</h2>
+        <Button
+          size="xs"
+          class="!p-1.5"
+          color="alternative"
+          onclick={() => populationState.showAttributesModal = true}
+          title="Edit Attributes"
+        >
+          <CogOutline class="w-4 h-4" />
+        </Button>
+      </div>
       <CloseButton onclick={handleClose} class="text-gray-400 hover:text-white" />
     </div>
     

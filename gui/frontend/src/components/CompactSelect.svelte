@@ -3,13 +3,20 @@
   export let items: Array<{ value: string; name: string }> = [];
   export let onchange: (event: Event) => void = () => {};
   export let disabled: boolean = false;
+  export let size: 'sm' | 'md' = 'sm';
+  
+  // Height and padding classes based on size
+  const sizeClasses = {
+    sm: 'h-6 py-1 px-2 text-xs',
+    md: 'h-8 py-1.5 px-3 text-sm'
+  };
 </script>
 
 <select
   bind:value
   on:change={onchange}
   {disabled}
-  class="block py-1 px-2 text-sm rounded-lg border focus:ring-4 focus:outline-none bg-gray-600 text-white border-gray-500 flex-1 h-6 text-xs focus:ring-blue-500 focus:border-blue-500"
+  class="block rounded-lg border focus:ring-4 focus:outline-none bg-gray-600 text-white border-gray-500 flex-1 focus:ring-blue-500 focus:border-blue-500 {sizeClasses[size]}"
 >
   {#each items as item}
     <option value={item.value}>{item.name}</option>

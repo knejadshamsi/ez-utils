@@ -1,4 +1,4 @@
-import type { Person, Plan, Activity, Leg } from './populationStore.svelte';
+import type { Person, Plan, Activity, Leg, PersonAttribute } from '../stores/population.svelte';
 
 export function parsePersonXML(rawXML: string): Partial<Person> {
   try {
@@ -9,13 +9,16 @@ export function parsePersonXML(rawXML: string): Partial<Person> {
     const parserError = doc.querySelector('parsererror');
     if (parserError) {
       console.error('XML parsing error:', parserError.textContent);
-      return { plans: [] };
+      return { attributes: [], plans: [] };
     }
     
     const personElement = doc.querySelector('person');
     if (!personElement) {
-      return { plans: [] };
+      return { attributes: [], plans: [] };
     }
+    
+    // Parse attributes
+    const attributes = parseAttributes(personElement);
     
     const plans: Plan[] = [];
     const planElements = personElement.querySelectorAll('plan');
@@ -42,11 +45,49 @@ export function parsePersonXML(rawXML: string): Partial<Person> {
       });
     }
     
-    return { plans };
+    return { attributes, plans };
   } catch (error) {
     console.error('Error parsing person XML:', error);
-    return { plans: [] };
+    return { attributes: [], plans: [] };
   }
+}
+
+function parseAttributes(personElement: Element): PersonAttribute[] {
+  const attributes: PersonAttribute[] = [];
+  const attributesElement = personElement.querySelector('attributes');
+  
+  if (!attributesElement) {
+    return attributes;
+  }
+  
+  const attributeElements = attributesElement.querySelectorAll('attribute');
+  attributeElements.forEach(element => {
+    const name = element.getAttribute('name');
+    const type = element.getAttribute('class') as PersonAttribute['type'];
+    const textContent = element.textContent?.trim();
+    
+    if (name && type && textContent !== undefined) {
+      let value: string | number | boolean = textContent;
+      
+      // Parse value based on type
+      if (type === 'java.lang.Integer') {
+        value = parseInt(textContent, 10);
+      } else if (type === 'java.lang.Double') {
+        value = parseFloat(textContent);
+      } else if (type === 'java.lang.Boolean') {
+        value = textContent.toLowerCase() === 'true';
+      }
+      
+      attributes.push({
+        name,
+        type,
+        value,
+        included: true // All parsed attributes are included by default
+      });
+    }
+  });
+  
+  return attributes;
 }
 
 function parseActivities(parentElement: Element): Activity[] {

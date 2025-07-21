@@ -79,6 +79,15 @@ func (e *PopulationExporter) ExportPopulationFile(tableName string, outputPath s
 		return fmt.Errorf("failed to write opening tag: %w", err)
 	}
 	
+	// Write initial separator
+	_, err = file.WriteString("<!-- ====================================================================== -->\n\n")
+	if err != nil {
+		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return fmt.Errorf("failed to write separator: %w", err)
+	}
+	
 	// Process in batches
 	processed := 0
 	for offset := 0; offset < totalCount; offset += EXPORT_BATCH_SIZE {
@@ -108,33 +117,47 @@ func (e *PopulationExporter) ExportPopulationFile(tableName string, outputPath s
 				continue
 			}
 			
-			// If we have raw XML, use it
+			// Format the person XML properly
+			var formattedXML string
 			if rawXML != "" {
-				// Ensure proper indentation
-				indentedXML := indentXML(rawXML, "\t")
-				_, err = file.WriteString(indentedXML + "\n")
+				// Format the compact XML from database
+				formatted, err := formatPersonXML(rawXML)
 				if err != nil {
-					rows.Close()
-					runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
-						"error": err.Error(),
-					})
-					return fmt.Errorf("failed to write person XML: %w", err)
+					// Fall back to basic indentation if formatting fails
+					log.Printf("Failed to format person %s XML: %v", id, err)
+					formattedXML = indentXML(rawXML, "\t")
+				} else {
+					formattedXML = formatted
 				}
 			} else {
 				// Generate basic person XML if no raw XML
-				personXML := fmt.Sprintf("\t<person id=\"%s\">\n\t</person>\n", escapeXMLPopulation(id))
-				_, err = file.WriteString(personXML)
-				if err != nil {
-					rows.Close()
-					runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
-						"error": err.Error(),
-					})
-					return fmt.Errorf("failed to write person XML: %w", err)
-				}
+				formattedXML = fmt.Sprintf("\t<person id=\"%s\">\n\t</person>", escapeXMLPopulation(id))
+			}
+			
+			// Write the formatted person XML
+			_, err = file.WriteString(formattedXML)
+			if err != nil {
+				rows.Close()
+				runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+					"error": err.Error(),
+				})
+				return fmt.Errorf("failed to write person XML: %w", err)
 			}
 			
 			batchCount++
 			processed++
+			
+			// Add separator after each person except the last one
+			if processed < totalCount {
+				_, err = file.WriteString("\n\n<!-- ====================================================================== -->\n\n")
+				if err != nil {
+					rows.Close()
+					runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+						"error": err.Error(),
+					})
+					return fmt.Errorf("failed to write separator: %w", err)
+				}
+			}
 		}
 		rows.Close()
 		
@@ -155,8 +178,8 @@ func (e *PopulationExporter) ExportPopulationFile(tableName string, outputPath s
 		log.Printf("Exported batch: %d-%d of %d", offset, offset+batchCount, totalCount)
 	}
 	
-	// Write closing population tag
-	_, err = file.WriteString("</population>\n")
+	// Add final separator and closing tag
+	_, err = file.WriteString("\n\n<!-- ====================================================================== -->\n</population>\n")
 	if err != nil {
 		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
 			"error": err.Error(),
