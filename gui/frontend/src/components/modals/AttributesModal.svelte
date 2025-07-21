@@ -3,6 +3,7 @@
   import { PlusOutline, CheckOutline, CloseOutline } from 'flowbite-svelte-icons';
   import { populationState, type PersonAttribute } from '$lib/stores/population.svelte';
   import { trackPersonChange } from '$lib/utils/populationChangeTracking';
+  import { editingSession } from '$lib/stores/app.svelte.ts';
   import CompactSelect from '../CompactSelect.svelte';
   
   // Get selected person
@@ -40,6 +41,7 @@
     const confirmRemove = confirm(`Remove attribute "${name}"?`);
     if (confirmRemove) {
       editingAttributes = editingAttributes.filter(attr => attr.name !== name);
+      saveAttributeChanges();
     }
   }
   
@@ -57,39 +59,27 @@
     }
     
     editingAttributes[index].value = parsedValue;
+    saveAttributeChanges();
   }
   
-  function handleSave() {
+  function saveAttributeChanges() {
     if (!selectedPerson) return;
     
-    // Filter out any attributes with empty names
-    const validAttributes = editingAttributes.filter(attr => attr.name && attr.name.trim());
-    
-    // Final duplicate check before saving
-    const names = new Set<string>();
-    for (const attr of validAttributes) {
-      const nameLower = attr.name.toLowerCase();
-      if (names.has(nameLower)) {
-        alert(`Cannot save: Duplicate attribute "${attr.name}" found.`);
-        return;
-      }
-      names.add(nameLower);
-    }
-    
-    // Create updated person with new attributes
+    // Create updated person with current attributes
     const updatedPerson = {
       ...selectedPerson,
-      attributes: validAttributes
+      attributes: editingAttributes
     };
     
     // Update in store
     populationState.persons.set(selectedPerson.id, updatedPerson);
     
+    console.log('[AttributesModal] Saving attribute changes');
+    console.log('[AttributesModal] Updated person:', updatedPerson);
+    console.log('[AttributesModal] editingSession.tableName:', editingSession.tableName);
+    
     // Track change
     trackPersonChange(updatedPerson, 'update');
-    
-    // Close modal
-    populationState.showAttributesModal = false;
   }
   
   function handleCancel() {
@@ -146,6 +136,7 @@
         included: true
       }];
     }
+    saveAttributeChanges();
   }
   
   function startAddingCustomAttribute() {
@@ -202,6 +193,9 @@
     // Clear temp state
     tempCustomAttribute = null;
     customAttributeError = '';
+    
+    // Save changes immediately
+    saveAttributeChanges();
   }
   
   function cancelCustomAttribute() {
@@ -240,7 +234,7 @@
     <div class="space-y-2 max-h-96 overflow-y-auto">
       {#each editingAttributes as attr, index}
         <div class="flex items-center gap-2">
-          <Checkbox bind:checked={attr.included} />
+          <Checkbox bind:checked={attr.included} onchange={saveAttributeChanges} />
           
           {#if isCommonAttribute(attr.name)}
             <div class="block py-1.5 px-3 text-sm rounded-lg border bg-gray-700 text-gray-300 border-gray-600 flex-1 h-8">
@@ -261,6 +255,7 @@
               bind:value={attr.type}
               items={attributeTypes}
               size="md"
+              onchange={saveAttributeChanges}
             />
           {/if}
           
@@ -397,9 +392,4 @@
       </div>
     </div>
   </div>
-  
-  <svelte:fragment slot="footer">
-    <Button color="alternative" onclick={handleCancel}>Cancel</Button>
-    <Button color="primary" onclick={handleSave}>Save</Button>
-  </svelte:fragment>
 </Modal>
