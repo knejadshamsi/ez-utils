@@ -4,8 +4,10 @@
   import { slide } from "svelte/transition";
   import { appState, commandArgs, editingSession } from "$lib/stores/app.svelte.ts";
   import { ExitApplication, SyncChanges, SaveFile, ExportPopulationFile, ExportNetworkFile, ExportPTFile, GetExportInfo } from "@wailsjs/go/gui/App";
+  import { EventsOn, EventsOff } from "@wailsjs/runtime";
   import { changeTracker } from "../../lib/changeTracker.svelte";
   import { showSuccess, showError, showInfo, showWarning } from "../../lib/toast.svelte";
+  import { exportProgress } from "$lib/stores/exportProgress.svelte";
   import SettingsModal from "../modals/SettingsModal.svelte";
   
   let showExitConfirmation = $state(false);
@@ -42,6 +44,9 @@
         const shouldSave = confirm('You have unsaved changes. Would you like to save them before exporting?');
         if (shouldSave) {
           await handleSync();
+        } else {
+          // User cancelled - return to editing without doing anything
+          return;
         }
       }
       
@@ -55,13 +60,48 @@
         return;
       }
       
-      // Export based on file type
-      showInfo('Exporting data...');
+      // Set up event listeners for export progress
+      exportProgress.isExporting = true;
+      exportProgress.current = 0;
+      exportProgress.total = 0;
       
+      // Listen for progress updates
+      EventsOn("export:progress", (data) => {
+        exportProgress.current = data.current;
+        exportProgress.total = data.total;
+      });
+      
+      // Listen for completion
+      EventsOn("export:complete", (data) => {
+        exportProgress.isExporting = false;
+        showSuccess(`Successfully exported ${data.total.toLocaleString()} elements`);
+        
+        // Clean up listeners
+        EventsOff("export:progress");
+        EventsOff("export:complete");
+        EventsOff("export:error");
+      });
+      
+      // Listen for errors
+      EventsOn("export:error", (data) => {
+        exportProgress.isExporting = false;
+        showError(`Export failed: ${data.error}`);
+        
+        // Clean up listeners
+        EventsOff("export:progress");
+        EventsOff("export:complete");
+        EventsOff("export:error");
+      });
+      
+      // Export based on file type
       switch (commandArgs.fileEditMode) {
         case 'POPULATION':
           if (!editingSession.tableName) {
+            exportProgress.isExporting = false;
             showError('No population table available for export');
+            EventsOff("export:progress");
+            EventsOff("export:complete");
+            EventsOff("export:error");
             return;
           }
           await ExportPopulationFile(editingSession.tableName, outputPath);
@@ -69,7 +109,11 @@
           
         case 'NETWORK':
           if (!editingSession.processId) {
+            exportProgress.isExporting = false;
             showError('No network process available for export');
+            EventsOff("export:progress");
+            EventsOff("export:complete");
+            EventsOff("export:error");
             return;
           }
           // Export entire network (empty bounding box array means all data)
@@ -78,18 +122,24 @@
           
         case 'PT':
           if (!editingSession.processId) {
+            exportProgress.isExporting = false;
             showError('No PT process available for export');
+            EventsOff("export:progress");
+            EventsOff("export:complete");
+            EventsOff("export:error");
             return;
           }
           await ExportPTFile(editingSession.processId, outputPath);
           break;
           
         default:
+          exportProgress.isExporting = false;
           showError('Unknown file type for export');
+          EventsOff("export:progress");
+          EventsOff("export:complete");
+          EventsOff("export:error");
           return;
       }
-      
-      showSuccess(`Data exported successfully to ${outputPath.split('/').pop() || outputPath}`);
     } catch (error) {
       console.error('Export failed:', error);
       showError(`Export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);

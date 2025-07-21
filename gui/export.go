@@ -76,7 +76,8 @@ func (a *App) ExportPopulationFile(tableName string, outputPath string) error {
 	
 	// Create population exporter
 	exporter := &PopulationExporter{
-		db: a.db.conn,
+		db:  a.db.conn,
+		app: a,
 	}
 	
 	// Export the population data

@@ -6,6 +6,7 @@
   import SecondarySidebar from "./SecondarySidebar.svelte";
   import WelcomeModal from "./components/modals/WelcomeModal.svelte";
   import ProcessingModal from "./components/modals/ProcessingModal.svelte";
+  import ExportProgressModal from "./components/modals/ExportProgressModal.svelte";
   import ToastContainer from "./components/ToastContainer.svelte";
   import { appState, commandArgs, mapComponent } from "$lib/stores/app.svelte.ts";
   import { PTService } from "$lib/api/pt";
@@ -40,6 +41,7 @@
 
 <WelcomeModal />
 <ProcessingModal />
+<ExportProgressModal />
 <ToastContainer />
 
 {#if commandArgs.fileEditMode === 'NETWORK'}

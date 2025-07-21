@@ -7,12 +7,17 @@ import (
 	"log"
 	"os"
 	"strings"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // PopulationExporter handles exporting population data to XML
 type PopulationExporter struct {
-	db *sql.DB
+	db  *sql.DB
+	app *App // Need app for context to emit events
 }
+
+const EXPORT_BATCH_SIZE = 1000 // Process 1000 persons at a time
 
 // PopulationXML represents the root element of a population XML file
 type PopulationXML struct {
@@ -20,26 +25,29 @@ type PopulationXML struct {
 	Persons []string `xml:",innerxml"`
 }
 
-// ExportPopulationFile exports population data from database to XML file
+// ExportPopulationFile exports population data from database to XML file with batching
 func (e *PopulationExporter) ExportPopulationFile(tableName string, outputPath string) error {
 	log.Printf("Starting population export from table: %s to file: %s", tableName, outputPath)
 	
-	// Query all persons from the table
-	query := fmt.Sprintf(`
-		SELECT id, coords, raw_xml 
-		FROM %s 
-		ORDER BY id
-	`, tableName)
-	
-	rows, err := e.db.Query(query)
-	if err != nil {
-		return fmt.Errorf("failed to query population data: %w", err)
+	// First, get the total count
+	var totalCount int
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)
+	if err := e.db.QueryRow(countQuery).Scan(&totalCount); err != nil {
+		return fmt.Errorf("failed to count population: %w", err)
 	}
-	defer rows.Close()
+	
+	// Emit initial progress
+	runtime.EventsEmit(e.app.ctx, "export:progress", map[string]interface{}{
+		"current": 0,
+		"total":   totalCount,
+	})
 	
 	// Create output file
 	file, err := os.Create(outputPath)
 	if err != nil {
+		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
 	defer file.Close()
@@ -47,63 +55,121 @@ func (e *PopulationExporter) ExportPopulationFile(tableName string, outputPath s
 	// Write XML header
 	_, err = file.WriteString(`<?xml version="1.0" encoding="UTF-8"?>` + "\n")
 	if err != nil {
+		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return fmt.Errorf("failed to write XML header: %w", err)
 	}
 	
 	// Write DOCTYPE
 	_, err = file.WriteString(`<!DOCTYPE population SYSTEM "http://www.matsim.org/files/dtd/population_v6.dtd">` + "\n")
 	if err != nil {
+		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return fmt.Errorf("failed to write DOCTYPE: %w", err)
 	}
 	
 	// Write opening population tag
 	_, err = file.WriteString("<population>\n")
 	if err != nil {
+		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return fmt.Errorf("failed to write opening tag: %w", err)
 	}
 	
-	// Process each person
-	count := 0
-	for rows.Next() {
-		var id, coords, rawXML string
-		err := rows.Scan(&id, &coords, &rawXML)
+	// Process in batches
+	processed := 0
+	for offset := 0; offset < totalCount; offset += EXPORT_BATCH_SIZE {
+		// Query batch
+		query := fmt.Sprintf(`
+			SELECT id, coords, raw_xml 
+			FROM %s 
+			ORDER BY id
+			LIMIT %d OFFSET %d
+		`, tableName, EXPORT_BATCH_SIZE, offset)
+		
+		rows, err := e.db.Query(query)
 		if err != nil {
-			log.Printf("Error scanning row: %v", err)
-			continue
+			runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+				"error": err.Error(),
+			})
+			return fmt.Errorf("failed to query batch at offset %d: %w", offset, err)
 		}
 		
-		// If we have raw XML, use it
-		if rawXML != "" {
-			// Ensure proper indentation
-			indentedXML := indentXML(rawXML, "\t")
-			_, err = file.WriteString(indentedXML + "\n")
+		// Process batch
+		batchCount := 0
+		for rows.Next() {
+			var id, coords, rawXML string
+			err := rows.Scan(&id, &coords, &rawXML)
 			if err != nil {
-				return fmt.Errorf("failed to write person XML: %w", err)
+				log.Printf("Error scanning row: %v", err)
+				continue
 			}
-		} else {
-			// Generate basic person XML if no raw XML
-			personXML := fmt.Sprintf("\t<person id=\"%s\">\n\t</person>\n", escapeXMLPopulation(id))
-			_, err = file.WriteString(personXML)
-			if err != nil {
-				return fmt.Errorf("failed to write person XML: %w", err)
+			
+			// If we have raw XML, use it
+			if rawXML != "" {
+				// Ensure proper indentation
+				indentedXML := indentXML(rawXML, "\t")
+				_, err = file.WriteString(indentedXML + "\n")
+				if err != nil {
+					rows.Close()
+					runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+						"error": err.Error(),
+					})
+					return fmt.Errorf("failed to write person XML: %w", err)
+				}
+			} else {
+				// Generate basic person XML if no raw XML
+				personXML := fmt.Sprintf("\t<person id=\"%s\">\n\t</person>\n", escapeXMLPopulation(id))
+				_, err = file.WriteString(personXML)
+				if err != nil {
+					rows.Close()
+					runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+						"error": err.Error(),
+					})
+					return fmt.Errorf("failed to write person XML: %w", err)
+				}
 			}
+			
+			batchCount++
+			processed++
+		}
+		rows.Close()
+		
+		// Check for errors from iterating over rows
+		if err = rows.Err(); err != nil {
+			runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+				"error": err.Error(),
+			})
+			return fmt.Errorf("error iterating over rows: %w", err)
 		}
 		
-		count++
-	}
-	
-	// Check for errors from iterating over rows
-	if err = rows.Err(); err != nil {
-		return fmt.Errorf("error iterating over rows: %w", err)
+		// Emit progress update
+		runtime.EventsEmit(e.app.ctx, "export:progress", map[string]interface{}{
+			"current": processed,
+			"total":   totalCount,
+		})
+		
+		log.Printf("Exported batch: %d-%d of %d", offset, offset+batchCount, totalCount)
 	}
 	
 	// Write closing population tag
 	_, err = file.WriteString("</population>\n")
 	if err != nil {
+		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return fmt.Errorf("failed to write closing tag: %w", err)
 	}
 	
-	log.Printf("Successfully exported %d persons to %s", count, outputPath)
+	// Emit completion
+	runtime.EventsEmit(e.app.ctx, "export:complete", map[string]interface{}{
+		"total": processed,
+	})
+	
+	log.Printf("Successfully exported %d persons to %s", processed, outputPath)
 	return nil
 }
 
