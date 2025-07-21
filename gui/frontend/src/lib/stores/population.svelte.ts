@@ -23,9 +23,17 @@ export interface Plan {
   legs: Leg[];
 }
 
+export interface PersonAttribute {
+  name: string;
+  type: 'java.lang.Integer' | 'java.lang.Boolean' | 'java.lang.String' | 'java.lang.Double';
+  value: string | number | boolean;
+  included: boolean; // whether to include in XML export
+}
+
 export interface Person {
   id: string;
   zoneId: string;
+  attributes: PersonAttribute[]; // May be empty but always present
   plans: Plan[];
 }
 
@@ -48,6 +56,7 @@ export interface PopulationState {
     plans: boolean;
   };
   isDrawingZone: boolean;
+  showAttributesModal: boolean;
   isSelectingActivityLocation: boolean;
   selectingActivityId: string | null;
   isDraggingActivity: boolean;
@@ -76,6 +85,7 @@ export const populationState = $state<PopulationState>({
     plans: true
   },
   isDrawingZone: false,
+  showAttributesModal: false,
   isSelectingActivityLocation: false,
   selectingActivityId: null,
   isDraggingActivity: false,

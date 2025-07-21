@@ -59,6 +59,7 @@ export async function loadPopulationPage(tableName: string, page: number, forceR
       const processedPerson: Person = {
         id: person.id,
         zoneId: '', // Zone is determined dynamically, not stored
+        attributes: parsedData.attributes || [],
         plans: parsedData.plans || []
       };
       

@@ -1,25 +1,54 @@
 import { changeTracker } from '$lib/changeTracker.svelte';
-import type { Person } from '$lib/stores/population.svelte';
+import type { Person, PersonAttribute, Plan, Activity } from '$lib/stores/population.svelte';
 import type { SyncAction } from '$lib/changeTracker.svelte';
 import { editingSession } from '$lib/stores/app.svelte.ts';
 
 function convertPersonToXML(person: Person): string {
-  // Convert person data to XML format
+  // Convert person data to XML format - compact for storage
   let xml = `<person id="${person.id}">`;
+  
+  // Add attributes if any exist and are included
+  const includedAttributes = person.attributes.filter(attr => attr.included);
+  if (includedAttributes.length > 0) {
+    xml += `<attributes>`;
+    includedAttributes.forEach(attr => {
+      xml += `<attribute name="${attr.name}" class="${attr.type}">${attr.value}</attribute>`;
+    });
+    xml += `</attributes>`;
+  }
   
   // Add plans
   person.plans.forEach(plan => {
-    xml += `<plan type="${plan.type}">`;
+    xml += `<plan selected="yes">`;
     
     plan.activities.forEach((activity, index) => {
-      xml += `<activity type="${activity.type}" start_time="${activity.startTime}" end_time="${activity.endTime}" x="${activity.location[0]}" y="${activity.location[1]}" />`;
+      // Build activity attributes
+      let activityAttrs = `type="${activity.type}"`;
+      activityAttrs += ` x="${activity.location[0]}" y="${activity.location[1]}"`;
       
-      // Add leg if not last activity and not "person's choice"
-      if (index < plan.activities.length - 1 && plan.legs[index]) {
+      // Add time attributes based on what's provided
+      if (activity.startTime) {
+        activityAttrs += ` start_time="${activity.startTime}"`;
+      }
+      if (activity.endTime) {
+        activityAttrs += ` end_time="${activity.endTime}"`;
+      }
+      // TODO: Support duration attribute when UI allows it
+      
+      xml += `<activity ${activityAttrs}/>`;
+      
+      // Add leg between activities (not after last activity)
+      if (index < plan.activities.length - 1) {
         const leg = plan.legs[index];
-        if (leg.mode !== "person's choice") {
-          xml += `<leg mode="${leg.mode}" duration="${leg.duration}" />`;
+        // Only add leg if it has a mode AND it's not "person's choice"
+        if (leg && leg.mode && leg.mode !== "person's choice") {
+          xml += `<leg mode="${leg.mode}"`;
+          if (leg.duration) {
+            xml += ` duration="${leg.duration}"`;
+          }
+          xml += `/>`; 
         }
+        // If no leg or "person's choice", don't add any leg element
       }
     });
     
