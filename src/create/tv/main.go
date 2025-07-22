@@ -1,11 +1,11 @@
 package tv
 
 import (
-	"fmt"
-	"os"
 	"ez-utils/src/create/tv/core"
 	"ez-utils/src/create/tv/io"
 	"ez-utils/src/create/tv/tui"
+	"fmt"
+	"os"
 )
 
 // Run executes the transit vehicles creation command
@@ -29,12 +29,12 @@ func Run(args []string) error {
 			// Create a new vehicles file name
 			manager.VehiclesFile = "transitVehicles.xml"
 			fmt.Printf("Will create/edit vehicles in: %s\n", manager.VehiclesFile)
-			
+
 			// Try to load existing vehicles file if it exists
 			if loadErr := loadFromFile(manager); loadErr != nil {
 				fmt.Printf("Starting with empty vehicle database\n")
 			} else {
-				fmt.Printf("Loaded existing %d vehicle types and %d vehicles\n", 
+				fmt.Printf("Loaded existing %d vehicle types and %d vehicles\n",
 					len(manager.VehicleTypes), len(manager.Vehicles))
 			}
 		} else {
@@ -42,7 +42,7 @@ func Run(args []string) error {
 			fmt.Printf("Starting with empty vehicle database (file will be created on save)\n")
 		}
 	} else {
-		fmt.Printf("Loaded %d vehicle types and %d vehicles from %s\n", 
+		fmt.Printf("Loaded %d vehicle types and %d vehicles from %s\n",
 			len(manager.VehicleTypes), len(manager.Vehicles), manager.VehiclesFile)
 	}
 
@@ -56,27 +56,21 @@ func loadFromFile(manager *core.VehicleManager) error {
 	if _, err := os.Stat(manager.VehiclesFile); os.IsNotExist(err) {
 		return err
 	}
-	
+
 	// Import the vehicles
 	types, vehicles, err := io.ImportVehicles(manager.VehiclesFile)
 	if err != nil {
 		return fmt.Errorf("failed to load vehicles: %w", err)
 	}
-	
+
 	manager.VehicleTypes = types
 	manager.Vehicles = vehicles
 	manager.HasChanges = false
-	
+
 	return nil
 }
 
 // SaveToFile saves vehicles to the XML file - can be called from TUI
 func SaveToFile(manager *core.VehicleManager) error {
-	exporter := io.NewVehicleExporter(manager.VehicleTypes, manager.Vehicles)
-	if err := exporter.Export(manager.VehiclesFile); err != nil {
-		return fmt.Errorf("failed to save vehicles: %w", err)
-	}
-	
-	manager.HasChanges = false
-	return nil
+	return io.SaveToFile(manager, manager.VehiclesFile)
 }

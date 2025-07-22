@@ -9,6 +9,9 @@ import (
 
 // View renders the complete UI
 func (m Model) View() string {
+	if m.modal == ModalDeleteConfirmation {
+		return m.renderDeleteConfirmationModal()
+	}
 	if m.modal != ModalNone && m.currentForm != nil {
 		return m.renderModalView()
 	}
@@ -53,6 +56,29 @@ func (m Model) renderMainView() string {
 		len(m.manager.VehicleTypes), len(m.manager.Vehicles))
 	countsLine := countsStyle.Render(counts)
 
+	// Status/Error message section - placed right after counts
+	var statusSection string
+	if m.statusMsg != "" {
+		statusStyle := m.styles.Success.
+			Width(totalWidth).
+			Align(lipgloss.Center).
+			MarginTop(1).
+			MarginBottom(1)
+		statusSection = "\n" + statusStyle.Render(m.statusMsg)
+	} else if m.errorMsg != "" {
+		errorStyle := m.styles.Error.
+			Width(totalWidth).
+			Align(lipgloss.Center).
+			MarginTop(1).
+			MarginBottom(1)
+		statusSection = "\n" + errorStyle.Render(m.errorMsg)
+	}
+
+	// Adjust content height if status message is shown
+	if statusSection != "" {
+		contentHeight = contentHeight - 2 // Account for status message space
+	}
+
 	// Create columns
 	leftColumn := m.renderTypesList(columnWidth, contentHeight)
 	rightColumn := m.renderVehiclesList(columnWidth, contentHeight)
@@ -75,7 +101,13 @@ func (m Model) renderMainView() string {
 	help := helpStyle.Render("↑↓ Navigate | ←→ Switch | Enter Edit | A Add | D Delete | S Save | Q Quit")
 
 	// Combine all sections
-	return fmt.Sprintf("%s\n%s\n\n%s\n\n%s", title, countsLine, columns, help)
+	result := fmt.Sprintf("%s\n%s%s\n\n%s\n\n%s",
+		title,
+		countsLine,
+		statusSection, // Status message right after counts
+		columns,
+		help)
+	return result
 }
 
 // renderTypesList renders the vehicle types list
@@ -304,4 +336,97 @@ func (m Model) renderModalView() string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// renderDeleteConfirmationModal renders the delete confirmation modal
+func (m Model) renderDeleteConfirmationModal() string {
+	// First render the normal main view
+	mainView := m.renderMainView()
+
+	// Create the delete confirmation modal content
+	modalWidth := 60
+
+	// Build the modal content
+	var modalContent strings.Builder
+
+	// Title
+	title := "DELETE CONFIRMATION"
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Width(modalWidth - 4).
+		Align(lipgloss.Center)
+	modalContent.WriteString(titleStyle.Render(title) + "\n\n")
+
+	// Add specific warning for vehicle types
+	if m.itemToDeleteType == FocusTypesList {
+		// Count vehicles of this type
+		vehicleCount := 0
+		for _, vehicle := range m.manager.Vehicles {
+			if vehicle.TypeID == m.itemToDeleteID {
+				vehicleCount++
+			}
+		}
+
+		if vehicleCount > 0 {
+			warningStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FFA500")).
+				Bold(true).
+				Width(modalWidth - 4).
+				Align(lipgloss.Center)
+			warningMsg := fmt.Sprintf("⚠️  This will also delete all %d vehicles of this type.", vehicleCount)
+			modalContent.WriteString(warningStyle.Render(warningMsg) + "\n\n")
+		}
+	}
+
+	// Add the confirmation question
+	questionStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Width(modalWidth - 4).
+		Align(lipgloss.Center)
+	confirmMsg := fmt.Sprintf("Are you sure you want to delete '%s'?", m.itemToDeleteID)
+	modalContent.WriteString(questionStyle.Render(confirmMsg) + "\n\n")
+
+	// Add instructions
+	instructionStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#6B7280")).
+		Width(modalWidth - 4).
+		Align(lipgloss.Center)
+	modalContent.WriteString(instructionStyle.Render("Press 'y' to confirm or 'n' to cancel"))
+
+	// Style the modal with red border for delete
+	modalStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#EF4444")). // Red border for delete
+		Padding(1, 2).
+		Width(modalWidth).
+		Background(lipgloss.Color("#1F2937")).
+		Foreground(lipgloss.Color("#FFFFFF"))
+
+	styledModal := modalStyle.Render(modalContent.String())
+
+	// Place modal in center
+	centeredModal := lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		styledModal,
+	)
+
+	// Split views into lines
+	mainLines := strings.Split(mainView, "\n")
+	modalLines := strings.Split(centeredModal, "\n")
+
+	// Overlay modal on top of main view
+	result := make([]string, len(mainLines))
+	copy(result, mainLines)
+
+	for i, modalLine := range modalLines {
+		if i < len(result) && strings.TrimSpace(modalLine) != "" {
+			result[i] = modalLine
+		}
+	}
+
+	return strings.Join(result, "\n")
 }
