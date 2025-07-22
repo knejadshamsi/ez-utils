@@ -1,5 +1,15 @@
-// Define the type for display states
-export type DisplayState = 'WELCOME' | 'LOADING' | 'PROCESSING' | 'EDITING' | 'EXPORTING';
+// Define the type for display states - flat state machine for clear state management
+export type DisplayState = 
+  | 'WELCOME'
+  | 'PROCESSING'
+  | 'PROCESSING_SUCCESS'
+  | 'PROCESSING_FAILED'
+  | 'LOADING'
+  | 'LOADING_SUCCESS'
+  | 'LOADING_FAILED'
+  | 'EDITING'
+  | 'EXPORTING'
+  | 'EXPORTING_FAILED';
 
 // Define the type for sidebar states
 export type SidebarState = 'HIDDEN' | 'COLLAPSED' | 'EXPANDED';

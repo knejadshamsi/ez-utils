@@ -43,7 +43,7 @@ func (a *App) ProcessNetworkFile(filePath string) (map[string]any, error) {
 		return nil, fmt.Errorf("file path cannot be empty")
 	}
 
-	result, err := a.db.execQuery(createProcessQuery, fmt.Sprintf("failed to create process for file %s", filePath), filePath, "pending")
+	result, err := a.db.execQuery(createProcessQuery, fmt.Sprintf("failed to create process for file %s", filePath), filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +56,8 @@ func (a *App) ProcessNetworkFile(filePath string) (map[string]any, error) {
 	go a.processNetworkFile(filePath, processID)
 
 	return map[string]any{
-		"message":   "Processing started",
-		"processId": processID,
+		"message":    "Processing started",
+		"process_id": processID,
 	}, nil
 }
 

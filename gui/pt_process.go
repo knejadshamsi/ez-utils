@@ -4,8 +4,8 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"log"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -32,9 +32,10 @@ type TransitLine struct {
 }
 
 type TransitRoute struct {
-	ID           string       `xml:"id,attr" json:"id"`
-	RouteProfile RouteProfile `xml:"routeProfile" json:"routeProfile"`
-	Departures   []Departure  `xml:"departures>departure" json:"departures"`
+	ID            string       `xml:"id,attr" json:"id"`
+	TransportMode string       `xml:"transportMode" json:"transportMode"`
+	RouteProfile  RouteProfile `xml:"routeProfile" json:"routeProfile"`
+	Departures    []Departure  `xml:"departures>departure" json:"departures"`
 }
 
 type RouteProfile struct {
@@ -57,13 +58,11 @@ type Departure struct {
 
 // ProcessPTFile is the main entry point for PT file processing
 func (a *App) ProcessPTFile(filePath string) (*ProcessResult, error) {
-	log.Printf("Starting PT file processing for: %s", filePath)
-
 	// Create process record
 	result, err := a.db.execQuery(
-		"INSERT INTO processes (file_path, status) VALUES (?, ?)",
+		createProcessQuery,
 		"failed to create process record",
-		filePath, "processing",
+		filePath,
 	)
 	if err != nil {
 		return nil, err
@@ -78,7 +77,7 @@ func (a *App) ProcessPTFile(filePath string) (*ProcessResult, error) {
 	if err := a.db.CreatePTTables(int(processID)); err != nil {
 		a.db.execQuery(
 			"UPDATE processes SET status = ? WHERE process_id = ?",
-			"", "failed", processID,
+			"", "FAILED", processID,
 		)
 		return nil, err
 	}
@@ -99,6 +98,13 @@ func (a *App) ProcessPTFile(filePath string) (*ProcessResult, error) {
 		return nil, err
 	}
 
+	// Update status to INITIALIZING
+	a.db.execQuery(
+		"UPDATE processes SET status = ? WHERE process_id = ?",
+		"failed to update process status",
+		"INITIALIZING", processID,
+	)
+	
 	// Start async processing
 	go a.processPTFileAsync(int(processID), filePath, fileInfo.Size())
 
@@ -109,6 +115,13 @@ func (a *App) ProcessPTFile(filePath string) (*ProcessResult, error) {
 }
 
 func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64) {
+	// Update to PROCESSING
+	a.db.execQuery(
+		"UPDATE processes SET status = ? WHERE process_id = ?",
+		"failed to update process status",
+		"PROCESSING", processID,
+	)
+	
 	processor := &PTProcessor{
 		processID: processID,
 		db:        a.db,
@@ -119,12 +132,32 @@ func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64)
 		},
 	}
 
-	// Start telemetry updates
+	// Open file and create counting reader BEFORE starting telemetry
+	file, err := os.Open(filePath)
+	if err != nil {
+		wailsruntime.EventsEmit(a.ctx, "pt-processing-error", map[string]interface{}{
+			"processID": processID,
+			"error":     err.Error(),
+		})
+		a.db.execQuery(
+			"UPDATE processes SET status = ? WHERE process_id = ?",
+			"",
+			"FAILED", processID,
+		)
+		return
+	}
+	defer file.Close()
+
+	countingReader := &CountingReader{
+		reader: file,
+	}
+
+	// Start telemetry updates with counting reader
 	done := make(chan bool)
-	go processor.updateTelemetry(done)
+	go processor.updateTelemetry(countingReader, done)
 
 	// Process the file
-	err := processor.process(filePath)
+	err = processor.process(countingReader)
 
 	// Stop telemetry updates
 	done <- true
@@ -133,7 +166,6 @@ func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64)
 	status := "COMPLETED"
 	if err != nil {
 		status = "FAILED"
-		log.Printf("PT processing failed: %v", err)
 		wailsruntime.EventsEmit(a.ctx, "pt-processing-error", map[string]interface{}{
 			"processID": processID,
 			"error":     err.Error(),
@@ -145,7 +177,6 @@ func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64)
 		"failed to update process status",
 		status, processID,
 	); updateErr != nil {
-		log.Printf("Failed to update process status: %v", updateErr)
 	}
 
 	// Emit completion event
@@ -155,19 +186,7 @@ func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64)
 	})
 }
 
-func (p *PTProcessor) process(filePath string) error {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to open file: %w", err)
-	}
-	defer file.Close()
-
-	// Create counting reader
-	countingReader := &CountingReader{
-		reader: file,
-	}
-	p.countingReader = countingReader
-
+func (p *PTProcessor) process(countingReader *CountingReader) error {
 	decoder := xml.NewDecoder(countingReader)
 	
 	// Batch processing
@@ -183,6 +202,8 @@ func (p *PTProcessor) process(filePath string) error {
 	var currentLineRawXML string
 	var currentRouteRawXML string
 	var routeStopOrder int
+	var currentTransportMode string
+	var lineTransportModes = make(map[string]string) // Track transport modes by line ID
 
 	for {
 		token, err := decoder.Token()
@@ -191,7 +212,6 @@ func (p *PTProcessor) process(filePath string) error {
 		}
 		if err != nil {
 			atomic.AddInt64(&p.errorCount, 1)
-			log.Printf("XML parsing error: %v", err)
 			continue
 		}
 
@@ -200,7 +220,42 @@ func (p *PTProcessor) process(filePath string) error {
 			switch se.Name.Local {
 			case "stopFacility":
 				var stop TransitStop
-				rawXML := p.captureRawXML(decoder, &se, &stop)
+				var stopXML strings.Builder
+				stopXML.WriteString(p.captureElementStart(&se))
+				
+				// Extract attributes
+				for _, attr := range se.Attr {
+					switch attr.Name.Local {
+					case "id":
+						stop.ID = attr.Value
+					case "x":
+						stop.X, _ = strconv.ParseFloat(attr.Value, 64)
+					case "y":
+						stop.Y, _ = strconv.ParseFloat(attr.Value, 64)
+					case "name":
+						stop.Name = attr.Value
+					}
+				}
+				
+				// Capture inner content until matching end element
+				depth := 1
+				for depth > 0 {
+					token, err := decoder.Token()
+					if err != nil {
+						break
+					}
+					
+					switch t := token.(type) {
+					case xml.StartElement:
+						stopXML.WriteString(p.captureElementStart(&t))
+						depth++
+					case xml.EndElement:
+						stopXML.WriteString(fmt.Sprintf("</%s>", t.Name.Local))
+						depth--
+					case xml.CharData:
+						stopXML.Write(t)
+					}
+				}
 				
 				if stop.ID != "" {
 					stopBatch = append(stopBatch, PTStopData{
@@ -208,13 +263,14 @@ func (p *PTProcessor) process(filePath string) error {
 						X:      stop.X,
 						Y:      stop.Y,
 						Name:   stop.Name,
-						RawXML: rawXML,
+						RawXML: stopXML.String(),
 					})
 					atomic.AddInt64(&p.stopCount, 1)
 
 					if len(stopBatch) >= batchSize {
 						if err := p.insertStopBatch(stopBatch); err != nil {
-							log.Printf("Failed to insert stop batch: %v", err)
+							atomic.AddInt64(&p.errorCount, 1)
+							return fmt.Errorf("failed to insert stop batch: %w", err)
 						}
 						stopBatch = stopBatch[:0]
 					}
@@ -235,6 +291,7 @@ func (p *PTProcessor) process(filePath string) error {
 					currentRoute = &TransitRoute{}
 					currentRouteRawXML = p.captureElementStart(&se)
 					routeStopOrder = 0
+					currentTransportMode = "" // Reset for this route
 					for _, attr := range se.Attr {
 						if attr.Name.Local == "id" {
 							currentRoute.ID = attr.Value
@@ -287,6 +344,30 @@ func (p *PTProcessor) process(filePath string) error {
 						})
 					}
 				}
+			
+			case "transportMode":
+				if currentRoute != nil {
+					// Read the transportMode text content
+					for {
+						token, err := decoder.Token()
+						if err != nil {
+							break
+						}
+						switch t := token.(type) {
+						case xml.CharData:
+							currentTransportMode = strings.TrimSpace(string(t))
+							if currentLine != nil {
+								// Store the transport mode for this line
+								lineTransportModes[currentLine.ID] = strings.ToUpper(currentTransportMode)
+							}
+						case xml.EndElement:
+							if t.Name.Local == "transportMode" {
+								goto transportModeDone
+							}
+						}
+					}
+					transportModeDone:
+				}
 			}
 
 		case xml.EndElement:
@@ -303,7 +384,8 @@ func (p *PTProcessor) process(filePath string) error {
 					
 					if len(routeBatch) >= batchSize {
 						if err := p.insertRouteBatch(routeBatch); err != nil {
-							log.Printf("Failed to insert route batch: %v", err)
+							atomic.AddInt64(&p.errorCount, 1)
+							return fmt.Errorf("failed to insert route batch: %w", err)
 						}
 						routeBatch = routeBatch[:0]
 					}
@@ -311,7 +393,8 @@ func (p *PTProcessor) process(filePath string) error {
 					// Insert route stops
 					if len(routeStopBatch) > 0 {
 						if err := p.insertRouteStopBatch(routeStopBatch); err != nil {
-							log.Printf("Failed to insert route stop batch: %v", err)
+							atomic.AddInt64(&p.errorCount, 1)
+							return fmt.Errorf("failed to insert route stop batch: %w", err)
 						}
 						routeStopBatch = routeStopBatch[:0]
 					}
@@ -319,7 +402,8 @@ func (p *PTProcessor) process(filePath string) error {
 					// Insert departures
 					if len(departureBatch) > 0 {
 						if err := p.insertDepartureBatch(departureBatch); err != nil {
-							log.Printf("Failed to insert departure batch: %v", err)
+							atomic.AddInt64(&p.errorCount, 1)
+							return fmt.Errorf("failed to insert departure batch: %w", err)
 						}
 						departureBatch = departureBatch[:0]
 					}
@@ -329,8 +413,11 @@ func (p *PTProcessor) process(filePath string) error {
 
 			case "transitLine":
 				if currentLine != nil {
-					// Save line
-					mode := p.inferModeFromLineID(currentLine.ID)
+					// Save line with mode from routes (default to BUS if not found)
+					mode := lineTransportModes[currentLine.ID]
+					if mode == "" {
+						mode = "BUS"
+					}
 					lineBatch = append(lineBatch, PTLineData{
 						ID:     currentLine.ID,
 						Mode:   mode,
@@ -340,7 +427,8 @@ func (p *PTProcessor) process(filePath string) error {
 					
 					if len(lineBatch) >= batchSize {
 						if err := p.insertLineBatch(lineBatch); err != nil {
-							log.Printf("Failed to insert line batch: %v", err)
+							atomic.AddInt64(&p.errorCount, 1)
+							return fmt.Errorf("failed to insert line batch: %w", err)
 						}
 						lineBatch = lineBatch[:0]
 					}
@@ -354,43 +442,39 @@ func (p *PTProcessor) process(filePath string) error {
 	// Insert remaining batches
 	if len(stopBatch) > 0 {
 		if err := p.insertStopBatch(stopBatch); err != nil {
-			log.Printf("Failed to insert final stop batch: %v", err)
+			atomic.AddInt64(&p.errorCount, 1)
+			return fmt.Errorf("failed to insert final stop batch: %w", err)
 		}
 	}
 	if len(lineBatch) > 0 {
 		if err := p.insertLineBatch(lineBatch); err != nil {
-			log.Printf("Failed to insert final line batch: %v", err)
+			atomic.AddInt64(&p.errorCount, 1)
+			return fmt.Errorf("failed to insert final line batch: %w", err)
 		}
 	}
 	if len(routeBatch) > 0 {
 		if err := p.insertRouteBatch(routeBatch); err != nil {
-			log.Printf("Failed to insert final route batch: %v", err)
+			atomic.AddInt64(&p.errorCount, 1)
+			return fmt.Errorf("failed to insert final route batch: %w", err)
 		}
 	}
 	if len(routeStopBatch) > 0 {
 		if err := p.insertRouteStopBatch(routeStopBatch); err != nil {
-			log.Printf("Failed to insert final route stop batch: %v", err)
+			atomic.AddInt64(&p.errorCount, 1)
+			return fmt.Errorf("failed to insert final route stop batch: %w", err)
 		}
 	}
 	if len(departureBatch) > 0 {
 		if err := p.insertDepartureBatch(departureBatch); err != nil {
-			log.Printf("Failed to insert final departure batch: %v", err)
+			atomic.AddInt64(&p.errorCount, 1)
+			return fmt.Errorf("failed to insert final departure batch: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func (p *PTProcessor) captureRawXML(decoder *xml.Decoder, start *xml.StartElement, v interface{}) string {
-	var rawXML strings.Builder
-	rawXML.WriteString(p.captureElementStart(start))
-	
-	if err := decoder.DecodeElement(v, start); err == nil {
-		rawXML.WriteString(fmt.Sprintf("</%s>", start.Name.Local))
-	}
-	
-	return rawXML.String()
-}
+// captureRawXML is no longer needed - we'll capture XML manually during parsing
 
 func (p *PTProcessor) captureElementStart(start *xml.StartElement) string {
 	var rawXML strings.Builder
@@ -405,41 +489,26 @@ func (p *PTProcessor) captureElementStart(start *xml.StartElement) string {
 	return rawXML.String()
 }
 
-func (p *PTProcessor) inferModeFromLineID(lineID string) string {
-	lowerID := strings.ToLower(lineID)
-	
-	if strings.Contains(lowerID, "bus") {
-		return "bus"
-	} else if strings.Contains(lowerID, "metro") || strings.Contains(lowerID, "subway") {
-		return "metro"
-	} else if strings.Contains(lowerID, "tram") || strings.Contains(lowerID, "streetcar") {
-		return "tram"
-	} else if strings.Contains(lowerID, "rail") || strings.Contains(lowerID, "train") {
-		return "rail"
-	}
-	
-	return "bus"
-}
 
-func (p *PTProcessor) updateTelemetry(done chan bool) {
+func (p *PTProcessor) updateTelemetry(countingReader *CountingReader, done chan bool) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-done:
-			p.sendTelemetryUpdate()
+			p.sendTelemetryUpdate(countingReader)
 			return
 		case <-ticker.C:
-			p.sendTelemetryUpdate()
+			p.sendTelemetryUpdate(countingReader)
 		}
 	}
 }
 
-func (p *PTProcessor) sendTelemetryUpdate() {
+func (p *PTProcessor) sendTelemetryUpdate(countingReader *CountingReader) {
 	bytesRead := int64(0)
-	if p.countingReader != nil {
-		bytesRead = p.countingReader.BytesRead()
+	if countingReader != nil {
+		bytesRead = countingReader.BytesRead()
 	}
 	
 	p.telemetryMutex.RLock()
@@ -464,7 +533,6 @@ func (p *PTProcessor) sendTelemetryUpdate() {
 		telemetry.RoutesExtracted,
 		telemetry.ErrorCount,
 	); err != nil {
-		log.Printf("Failed to update telemetry: %v", err)
 		return
 	}
 

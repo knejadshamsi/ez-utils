@@ -7,6 +7,9 @@
   import { trackStopChange, trackRouteChange, trackRouteStopChange } from '$lib/utils/ptChangeTracking';
   import { updatePTVisualization } from '../../map/updatePTVisualization';
   import { mapState } from '../../map/mapState.svelte';
+  import AddDepartureModal from '../modals/pt/AddDepartureModal.svelte';
+  import CompactSelect from '../CompactSelect.svelte';
+  import { generateId } from '$lib/utils/generateId';
   import type * as L from 'leaflet';
 
   const selectedRouteData = $derived(ptState.selectedRoute());
@@ -16,6 +19,8 @@
   // Force re-render when stops change
   const stopCount = $derived(route?.stopSequence.length || 0);
   let editingCoords = $state<{ stopId: string; x: string; y: string } | null>(null);
+  let showAddDepartureModal = $state(false);
+  let selectedDepartureId = $state<string>('');
 
   function handleClose() {
     ptState.setSelectedRoute(null);
@@ -197,19 +202,25 @@
     }
   }
   
-  function updateArrivalTime(stopId: string, arrivalTime: string) {
+  function updateArrivalTime(stopId: string, arrivalOffset: string) {
     if (!route) return;
     
     // Find the stop in the route sequence
     const stopInRoute = route.stopSequence.find(s => s.stopId === stopId);
     if (!stopInRoute) return;
     
+    // Ensure format is HH:MM:SS
+    let formattedOffset = arrivalOffset;
+    if (arrivalOffset.split(':').length === 2) {
+      formattedOffset = arrivalOffset + ':00';
+    }
+    
     // Update the stop in the route sequence
     const updatedRoute = {
       ...route,
       stopSequence: route.stopSequence.map(stop =>
         stop.stopId === stopId
-          ? { ...stop, arrival: arrivalTime }
+          ? { ...stop, arrival: formattedOffset }
           : stop
       )
     };
@@ -227,7 +238,7 @@
     trackRouteStopChange({
       routeId: route.id,
       stopId: stopId,
-      arrival: arrivalTime,
+      arrival: formattedOffset,
       dwellMinutes: stopInRoute.dwellMinutes,
       sequence: stopInRoute.sequence,
       routeIndex: 0
@@ -237,22 +248,73 @@
     trackRouteChange(updatedRoute, 'update');
   }
   
-  function updateDwellTime(stopId: string, dwellMinutes: number) {
-    if (!route) return;
+  function formatOffset(offset: string): string {
+    // Ensure offset is in HH:MM:SS format
+    const parts = offset.split(':');
+    if (parts.length === 2) {
+      return offset + ':00';
+    }
+    return offset;
+  }
+
+  function calculateDepartureOffset(arrivalOffset: string, dwellMinutes: number): string {
+    // Convert HH:MM or HH:MM:SS to seconds
+    const parts = arrivalOffset.split(':');
+    let seconds = 0;
+    if (parts.length >= 2) {
+      seconds = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60;
+      if (parts.length === 3) {
+        seconds += parseInt(parts[2]);
+      }
+    }
     
-    // Ensure minimum 1 minute dwell time
-    const validDwellTime = Math.max(1, dwellMinutes);
+    // Add dwell time in seconds
+    const departureSeconds = seconds + (dwellMinutes * 60);
+    
+    // Convert back to HH:MM:SS
+    const hours = Math.floor(departureSeconds / 3600);
+    const minutes = Math.floor((departureSeconds % 3600) / 60);
+    const secs = departureSeconds % 60;
+    
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }
+  
+  function updateDepartureOffset(stopId: string, departureOffset: string) {
+    if (!route) return;
     
     // Find the stop in the route sequence
     const stopInRoute = route.stopSequence.find(s => s.stopId === stopId);
     if (!stopInRoute) return;
     
-    // Find and update the stop in the route sequence
+    // Parse arrival offset to seconds
+    const arrivalParts = stopInRoute.arrival.split(':');
+    let arrivalSeconds = 0;
+    if (arrivalParts.length >= 2) {
+      arrivalSeconds = parseInt(arrivalParts[0]) * 3600 + parseInt(arrivalParts[1]) * 60;
+      if (arrivalParts.length === 3) {
+        arrivalSeconds += parseInt(arrivalParts[2]);
+      }
+    }
+    
+    // Parse departure offset to seconds
+    const departureParts = departureOffset.split(':');
+    let departureSeconds = 0;
+    if (departureParts.length >= 2) {
+      departureSeconds = parseInt(departureParts[0]) * 3600 + parseInt(departureParts[1]) * 60;
+      if (departureParts.length === 3) {
+        departureSeconds += parseInt(departureParts[2]);
+      }
+    }
+    
+    // Calculate dwell time in minutes
+    const dwellMinutes = Math.max(0, Math.floor((departureSeconds - arrivalSeconds) / 60));
+    
+    // Update the stop in the route sequence
     const updatedRoute = {
       ...route,
       stopSequence: route.stopSequence.map(stop =>
         stop.stopId === stopId
-          ? { ...stop, dwellMinutes: validDwellTime }
+          ? { ...stop, dwellMinutes: dwellMinutes }
           : stop
       )
     };
@@ -271,7 +333,7 @@
       routeId: route.id,
       stopId: stopId,
       arrival: stopInRoute.arrival,
-      dwellMinutes: validDwellTime,
+      dwellMinutes: dwellMinutes,
       sequence: stopInRoute.sequence,
       routeIndex: 0
     }, 'update');
@@ -403,6 +465,68 @@
     // Update the dragging state in visualization
     updatePTVisualization();
   }
+  
+  function handleDepartureAdd(departure: any) {
+    if (!line || !route) return;
+    
+    // Add departure to the state
+    ptState.addDeparture(line.id, route.id, departure);
+    
+    // TODO: Track change for persistence
+  }
+  
+  function handleDeleteDeparture() {
+    if (!line || !route || !selectedDepartureId || !route.departures) return;
+    
+    // Find the departure to delete
+    const departureIndex = route.departures.findIndex(d => d.id === selectedDepartureId);
+    if (departureIndex === -1) return;
+    
+    // Remove the departure
+    const updatedDepartures = route.departures.filter(d => d.id !== selectedDepartureId);
+    
+    // Update the route
+    const updatedRoute = {
+      ...route,
+      departures: updatedDepartures
+    };
+    
+    const updatedLine = {
+      ...line,
+      routes: line.routes.map(r => r.id === route.id ? updatedRoute : r)
+    };
+    
+    const newLines = new Map(ptState.lines);
+    newLines.set(line.id, updatedLine);
+    ptState.lines = newLines;
+    
+    // Auto-select next departure
+    if (updatedDepartures.length > 0) {
+      // Try to select the next departure, or the previous one if we deleted the last
+      const nextIndex = Math.min(departureIndex, updatedDepartures.length - 1);
+      selectedDepartureId = updatedDepartures[nextIndex].id;
+    } else {
+      selectedDepartureId = '';
+    }
+    
+    // TODO: Track change for persistence
+  }
+  
+  // Auto-add departure if none exist
+  $effect(() => {
+    if (route && (!route.departures || route.departures.length === 0)) {
+      const defaultDeparture = {
+        id: generateId(),
+        route_id: route.id,
+        routeId: route.id,
+        departure_time: '06:00:00',
+        departureTime: '06:00:00',
+        vehicle_id: `${line?.mode.toLowerCase()}_1`,
+        raw_xml: ''
+      };
+      handleDepartureAdd(defaultDeparture);
+    }
+  });
 
 </script>
 
@@ -436,6 +560,44 @@
       </Button>
     </div>
 
+    <!-- Departures section -->
+    <div class="px-4 py-3 border-b border-gray-600">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-medium text-gray-300">Departures</h3>
+        <div class="flex items-center gap-2">
+          <CompactSelect
+            size="sm"
+            bind:value={selectedDepartureId}
+            items={[
+              { value: '', name: 'Select departure' },
+              ...(route?.departures?.map(dep => ({
+                value: dep.id,
+                name: `${dep.departureTime} - ${dep.vehicle_id || 'No vehicle'}`
+              })) || [{ value: '', name: 'No departures yet' }])
+            ]}
+          />
+          {#if selectedDepartureId && route?.departures && route.departures.length > 1}
+            <Button
+              size="xs"
+              color="red"
+              onclick={handleDeleteDeparture}
+              class="text-xs"
+            >
+              <TrashBinOutline class="w-3 h-3" />
+            </Button>
+          {/if}
+          <Button
+            size="xs"
+            color="primary"
+            onclick={() => showAddDepartureModal = true}
+            class="text-xs"
+          >
+            <PlusOutline class="w-3 h-3 mr-1" />
+            Add Departure
+          </Button>
+        </div>
+      </div>
+    </div>
 
     <!-- Main scrollable content -->
     <div class="flex-1 overflow-y-auto px-5 py-5">
@@ -449,8 +611,7 @@
               <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 relative">
                 <!-- Stop number indicator -->
                 <div 
-                  class="absolute -left-3 top-4 w-6 h-6 rounded-full flex items-center justify-center text-xs text-white font-medium"
-                  style="background-color: {line.color || '#3b82f6'}"
+                  class="absolute -left-3 top-4 w-6 h-6 rounded-full flex items-center justify-center text-xs text-white font-medium bg-blue-500"
                 >
                   {stopIndex + 1}
                 </div>
@@ -473,23 +634,26 @@
                   
                   <div class="grid grid-cols-2 gap-3 text-xs">
                     <div>
-                      <span class="text-gray-300">Arrival:</span>
+                      <span class="text-gray-300">Arrival Offset:</span>
                       <Input 
-                        type="time" 
+                        type="text" 
                         size="sm" 
-                        value={stop.arrival || ''}
+                        value={formatOffset(stop.arrival || '00:00:00')}
+                        placeholder="HH:MM:SS"
+                        pattern="[0-9]{2}:[0-9]{2}:[0-9]{2}"
                         onchange={(e) => updateArrivalTime(stop.stopId, (e.target as HTMLInputElement).value)}
                         class="bg-gray-600 text-white border-gray-500 h-6 text-xs mt-1"
                       />
                     </div>
                     <div>
-                      <span class="text-gray-300">Dwell (mins):</span>
+                      <span class="text-gray-300">Departure Offset:</span>
                       <Input 
-                        type="number" 
+                        type="text" 
                         size="sm" 
-                        value={stop.dwellMinutes || 2}
-                        min="1"
-                        onchange={(e) => updateDwellTime(stop.stopId, parseInt((e.target as HTMLInputElement).value) || 1)}
+                        value={calculateDepartureOffset(stop.arrival, stop.dwellMinutes)}
+                        placeholder="HH:MM:SS"
+                        pattern="[0-9]{2}:[0-9]{2}:[0-9]{2}"
+                        onchange={(e) => updateDepartureOffset(stop.stopId, (e.target as HTMLInputElement).value)}
                         class="bg-gray-600 text-white border-gray-500 h-6 text-xs mt-1"
                       />
                     </div>
@@ -609,4 +773,13 @@
       <p class="text-sm">Select a route from the primary sidebar to view its details</p>
     </div>
   </div>
+{/if}
+
+<!-- Add Departure Modal -->
+{#if route}
+  <AddDepartureModal 
+    bind:open={showAddDepartureModal} 
+    routeId={route.id}
+    onDepartureAdd={handleDepartureAdd}
+  />
 {/if}

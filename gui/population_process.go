@@ -33,8 +33,8 @@ func (a *App) ProcessPopulationFile(filePath string) (map[string]any, error) {
 	go a.processPopulationFile(filePath, processID)
 
 	response := map[string]any{
-		"message":   "Processing started",
-		"processId": processID,
+		"message":    "Processing started",
+		"process_id": processID,
 	}
 	return response, nil
 }

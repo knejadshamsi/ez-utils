@@ -138,6 +138,15 @@ type PTLine struct {
 	RawXML string `json:"raw_xml"`
 }
 
+// PTLineSummary represents a summary of a transit line with counts
+type PTLineSummary struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Mode           string `json:"mode"`
+	RouteCount     int    `json:"route_count"`
+	DepartureCount int    `json:"departure_count"`
+}
+
 // PTRoute represents a transit route
 type PTRoute struct {
 	ID     string `json:"id"`
@@ -232,7 +241,6 @@ type PTProcessor struct {
 	lineCount      int64
 	routeCount     int64
 	errorCount     int64
-	countingReader *CountingReader
 }
 
 // PTExporter handles PT data export operations

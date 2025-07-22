@@ -11,7 +11,6 @@ const (
 	// SELECT queries
 	selectAllPTStopsQuery     = "SELECT id, x, y, name, raw_xml FROM %s ORDER BY id"
 	selectPTStopByIDQuery     = "SELECT id, x, y, name, raw_xml FROM %s WHERE id = ?"
-	selectPTStopsByBboxQuery  = "SELECT id, x, y, name, raw_xml FROM %s WHERE x >= ? AND x <= ? AND y >= ? AND y <= ? ORDER BY id"
 	selectAllPTLinesQuery     = "SELECT id, mode, raw_xml FROM %s ORDER BY id"
 	selectPTLineByIDQuery     = "SELECT id, mode, raw_xml FROM %s WHERE id = ?"
 	selectPTLinesByModeQuery  = "SELECT id, mode, raw_xml FROM %s WHERE mode = ? ORDER BY id"
@@ -55,7 +54,6 @@ const (
 	// SELECT errors
 	selectAllPTStopsError     = "failed to query PT stops from table %s"
 	selectPTStopByIDError     = "failed to query PT stop by ID from table %s"
-	selectPTStopsByBboxError  = "failed to query PT stops by bounding box from table %s"
 	selectAllPTLinesError     = "failed to query PT lines from table %s"
 	selectPTLineByIDError     = "failed to query PT line by ID from table %s"
 	selectPTLinesByModeError  = "failed to query PT lines by mode from table %s"
@@ -115,30 +113,6 @@ func (db *Database) GetPTStops(processID int) ([]PTStop, error) {
 	return stops, rows.Err()
 }
 
-// GetPTStopsByBbox retrieves stops within a bounding box
-func (db *Database) GetPTStopsByBbox(processID int, bbox BoundingBox) ([]PTStop, error) {
-	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
-	stopsTable := fmt.Sprintf("%s_stops", tablePrefix)
-	
-	query := fmt.Sprintf(selectPTStopsByBboxQuery, stopsTable)
-	rows, err := db.queryRows(query, fmt.Sprintf(selectPTStopsByBboxError, stopsTable),
-		bbox.West, bbox.East, bbox.South, bbox.North)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	
-	var stops []PTStop
-	for rows.Next() {
-		var stop PTStop
-		if err := rows.Scan(&stop.ID, &stop.X, &stop.Y, &stop.Name, &stop.RawXML); err != nil {
-			return nil, fmt.Errorf("failed to scan PT stop: %w", err)
-		}
-		stops = append(stops, stop)
-	}
-	
-	return stops, rows.Err()
-}
 
 // GetPTStop retrieves a specific stop by ID
 func (db *Database) GetPTStop(processID int, stopID string) (*PTStop, error) {
@@ -540,6 +514,48 @@ func (db *Database) GetPTStatistics(processID int) (map[string]interface{}, erro
 	stats["departure_count"] = departureCount
 	
 	return stats, nil
+}
+
+// GetPTLineSummaries retrieves line summaries with route and departure counts for a specific mode
+func (db *Database) GetPTLineSummaries(processID int, mode string) ([]PTLineSummary, error) {
+	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
+	linesTable := fmt.Sprintf("%s_lines", tablePrefix)
+	routesTable := fmt.Sprintf("%s_routes", tablePrefix)
+	departuresTable := fmt.Sprintf("%s_departures", tablePrefix)
+	
+	// Query to get line summaries with counts, filtered by mode
+	query := fmt.Sprintf(`
+		SELECT 
+			l.id,
+			COALESCE(SUBSTR(l.id, INSTR(l.id, '_') + 1), l.id) as name,
+			l.mode,
+			COUNT(DISTINCT r.id) as route_count,
+			COUNT(DISTINCT d.id) as departure_count
+		FROM %s l
+		LEFT JOIN %s r ON r.line_id = l.id
+		LEFT JOIN %s d ON d.route_id = r.id
+		WHERE l.mode = ?
+		GROUP BY l.id, l.mode
+		ORDER BY l.id
+	`, linesTable, routesTable, departuresTable)
+	
+	rows, err := db.queryRows(query, "failed to query PT line summaries", mode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	var summaries []PTLineSummary
+	for rows.Next() {
+		var summary PTLineSummary
+		if err := rows.Scan(&summary.ID, &summary.Name, &summary.Mode, 
+			&summary.RouteCount, &summary.DepartureCount); err != nil {
+			return nil, fmt.Errorf("failed to scan PT line summary: %w", err)
+		}
+		summaries = append(summaries, summary)
+	}
+	
+	return summaries, rows.Err()
 }
 
 // InsertPTStopBatch inserts multiple stops in a transaction
