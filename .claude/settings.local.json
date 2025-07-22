@@ -3,7 +3,15 @@
     "allow": [
       "mcp__sequential-thinking__sequentialthinking",
       "mcp__context7__resolve-library-id",
-      "mcp__context7__get-library-docs"
+      "mcp__context7__get-library-docs",
+      "Bash(find:*)",
+      "Bash(go get:*)",
+      "Bash(mkdir:*)",
+      "Bash(wails build:*)",
+      "Bash(go install:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(go build:*)",
+      "Bash(sed:*)"
     ],
     "deny": []
   }
