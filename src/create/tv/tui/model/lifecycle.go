@@ -83,6 +83,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if m.modal != ModalNone && m.currentForm != nil {
+			// Check for ESC first before handling form input
+			if msg.String() == "esc" {
+				m.modal = ModalNone
+				m.currentForm = nil
+				m.errorMsg = ""
+				return m, nil
+			}
+			
 			// Handle form input
 			*m.currentForm, cmd = m.currentForm.Update(msg)
 			cmds = append(cmds, cmd)
