@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"ez-utils/src/create/pt"
+	"ez-utils/src/create/tv"
 	"fmt"
 	"os"
 	"os/signal"
@@ -16,6 +17,7 @@ func RunCreate() {
 		fmt.Println("Usage: ez-utils create <subcommand> [arguments]")
 		fmt.Println("\nAvailable subcommands:")
 		fmt.Println("  pt    Create public transit schedule from GTFS data")
+		fmt.Println("  tv    Create transit vehicles from schedule")
 		os.Exit(1)
 	}
 
@@ -108,10 +110,17 @@ func RunCreate() {
 			}
 		}
 
+	case "tv":
+		if err := tv.Run(os.Args[3:]); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			os.Exit(1)
+		}
+
 	default:
 		fmt.Printf("Unknown create subcommand: %s\n", subcommand)
 		fmt.Println("\nAvailable subcommands:")
 		fmt.Println("  pt    Create public transit schedule from GTFS data")
+		fmt.Println("  tv    Create transit vehicles from schedule")
 		os.Exit(1)
 	}
 }
