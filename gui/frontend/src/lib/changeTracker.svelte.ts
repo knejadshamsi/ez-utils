@@ -50,6 +50,18 @@ interface UpdateNodeAction {
   nodeId: string;
   x: number;
   y: number;
+  rawXML: string;
+}
+
+interface CreateNodeAction {
+  type: 'network';
+  elementType: 'node';
+  action: 'create';
+  processId: number;
+  nodeId: string;
+  x: number;
+  y: number;
+  rawXML: string;
 }
 
 interface DeleteNodeAction {
@@ -235,7 +247,7 @@ interface DeleteProcessAction {
 
 // ===== UNION TYPES =====
 type PopulationAction = AddPersonAction | UpdatePersonAction | DeletePersonAction | BatchUpdatePersonsAction;
-type NetworkAction = UpdateNodeAction | DeleteNodeAction | BatchUpdateNodesAction | BatchDeleteNodesAction | CreateLinkAction | UpdateLinkAction | DeleteLinkAction;
+type NetworkAction = CreateNodeAction | UpdateNodeAction | DeleteNodeAction | BatchUpdateNodesAction | BatchDeleteNodesAction | CreateLinkAction | UpdateLinkAction | DeleteLinkAction;
 type PTAction = AddStopAction | UpdateStopAction | DeleteStopAction | BatchUpdateStopsAction | AddLineAction | UpdateLineAction | DeleteLineAction | AddRouteAction | UpdateRouteAction | DeleteRouteAction | AddRouteStopAction | UpdateRouteStopAction | DeleteRouteStopAction | DeleteDepartureAction;
 type ProcessAction = DeleteProcessAction;
 export type SyncAction = PopulationAction | NetworkAction | PTAction | ProcessAction;

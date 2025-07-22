@@ -23,9 +23,6 @@ export type NetworkMode = 'VIEW' | 'EDIT' | 'CREATE';
 // Define the type for validation status
 export type ValidationStatus = 'NOT' | 'VALIDATING' | 'FAIL' | 'VALIDATED_POPULATION' | 'VALIDATED_NETWORK' | 'VALIDATED_PT';
 
-// Define the type for process status
-export type ProcessStatus = 'PENDING' | 'INITIALIZING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
-
 // Create the reactive state for UI using Svelte 5 runes
 export const appState = $state<{ 
   display: DisplayState,

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Modal, P, Spinner, Button } from "flowbite-svelte";
   import { CheckCircleOutline, ExclamationCircleOutline } from "flowbite-svelte-icons";
-  import { appState, commandArgs, editingSession, type ProcessStatus } from "$lib/stores/app.svelte.ts";
+  import { appState, commandArgs, editingSession } from "$lib/stores/app.svelte.ts";
   import { welcomeModalState } from "./welcome-modal/welcome.svelte";
   import { PTService } from "$lib/api/pt";
   import { 
@@ -120,11 +120,11 @@
         // Then check processing status
         const status = await CheckProcessingStatus(currentProcessId);
         
-        if (status === 'COMPLETED') {
+        if (status === 'PROCESSING_SUCCESS') {
           appState.display = 'PROCESSING_SUCCESS';
           clearPolling();
           return;
-        } else if (status === 'FAILED') {
+        } else if (status === 'PROCESSING_FAILED') {
           appState.display = 'PROCESSING_FAILED';
           clearPolling();
           return;

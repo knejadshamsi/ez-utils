@@ -165,6 +165,19 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 		}
 		return a.db.BatchDeleteNodes(act.ProcessID, act.NodeIDs, act.DeleteConnectedLinks)
 		
+	case "network.node.create":
+		var act struct {
+			ProcessID int     `json:"processId"`
+			NodeID    string  `json:"nodeId"`
+			X         float64 `json:"x"`
+			Y         float64 `json:"y"`
+			RawXML    string  `json:"rawXML"`
+		}
+		if err := json.Unmarshal(actionJSON, &act); err != nil {
+			return fmt.Errorf("failed to unmarshal create node action: %w", err)
+		}
+		return a.db.InsertNetworkNode(act.ProcessID, act.NodeID, act.X, act.Y, act.RawXML)
+		
 	case "network.link.create":
 		var act struct {
 			ProcessID int    `json:"processId"`

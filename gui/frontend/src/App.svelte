@@ -9,8 +9,10 @@
   import LoadingModal from "./components/modals/LoadingModal.svelte";
   import ExportProgressModal from "./components/modals/ExportProgressModal.svelte";
   import AttributesModal from "./components/modals/AttributesModal.svelte";
+  import ConfirmationModal from "./components/modals/ConfirmationModal.svelte";
   import ToastContainer from "./components/ToastContainer.svelte";
   import { appState, commandArgs, mapComponent } from "$lib/stores/app.svelte.ts";
+  import { confirmationState } from "$lib/stores/confirmationModal.svelte";
   import { PTService } from "$lib/api/pt";
   import NetworkController from "./components/network/NetworkController.svelte";
   import { networkState } from "$lib/stores/network.svelte";
@@ -46,6 +48,15 @@
 <LoadingModal />
 <ExportProgressModal />
 <AttributesModal />
+<ConfirmationModal 
+  bind:open={confirmationState.isOpen}
+  title={confirmationState.options?.title || ''}
+  message={confirmationState.options?.message || ''}
+  confirmText={confirmationState.options?.confirmText}
+  cancelText={confirmationState.options?.cancelText}
+  onConfirm={confirmationState.options?.onConfirm || (() => {})}
+  onCancel={confirmationState.options?.onCancel || (() => {})}
+/>
 <ToastContainer />
 
 {#if commandArgs.fileEditMode === 'NETWORK'}

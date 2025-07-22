@@ -30,7 +30,6 @@ export const networkState = $state<{
   nodes: NetworkNode[];
   links: NetworkLink[];
   selection: NetworkSelection;
-  pendingChanges: Map<string, any>;
   isDrawingPolygon: boolean;
   isAddingNode: boolean;
   isAddingLink: boolean;
@@ -42,7 +41,6 @@ export const networkState = $state<{
     selectedLinkId: null,
     selectedPolygon: null
   },
-  pendingChanges: new Map(),
   isDrawingPolygon: false,
   isAddingNode: false,
   isAddingLink: false
