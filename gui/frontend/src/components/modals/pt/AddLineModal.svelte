@@ -10,14 +10,12 @@
   let name = $state('');
   let number = $state('');
   let mode = $state<TransportMode>(TransportMode.Bus);
-  let color = $state('#FF0000');
   let error = $state('');
 
   function resetForm() {
     name = '';
     number = '';
     mode = TransportMode.Bus;
-    color = '#FF0000';
     error = '';
   }
 
@@ -51,7 +49,6 @@
       name: name.trim(),
       number: number.trim(),
       mode: mode,
-      color: color,
       agencyId: '',
       telemetryId: '',
       raw_xml: '',
@@ -114,22 +111,6 @@
         />
       </div>
 
-      <div>
-        <Label for="color" class="mb-2">Color</Label>
-        <div class="flex gap-2">
-          <Input
-            id="color"
-            type="color"
-            bind:value={color}
-            class="w-20 h-10"
-          />
-          <Input
-            bind:value={color}
-            placeholder="#FF0000"
-            class="flex-1"
-          />
-        </div>
-      </div>
 
       {#if error}
         <Helper color="red">{error}</Helper>

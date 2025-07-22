@@ -5,6 +5,7 @@
   // export let onToggleEditing = () => {};
   
   import { commandArgs } from '$lib/stores/app.svelte';
+  import PTModeSelector from './PTModeSelector.svelte';
 </script>
 
 <div class="flex items-center justify-center h-full">
@@ -15,6 +16,11 @@
   >
     {isEditingEnabled ? 'Disable' : 'Enable'} Drawing
   </button> -->
+  
+  <!-- PT Mode Selector when editing PT files -->
+  {#if commandArgs.fileEditMode === 'PT'}
+    <PTModeSelector />
+  {/if}
   
   <!-- Network mode toggle moved to primary sidebar -->
 </div>

@@ -59,6 +59,8 @@ export function GetPTDepartures(arg1:number,arg2:string):Promise<Array<gui.PTDep
 
 export function GetPTLine(arg1:number,arg2:string):Promise<gui.PTLine>;
 
+export function GetPTLineSummaries(arg1:number,arg2:string):Promise<Array<gui.PTLineSummary>>;
+
 export function GetPTLines(arg1:number):Promise<Array<gui.PTLine>>;
 
 export function GetPTLinesByMode(arg1:number,arg2:string):Promise<Array<gui.PTLine>>;
@@ -72,8 +74,6 @@ export function GetPTStatistics(arg1:number):Promise<Record<string, any>>;
 export function GetPTStop(arg1:number,arg2:string):Promise<gui.PTStop>;
 
 export function GetPTStops(arg1:number):Promise<Array<gui.PTStop>>;
-
-export function GetPTStopsByBbox(arg1:number,arg2:gui.BoundingBox):Promise<Array<gui.PTStop>>;
 
 export function GetPTTelemetry(arg1:number):Promise<gui.PTTelemetry>;
 

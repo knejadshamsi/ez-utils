@@ -26,7 +26,7 @@
   bodyScrolling={true}
   class="top-[72px] h-[calc(100vh-72px)] {state === 'COLLAPSED' ? 'w-16' : 'w-[420px]'} z-[1000]"
 >
-  <div class="h-full shadow-xl">
+  <div class="h-full">
     {#if commandArgs.fileEditMode === 'POPULATION'}
       <PopulationContent />
     {:else if commandArgs.fileEditMode === 'NETWORK'}

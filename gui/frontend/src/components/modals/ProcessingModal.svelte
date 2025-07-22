@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Modal, P, Spinner, Button } from "flowbite-svelte";
-  import { CheckCircleOutline } from "flowbite-svelte-icons";
+  import { CheckCircleOutline, ExclamationCircleOutline } from "flowbite-svelte-icons";
   import { appState, commandArgs, editingSession, type ProcessStatus } from "$lib/stores/app.svelte.ts";
   import { welcomeModalState } from "./welcome-modal/welcome.svelte";
   import { PTService } from "$lib/api/pt";
@@ -49,26 +49,26 @@
   let networkTelemetry = $state<NetworkTelemetry | null>(null);
   let ptTelemetry = $state<PTTelemetry | null>(null);
   
-  let isCompleted = $state(false);
   let pollingInterval = $state<ReturnType<typeof setInterval> | null>(null);
   let currentProcessId = $state<number | null>(null);
+  let processingError = $state<string | null>(null);
 
   // Start processing based on file type
   async function startProcessing() {
     if (!commandArgs.filePath) return;
     
-    isCompleted = false;
+    processingError = null;
 
     try {
       let result;
       switch (commandArgs.fileEditMode) {
         case 'POPULATION':
           result = await ProcessPopulationFile(commandArgs.filePath);
-          currentProcessId = result.processId || result.process_id;
+          currentProcessId = result.process_id;
           break;
         case 'NETWORK':
           result = await ProcessNetworkFile(commandArgs.filePath);
-          currentProcessId = result.processId || result.process_id;
+          currentProcessId = result.process_id;
           break;
         case 'PT':
           result = await ProcessPTFile(commandArgs.filePath);
@@ -87,33 +87,12 @@
       
     } catch (error) {
       console.error('Processing failed:', error);
+      processingError = error instanceof Error ? error.message : 'Processing failed';
+      appState.display = 'PROCESSING_FAILED';
       clearPolling();
     }
   }
 
-  // Start loading existing process
-  async function startLoading() {
-    if (!welcomeModalState.selectedProcessId) return;
-    
-    isCompleted = false;
-    currentProcessId = welcomeModalState.selectedProcessId;
-
-    try {
-      // Check if processing is complete
-      const status = await CheckProcessingStatus(currentProcessId);
-      
-      if (status === 'COMPLETED') {
-        isCompleted = true;
-      } else if (status === 'FAILED') {
-        throw new Error('Process failed during processing');
-      } else {
-        throw new Error(`Process is still ${status}. Please wait for processing to complete.`);
-      }
-      
-    } catch (error) {
-      console.error('Loading failed:', error);
-    }
-  }
 
   // Start telemetry polling for processing
   function startTelemetryPolling() {
@@ -142,10 +121,11 @@
         const status = await CheckProcessingStatus(currentProcessId);
         
         if (status === 'COMPLETED') {
-          isCompleted = true;
+          appState.display = 'PROCESSING_SUCCESS';
           clearPolling();
           return;
         } else if (status === 'FAILED') {
+          appState.display = 'PROCESSING_FAILED';
           clearPolling();
           return;
         }
@@ -185,54 +165,11 @@
     }
   }
 
-  // Handle begin editing button click
-  async function handleBeginEditing() {
-    clearPolling();
-    
-    // Set the editing session values
-    if (currentProcessId) {
-      editingSession.processId = currentProcessId;
-      
-      // Set table name based on file edit mode
-      switch (commandArgs.fileEditMode) {
-        case 'POPULATION':
-          editingSession.tableName = `population_data_${currentProcessId}`;
-          break;
-        case 'NETWORK':
-          // Network might use a different naming convention
-          editingSession.tableName = `network_${currentProcessId}`;
-          break;
-        case 'PT':
-          // PT might use a different naming convention
-          editingSession.tableName = `pt_${currentProcessId}`;
-          break;
-      }
-      
-      console.log('Editing session initialized:', {
-        processId: editingSession.processId,
-        tableName: editingSession.tableName,
-        fileEditMode: commandArgs.fileEditMode
-      });
-    }
-    
-    // Load PT data if in PT editing mode
-    if (commandArgs.fileEditMode === 'PT') {
-      try {
-        await PTService.loadPTData();
-      } catch (error) {
-        console.error('Failed to load PT data:', error);
-      }
-    }
-    
-    appState.display = 'EDITING';
-  }
 
-  // Effect to start operations when modal opens
+  // Effect to start processing when modal opens
   $effect(() => {
     if (appState.display === 'PROCESSING') {
       startProcessing();
-    } else if (appState.display === 'LOADING') {
-      startLoading();
     }
   });
 
@@ -245,7 +182,7 @@
 </script>
 
 <Modal 
-  open={appState.display === 'LOADING' || appState.display === 'PROCESSING'} 
+  open={appState.display === 'PROCESSING' || appState.display === 'PROCESSING_SUCCESS' || appState.display === 'PROCESSING_FAILED'} 
   permanent
   dismissable={false}
   outsideclose={false}
@@ -253,39 +190,23 @@
   size="md"
   placement="center"
 >
-  {#if appState.display === 'PROCESSING'}
-    {#snippet header()}
-      <h3 class="text-xl font-semibold text-gray-900 dark:text-white text-center flex items-center justify-center gap-3">
-        {#if !isCompleted}
-          <Spinner size="6" />
-        {:else}
-          <CheckCircleOutline class="w-6 h-6 text-green-500" />
-        {/if}
-        {isCompleted ? `${commandArgs.fileEditMode} File Processed` : `Processing ${commandArgs.fileEditMode} File`}
-      </h3>
-    {/snippet}
-  {/if}
+  {#snippet header()}
+    <h3 class="text-xl font-semibold text-gray-900 dark:text-white text-center flex items-center justify-center gap-3">
+      {#if appState.display === 'PROCESSING'}
+        <Spinner size="6" />
+        Processing {commandArgs.fileEditMode} File
+      {:else if appState.display === 'PROCESSING_SUCCESS'}
+        <CheckCircleOutline class="w-6 h-6 text-green-500" />
+        {commandArgs.fileEditMode} File Processed
+      {:else if appState.display === 'PROCESSING_FAILED'}
+        <ExclamationCircleOutline class="w-6 h-6 text-red-500" />
+        Processing Failed
+      {/if}
+    </h3>
+  {/snippet}
   
   <div class="space-y-6">
-    {#if appState.display === 'LOADING'}
-      <!-- Loading State -->
-      <div class="text-center space-y-4">
-        <div class="flex items-center justify-center gap-3">
-          {#if !isCompleted}
-            <Spinner size="8" />
-            <P class="text-xl text-gray-600 dark:text-gray-400">
-              Loading {commandArgs.fileEditMode} process data...
-            </P>
-          {:else}
-            <CheckCircleOutline class="w-8 h-8 text-green-500" />
-            <P class="text-xl text-gray-600 dark:text-gray-400">
-              Process loaded successfully
-            </P>
-          {/if}
-        </div>
-      </div>
-      
-    {:else if appState.display === 'PROCESSING'}
+    {#if appState.display === 'PROCESSING'}
       <!-- Processing State -->
       <div class="space-y-4">
         
@@ -355,15 +276,37 @@
       </div>
     {/if}
     
-    <!-- Begin Editing Button -->
-    {#if isCompleted}
-      <div class="text-center">
+    {#if appState.display === 'PROCESSING_SUCCESS'}
+      <!-- Success State -->
+      <div class="text-center space-y-4">
+        <P class="text-gray-600 dark:text-gray-400">
+          File processing completed successfully.
+        </P>
         <Button 
           color="primary" 
           size="lg"
-          onclick={handleBeginEditing}
+          onclick={() => {
+            // Set the process ID for loading
+            if (currentProcessId) {
+              welcomeModalState.selectedProcessId = currentProcessId;
+            }
+            appState.display = 'LOADING';
+          }}
         >
-          Begin Editing
+          Load Data
+        </Button>
+      </div>
+    {:else if appState.display === 'PROCESSING_FAILED'}
+      <!-- Failed State -->
+      <div class="text-center space-y-4">
+        <P color="red" class="text-red-600 dark:text-red-400">
+          {processingError || 'Processing failed. Please check the file and try again.'}
+        </P>
+        <Button 
+          color="alternative" 
+          onclick={() => appState.display = 'WELCOME'}
+        >
+          Back to Welcome
         </Button>
       </div>
     {/if}

@@ -292,10 +292,18 @@ func (a *App) ExportPTSubset(processID int, bbox BoundingBox, outputPath string)
 
 // ExportSubset exports only stops and related lines within a bounding box
 func (e *PTExporter) ExportSubset(bbox BoundingBox, outputPath string) error {
-	// Get stops within bounding box
-	stops, err := e.app.GetPTStopsByBbox(e.processID, bbox)
+	// Get all stops and filter by bounding box
+	allStops, err := e.app.GetPTStops(e.processID)
 	if err != nil {
-		return fmt.Errorf("failed to get stops in bbox: %w", err)
+		return fmt.Errorf("failed to get stops: %w", err)
+	}
+	
+	// Filter stops by bounding box
+	var stops []PTStop
+	for _, stop := range allStops {
+		if stop.X >= bbox.West && stop.X <= bbox.East && stop.Y >= bbox.South && stop.Y <= bbox.North {
+			stops = append(stops, stop)
+		}
 	}
 
 	// Create a set of stop IDs for quick lookup

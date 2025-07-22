@@ -25,7 +25,7 @@ export function updatePTVisualization() {
   if (!selectedRouteData) return;
   
   const { line, route } = selectedRouteData;
-  const color = line.color || modeColors[line.mode] || '#666666';
+  const color = modeColors[line.mode] || '#666666';
   
   if (ptState.visibility.stops && route.stopSequence.length > 0) {
     // Create dots for each stop in the route

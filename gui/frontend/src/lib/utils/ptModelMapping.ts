@@ -5,7 +5,6 @@ import type { gui } from '../../../../wailsjs/go/models';
 export interface PTLineExtended extends gui.PTLine {
   name: string;
   number: string;
-  color: string;
   agencyId: string;
   telemetryId: string;
 }
@@ -32,18 +31,18 @@ export interface PTRouteStopExtended extends gui.PTRouteStop {
 export interface PTDepartureExtended extends gui.PTDeparture {
   routeId: string; // Map from route_id
   departureTime: string; // Map from departure_time
+  vehicle_id?: string;
 }
 
 // Helper functions to convert between backend and frontend models
 
 export function mapPTLine(line: gui.PTLine): PTLineExtended {
-  // Parse name, number, color from raw_xml if available
+  // Parse name, number from raw_xml if available
   // For now, use defaults
   return {
     ...line,
     name: `Line ${line.id}`,
     number: '',
-    color: '#FF0000',
     agencyId: '',
     telemetryId: ''
   };

@@ -98,6 +98,26 @@ export namespace gui {
 	        this.raw_xml = source["raw_xml"];
 	    }
 	}
+	export class PTLineSummary {
+	    id: string;
+	    name: string;
+	    mode: string;
+	    route_count: number;
+	    departure_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new PTLineSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.mode = source["mode"];
+	        this.route_count = source["route_count"];
+	        this.departure_count = source["departure_count"];
+	    }
+	}
 	export class PTRoute {
 	    id: string;
 	    line_id: string;

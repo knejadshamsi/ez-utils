@@ -3,9 +3,9 @@ import { mapPTLine, mapPTRoute, mapPTStop, mapPTRouteStop, mapPTDeparture } from
 import type { PTLineExtended, PTRouteExtended, PTStopExtended, PTRouteStopExtended, PTDepartureExtended } from '$lib/utils/ptModelMapping';
 
 export enum TransportMode {
-  Bus = 'bus',
-  Metro = 'metro',
-  Tram = 'tram'
+  Bus = 'BUS',
+  Metro = 'METRO',
+  Tram = 'TRAM'
 }
 
 export interface StopTime {
@@ -18,6 +18,7 @@ export interface StopTime {
 export interface RouteWithTiming extends PTRouteExtended {
   firstDeparture: string;
   stopSequence: StopTime[];
+  departures?: PTDepartureExtended[];
 }
 
 export interface LineWithRoutes extends PTLineExtended {
@@ -29,6 +30,14 @@ export interface PTVisibility {
   routes: boolean;
 }
 
+// Loading states for different data levels
+export interface PTLoadingState {
+  summaries: boolean;
+  lines: Map<string, boolean>; // Loading state per line
+  routes: Map<string, boolean>; // Loading state per route
+  stops: boolean;
+}
+
 class PTState {
   modes = $state<Set<TransportMode>>(new Set([
     TransportMode.Bus,
@@ -36,6 +45,10 @@ class PTState {
     TransportMode.Tram
   ]));
   
+  // Line summaries for lazy loading
+  lineSummaries = $state<Map<string, gui.PTLineSummary>>(new Map());
+  
+  // Full data loaded on demand
   lines = $state<Map<string, LineWithRoutes>>(new Map());
   stops = $state<Map<string, PTStopExtended>>(new Map());
   selectedLineId = $state<string | null>(null);
@@ -51,12 +64,28 @@ class PTState {
     routes: true
   });
   
+  // Loading states
+  loading = $state<PTLoadingState>({
+    summaries: false,
+    lines: new Map(),
+    routes: new Map(),
+    stops: false
+  });
+  
+  // Data loaded flags
+  loadedLines = $state<Set<string>>(new Set());
+  loadedRoutes = $state<Set<string>>(new Set());
+  stopsLoaded = $state<boolean>(false);
+  
   isAddingStop = $state<boolean>(false);
   isSelectingStopLocation = $state<boolean>(false);
   selectingStopId = $state<string | null>(null);
   updateVersion = $state<number>(0);
   isDraggingStop = $state<boolean>(false);
   isAddingMultipleStops = $state<boolean>(false);
+  
+  // Selected vehicle type for filtering
+  selectedMode = $state<TransportMode>(TransportMode.Bus);
 
   selectedLine = $derived(
     this.selectedLineId ? this.lines.get(this.selectedLineId) : null
@@ -100,6 +129,35 @@ class PTState {
     
     return grouped;
   });
+  
+  // Get line summaries grouped by mode for lazy loading
+  lineSummariesByMode = $derived(() => {
+    const grouped = new Map<TransportMode, gui.PTLineSummary[]>();
+    
+    for (const mode of this.visibleModes) {
+      grouped.set(mode, []);
+    }
+    
+    for (const summary of this.lineSummaries.values()) {
+      const mode = summary.mode as TransportMode;
+      if (this.visibleModes.has(mode) && grouped.has(mode)) {
+        grouped.get(mode)!.push(summary);
+      }
+    }
+    
+    return grouped;
+  });
+  
+  // Get line summaries for the selected mode only
+  selectedModeSummaries = $derived(() => {
+    const summaries: gui.PTLineSummary[] = [];
+    for (const summary of this.lineSummaries.values()) {
+      if (summary.mode === this.selectedMode) {
+        summaries.push(summary);
+      }
+    }
+    return summaries;
+  });
 
   toggleMode(mode: TransportMode) {
     const newSet = new Set(this.visibleModes);
@@ -111,6 +169,23 @@ class PTState {
       console.log(`[ptState] Mode ${mode} shown, visible modes:`, Array.from(newSet));
     }
     this.visibleModes = newSet;
+  }
+
+  setSelectedMode(mode: TransportMode) {
+    this.selectedMode = mode;
+    // Clear selected line and route when mode changes
+    this.selectedLineId = null;
+    this.selectedRouteId = null;
+    
+    // Clear all line data for the previous mode
+    this.lineSummaries = new Map();
+    this.lines = new Map();
+    this.loadedLines = new Set();
+    
+    // Keep stops as they can be shared across modes
+    // but clear loading states
+    this.loading.lines = new Map();
+    this.loading.routes = new Map();
   }
 
   setSelectedLine(lineId: string | null) {
@@ -144,13 +219,52 @@ class PTState {
     this.visibility[type] = !this.visibility[type];
   }
 
-  loadPTData(lines: gui.PTLine[], stops: gui.PTStop[], routes: gui.PTRoute[], routeStops: gui.PTRouteStop[], departures: gui.PTDeparture[]) {
-    const newStops = new Map<string, PTStopExtended>();
-    for (const stop of stops) {
-      const mappedStop = mapPTStop(stop);
-      newStops.set(mappedStop.id, mappedStop);
+  // Load only line summaries initially
+  loadLineSummaries(summaries: gui.PTLineSummary[]) {
+    console.log('[ptState] Loading line summaries, received:', summaries?.length || 0);
+    
+    // Always create a new map, even if empty
+    const newSummaries = new Map<string, gui.PTLineSummary>();
+    
+    if (summaries && summaries.length > 0) {
+      for (const summary of summaries) {
+        console.log('[ptState] Adding summary:', summary.id, summary.name, summary.mode);
+        newSummaries.set(summary.id, summary);
+      }
     }
-    this.stops = newStops;
+    
+    this.lineSummaries = newSummaries;
+  }
+  
+  // Check if a line's full data is loaded
+  isLineLoaded(lineId: string): boolean {
+    return this.loadedLines.has(lineId);
+  }
+  
+  // Check if a route's departures are loaded
+  isRouteLoaded(routeId: string): boolean {
+    return this.loadedRoutes.has(routeId);
+  }
+  
+  loadPTData(lines: gui.PTLine[], stops: gui.PTStop[], routes: gui.PTRoute[], routeStops: gui.PTRouteStop[], departures: gui.PTDeparture[], merge: boolean = false) {
+    // Handle stops - merge or replace
+    if (stops.length > 0) {
+      if (merge) {
+        // Merge new stops into existing
+        for (const stop of stops) {
+          const mappedStop = mapPTStop(stop);
+          this.stops.set(mappedStop.id, mappedStop);
+        }
+      } else {
+        // Replace all stops
+        const newStops = new Map<string, PTStopExtended>();
+        for (const stop of stops) {
+          const mappedStop = mapPTStop(stop);
+          newStops.set(mappedStop.id, mappedStop);
+        }
+        this.stops = newStops;
+      }
+    }
 
     const routeMap = new Map<string, RouteWithTiming>();
     const routeStopsByRoute = new Map<string, PTRouteStopExtended[]>();
@@ -191,10 +305,13 @@ class PTState {
         departures.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
         route.firstDeparture = departures[0].departureTime.substring(11, 16);
       }
+      
+      // Store departures in the route
+      route.departures = departures;
 
       route.stopSequence = routeStops.map((rs, index) => ({
         stopId: rs.stopId,
-        arrival: rs.arrivalOffset ? this.calculateArrivalTime(route.firstDeparture, rs.arrivalOffset) : route.firstDeparture,
+        arrival: rs.arrivalOffset !== undefined ? this.calculateArrivalTime(route.firstDeparture, rs.arrivalOffset) : route.firstDeparture || '00:00',
         dwellMinutes: rs.dwellTime || 0,
         sequence: rs.sequence
       }));
@@ -216,10 +333,26 @@ class PTState {
         routes: lineRoutes
       });
     }
-    this.lines = newLines;
+    // Merge or replace lines
+    if (merge) {
+      // Merge new lines into existing
+      for (const [lineId, lineData] of newLines) {
+        this.lines.set(lineId, lineData);
+      }
+    } else {
+      // Replace all lines
+      this.lines = newLines;
+    }
   }
 
   calculateArrivalTime(firstDeparture: string, offsetMinutes: number): string {
+    if (!firstDeparture || !firstDeparture.includes(':')) {
+      // If no first departure, assume 00:00 as base
+      const totalMinutes = offsetMinutes;
+      const newHours = Math.floor(totalMinutes / 60) % 24;
+      const newMinutes = totalMinutes % 60;
+      return `${newHours.toString().padStart(2, '0')}:${newMinutes.toString().padStart(2, '0')}`;
+    }
     const [hours, minutes] = firstDeparture.split(':').map(Number);
     const totalMinutes = hours * 60 + minutes + offsetMinutes;
     const newHours = Math.floor(totalMinutes / 60) % 24;
@@ -320,6 +453,84 @@ class PTState {
     return result;
   }
 
+  // Add a single departure to a route
+  addDeparture(lineId: string, routeId: string, departure: PTDepartureExtended): void {
+    const line = this.lines.get(lineId);
+    if (!line) return;
+    
+    const routeIndex = line.routes.findIndex(r => r.id === routeId);
+    if (routeIndex === -1) return;
+    
+    const route = line.routes[routeIndex];
+    
+    // Initialize departures array if not exists
+    const currentDepartures = route.departures || [];
+    
+    // Add and sort departures - create new array for reactivity
+    const newDepartures = [...currentDepartures, departure].sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+    
+    // Create updated route with new departures
+    const updatedRoute = {
+      ...route,
+      departures: newDepartures
+    };
+    
+    // Update first departure if this is the earliest
+    if (newDepartures.length === 1 || departure.departureTime < updatedRoute.firstDeparture) {
+      updatedRoute.firstDeparture = departure.departureTime.substring(0, 5);
+      
+      // Update stop times if they were previously calculated
+      if (updatedRoute.stopSequence.length > 0) {
+        updatedRoute.stopSequence = [
+          { ...updatedRoute.stopSequence[0], arrival: updatedRoute.firstDeparture },
+          ...updatedRoute.stopSequence.slice(1)
+        ];
+      }
+    }
+    
+    // Create new line with updated route
+    const updatedLine = {
+      ...line,
+      routes: line.routes.map((r, i) => i === routeIndex ? updatedRoute : r)
+    };
+    
+    // Trigger reactivity
+    this.lines.set(lineId, updatedLine);
+    this.updateVersion++;
+  }
+
+  // Update departures for a specific route
+  updateRouteDepartures(routeId: string, departures: gui.PTDeparture[]): void {
+    // Find the line containing this route
+    for (const [lineId, line] of this.lines) {
+      const routeIndex = line.routes.findIndex(r => r.id === routeId);
+      if (routeIndex !== -1) {
+        const route = line.routes[routeIndex];
+        
+        // Map and sort departures
+        const mappedDepartures = departures.map(d => mapPTDeparture(d));
+        mappedDepartures.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+        
+        // Update first departure time
+        if (mappedDepartures.length > 0) {
+          route.firstDeparture = mappedDepartures[0].departureTime.substring(11, 16);
+          
+          // Update stop times if they were previously calculated from an offset
+          // We don't recalculate them here as we don't have the original offset data
+          // Just update the first stop's arrival to match the first departure
+          if (route.stopSequence.length > 0) {
+            route.stopSequence[0].arrival = route.firstDeparture;
+          }
+        }
+        
+        // Trigger reactivity by updating the line
+        this.lines.set(lineId, { ...line });
+        this.updateVersion++;
+        break;
+      }
+    }
+  }
+  
   deleteRoute(lineId: string, routeId: string): void {
     const line = this.lines.get(lineId);
     if (!line) return;

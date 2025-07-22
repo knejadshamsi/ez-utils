@@ -6,6 +6,7 @@
   import SecondarySidebar from "./SecondarySidebar.svelte";
   import WelcomeModal from "./components/modals/WelcomeModal.svelte";
   import ProcessingModal from "./components/modals/ProcessingModal.svelte";
+  import LoadingModal from "./components/modals/LoadingModal.svelte";
   import ExportProgressModal from "./components/modals/ExportProgressModal.svelte";
   import AttributesModal from "./components/modals/AttributesModal.svelte";
   import ToastContainer from "./components/ToastContainer.svelte";
@@ -19,9 +20,9 @@
   
   onMount(async () => {
     if (appState.display === 'EDITING' && commandArgs.fileEditMode === 'PT') {
-      console.log('[App] Loading PT data...');
+      console.log('[App] Loading PT data for default mode (bus)...');
       try {
-        await PTService.loadPTData();
+        await PTService.loadPTData('BUS'); // Load only BUS mode initially
       } catch (error) {
         console.error('[App] Failed to load PT data on app start:', error);
       }
@@ -42,6 +43,7 @@
 
 <WelcomeModal />
 <ProcessingModal />
+<LoadingModal />
 <ExportProgressModal />
 <AttributesModal />
 <ToastContainer />

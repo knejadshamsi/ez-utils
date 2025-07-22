@@ -15,17 +15,6 @@ func (a *App) GetPTStops(processID int) ([]PTStop, error) {
 	return stops, nil
 }
 
-// GetPTStopsByBbox retrieves stops within a bounding box
-func (a *App) GetPTStopsByBbox(processID int, bbox BoundingBox) ([]PTStop, error) {
-	stops, err := a.db.GetPTStopsByBbox(processID, bbox)
-	if err != nil {
-		return make([]PTStop, 0), err
-	}
-	if stops == nil {
-		return make([]PTStop, 0), nil
-	}
-	return stops, nil
-}
 
 // GetPTStop retrieves a specific stop by ID
 func (a *App) GetPTStop(processID int, stopID string) (*PTStop, error) {
@@ -100,4 +89,16 @@ func (a *App) GetPTDepartures(processID int, routeID string) ([]PTDeparture, err
 // GetPTStatistics returns statistics for PT data
 func (a *App) GetPTStatistics(processID int) (map[string]interface{}, error) {
 	return a.db.GetPTStatistics(processID)
+}
+
+// GetPTLineSummaries retrieves line summaries with route and departure counts for a specific mode
+func (a *App) GetPTLineSummaries(processID int, mode string) ([]PTLineSummary, error) {
+	summaries, err := a.db.GetPTLineSummaries(processID, mode)
+	if err != nil {
+		return make([]PTLineSummary, 0), err
+	}
+	if summaries == nil {
+		return make([]PTLineSummary, 0), nil
+	}
+	return summaries, nil
 }
