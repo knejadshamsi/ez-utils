@@ -77,7 +77,7 @@ func (a *App) ProcessPTFile(filePath string) (*ProcessResult, error) {
 	if err := a.db.CreatePTTables(int(processID)); err != nil {
 		a.db.execQuery(
 			"UPDATE processes SET status = ? WHERE process_id = ?",
-			"", "FAILED", processID,
+			"", "PROCESSING_FAILED", processID,
 		)
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func (a *App) ProcessPTFile(filePath string) (*ProcessResult, error) {
 	a.db.execQuery(
 		"UPDATE processes SET status = ? WHERE process_id = ?",
 		"failed to update process status",
-		"INITIALIZING", processID,
+		"PROCESSING", processID,
 	)
 	
 	// Start async processing
@@ -142,7 +142,7 @@ func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64)
 		a.db.execQuery(
 			"UPDATE processes SET status = ? WHERE process_id = ?",
 			"",
-			"FAILED", processID,
+			"PROCESSING_FAILED", processID,
 		)
 		return
 	}
@@ -163,9 +163,9 @@ func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64)
 	done <- true
 
 	// Update final status
-	status := "COMPLETED"
+	status := "PROCESSING_SUCCESS"
 	if err != nil {
-		status = "FAILED"
+		status = "PROCESSING_FAILED"
 		wailsruntime.EventsEmit(a.ctx, "pt-processing-error", map[string]interface{}{
 			"processID": processID,
 			"error":     err.Error(),

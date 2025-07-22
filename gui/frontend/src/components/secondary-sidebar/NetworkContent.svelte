@@ -4,7 +4,6 @@
   import { appState } from '$lib/stores/app.svelte.ts';
   import { networkState, getNodeById, getLinkById, canDeleteNode, clearSelection } from '$lib/stores/network.svelte';
   import { updateNode, updateLink, deleteNode, deleteLink } from '$lib/api/network';
-  import { trackNodeChange, trackLinkChange } from '$lib/utils/networkChangeTracking';
   
   const selectedNode = $derived(
     networkState.selection.selectedNodeId 
@@ -29,13 +28,13 @@
     appState.secondarySidebar = 'HIDDEN';
   }
   
-  async function deleteEntity() {
+  function deleteEntity() {
     try {
       if (networkState.selection.selectedNodeId) {
-        await deleteNode(networkState.selection.selectedNodeId);
+        deleteNode(networkState.selection.selectedNodeId);
         appState.secondarySidebar = 'HIDDEN';
       } else if (networkState.selection.selectedLinkId) {
-        await deleteLink(networkState.selection.selectedLinkId);
+        deleteLink(networkState.selection.selectedLinkId);
         appState.secondarySidebar = 'HIDDEN';
       }
     } catch (error) {
@@ -43,36 +42,28 @@
     }
   }
   
-  async function updateNodeProperty(property: keyof typeof selectedNode, value: any) {
+  function updateNodeProperty(property: keyof typeof selectedNode, value: any) {
     if (selectedNode) {
-      const nodeIndex = networkState.nodes.findIndex(n => n.id === selectedNode.id);
-      if (nodeIndex !== -1) {
-        const updatedNode = { ...networkState.nodes[nodeIndex], [property]: value };
-        networkState.nodes[nodeIndex] = updatedNode;
-        
-        try {
-          await updateNode(updatedNode);
-          trackNodeChange(updatedNode, 'update');
-        } catch (error) {
-          console.error('Failed to update node:', error);
-        }
+      const updatedNode = { ...selectedNode, [property]: value };
+      
+      try {
+        // updateNode handles both state update and change tracking
+        updateNode(updatedNode);
+      } catch (error) {
+        console.error('Failed to update node:', error);
       }
     }
   }
   
-  async function updateLinkProperty(property: keyof typeof selectedLink, value: any) {
+  function updateLinkProperty(property: keyof typeof selectedLink, value: any) {
     if (selectedLink) {
-      const linkIndex = networkState.links.findIndex(l => l.id === selectedLink.id);
-      if (linkIndex !== -1) {
-        const updatedLink = { ...networkState.links[linkIndex], [property]: value };
-        networkState.links[linkIndex] = updatedLink;
-        
-        try {
-          await updateLink(updatedLink);
-          trackLinkChange(updatedLink, 'update');
-        } catch (error) {
-          console.error('Failed to update link:', error);
-        }
+      const updatedLink = { ...selectedLink, [property]: value };
+      
+      try {
+        // updateLink handles both state update and change tracking
+        updateLink(updatedLink);
+      } catch (error) {
+        console.error('Failed to update link:', error);
       }
     }
   }

@@ -41,13 +41,23 @@
       
       // Check if we have pending changes
       if (changeTracker.pendingChanges.length > 0) {
-        const shouldSave = confirm('You have unsaved changes. Would you like to save them before exporting?');
+        const { showConfirmation } = await import('$lib/stores/confirmationModal.svelte');
+        
+        const shouldSave = await new Promise<boolean>((resolve) => {
+          showConfirmation({
+            title: "Unsaved Changes",
+            message: "You have unsaved changes. Would you like to save them before exporting?",
+            confirmText: "Save & Export",
+            cancelText: "Export Without Saving",
+            onConfirm: () => resolve(true),
+            onCancel: () => resolve(false)
+          });
+        });
+        
         if (shouldSave) {
           await handleSync();
-        } else {
-          // User cancelled - return to editing without doing anything
-          return;
         }
+        // Continue with export regardless of choice
       }
       
       // Open save file dialog
