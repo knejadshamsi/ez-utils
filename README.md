@@ -28,6 +28,9 @@ then test: cd test && ez-utils edit popultation test_pop.xml
   # Test CLI commands (should NOT launch GUI)
   ez-utils scale
   ez-utils create
+  
+  # Test Transit Vehicle TUI (creates/edits transit vehicles)
+  ez-utils create tv transitVehicles.xml
 
   # Test GUI command (should launch GUI)
   ez-utils edit population test_pop.xml
