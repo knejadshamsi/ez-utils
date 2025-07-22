@@ -2,12 +2,18 @@ package model
 
 import (
 	"ez-utils/src/create/tv/core"
+	"ez-utils/src/create/tv/io"
 	"ez-utils/src/create/tv/tui/form"
 	"ez-utils/src/create/tv/tui/modals"
+	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// clearStatusMsg is sent when the status message timer expires
+type clearStatusMsg struct{}
 
 // Init initializes the model
 func (m Model) Init() tea.Cmd {
@@ -25,7 +31,57 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.updateListSizes()
 
+	case clearStatusMsg:
+		// Clear the status message when timer expires
+		m.statusMsg = ""
+		return m, nil
+
 	case tea.KeyMsg:
+		// Handle delete confirmation modal input first
+		if m.modal == ModalDeleteConfirmation {
+			switch msg.String() {
+			case "y", "Y":
+				// Perform the actual deletion
+				var successMsg string
+
+				switch m.itemToDeleteType {
+				case FocusTypesList:
+					// Delete the vehicle type
+					m.manager.RemoveVehicleType(m.itemToDeleteID)
+					m.manager.HasChanges = true
+					successMsg = fmt.Sprintf("Vehicle type '%s' deleted.", m.itemToDeleteID)
+					// Update both lists since deleting a type affects both
+					m.updateLists()
+
+				case FocusVehiclesList:
+					// Delete the vehicle
+					m.manager.RemoveVehicle(m.itemToDeleteID)
+					m.manager.HasChanges = true
+					successMsg = fmt.Sprintf("Vehicle '%s' deleted.", m.itemToDeleteID)
+					// Update only vehicles list
+					m.updateVehiclesList()
+				}
+
+				// Reset modal state and show success message
+				m.modal = ModalNone
+				m.itemToDeleteID = ""
+				m.itemToDeleteType = 0
+				if successMsg != "" {
+					cmd = m.SetTimedStatusMessage(successMsg, 3*time.Second)
+					cmds = append(cmds, cmd)
+				}
+				return m, tea.Batch(cmds...)
+
+			case "n", "N", "esc":
+				// Cancel deletion
+				m.modal = ModalNone
+				m.itemToDeleteID = ""
+				m.itemToDeleteType = 0
+				return m, nil
+			}
+			return m, nil
+		}
+
 		if m.modal != ModalNone && m.currentForm != nil {
 			// Handle form input
 			*m.currentForm, cmd = m.currentForm.Update(msg)
@@ -43,45 +99,56 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				modals.ShowAddTypeModal(&m)
 			}
 		case "d":
+			// Check if we're in the delete confirmation modal
+			if m.modal == ModalDeleteConfirmation {
+				return m, nil // Don't process 'd' key when modal is open
+			}
+
 			if m.modal == ModalNone {
 				switch m.focus {
 				case FocusTypesList:
 					// Get the currently selected vehicle type
 					if selectedItem := m.typesList.SelectedItem(); selectedItem != nil {
 						if typeItem, ok := selectedItem.(VehicleTypeItem); ok {
-							// Remove the vehicle type
-							m.manager.RemoveVehicleType(typeItem.vt.ID)
-							m.manager.HasChanges = true
-							// Update the vehicles list to reflect the removal
-							m.updateVehiclesList()
-							// Display status message
-							m.SetStatusMsg("Deleted vehicle type: " + typeItem.vt.ID)
+							// Store the context for deletion
+							m.itemToDeleteID = typeItem.vt.ID
+							m.itemToDeleteType = FocusTypesList
+							m.modal = ModalDeleteConfirmation
 						}
 					}
 				case FocusVehiclesList:
 					// Get the currently selected vehicle
 					if selectedItem := m.vehiclesList.SelectedItem(); selectedItem != nil {
 						if vehicleItem, ok := selectedItem.(VehicleItem); ok {
-							// Remove the vehicle
-							m.manager.RemoveVehicle(vehicleItem.v.ID)
-							m.manager.HasChanges = true
-							// Update the vehicles list to reflect the removal
-							m.updateVehiclesList()
-							// Display status message
-							m.SetStatusMsg("Deleted vehicle: " + vehicleItem.v.ID)
+							// Store the context for deletion
+							m.itemToDeleteID = vehicleItem.v.ID
+							m.itemToDeleteType = FocusVehiclesList
+							m.modal = ModalDeleteConfirmation
 						}
 					}
 				}
 			}
 		case "s":
 			if m.modal == ModalNone {
-				m.SetErrorMsg("Save not implemented yet")
+				// Call the SaveToFile function
+				if err := io.SaveToFile(m.manager, m.manager.VehiclesFile); err != nil {
+					// Display error message with details
+					m.SetErrorMsg(fmt.Sprintf("Failed to save: %v", err))
+				} else {
+					// Update manager state and show success message
+					m.manager.HasChanges = false
+					cmd = m.SetTimedStatusMessage(fmt.Sprintf("✅ Saved changes to %s", m.manager.VehiclesFile), 5*time.Second)
+					cmds = append(cmds, cmd)
+				}
 			}
 		case "esc":
 			if m.modal != ModalNone {
 				m.modal = ModalNone
 				m.currentForm = nil
 				m.errorMsg = ""
+				// Clear delete confirmation context
+				m.itemToDeleteID = ""
+				m.itemToDeleteType = 0
 			}
 		case "right":
 			if m.modal == ModalNone && m.focus == FocusTypesList {
@@ -202,6 +269,15 @@ func (m *Model) SetModal(modal int) {
 func (m *Model) SetStatusMsg(msg string) {
 	m.statusMsg = msg
 	m.errorMsg = "" // Clear error when setting status
+}
+
+// SetTimedStatusMessage sets a status message that will automatically clear after the specified duration
+func (m *Model) SetTimedStatusMessage(msg string, duration time.Duration) tea.Cmd {
+	m.statusMsg = msg
+	m.errorMsg = "" // Clear error when setting status
+	return tea.Tick(duration, func(t time.Time) tea.Msg {
+		return clearStatusMsg{}
+	})
 }
 
 func (m *Model) SetErrorMsg(msg string) {

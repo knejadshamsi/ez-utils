@@ -27,6 +27,7 @@ const (
 	ModalImportSchedule
 	ModalImportFile
 	ModalExport
+	ModalDeleteConfirmation
 )
 
 // Styles for UI components
@@ -129,6 +130,10 @@ type Model struct {
 
 	// Selected vehicle type (for filtering vehicles)
 	selectedType *core.VehicleType
+
+	// Delete confirmation context
+	itemToDeleteID   string
+	itemToDeleteType FocusState
 }
 
 // NewModel creates a new model instance

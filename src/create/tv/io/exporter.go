@@ -2,10 +2,10 @@ package io
 
 import (
 	"encoding/xml"
+	"ez-utils/src/create/tv/core"
 	"fmt"
 	"os"
 	"time"
-	"ez-utils/src/create/tv/core"
 )
 
 // VehicleExporter handles exporting vehicles to MATSim XML format
@@ -42,15 +42,15 @@ func (ve *VehicleExporter) Export(filename string) error {
 
 	// Create root element
 	root := VehicleDefinitions{
-		XMLNs: "http://www.matsim.org/files/dtd",
-		XMLNsXsi: "http://www.w3.org/2001/XMLSchema-instance",
+		XMLNs:             "http://www.matsim.org/files/dtd",
+		XMLNsXsi:          "http://www.w3.org/2001/XMLSchema-instance",
 		XsiSchemaLocation: "http://www.matsim.org/files/dtd http://www.matsim.org/files/dtd/vehicleDefinitions_v1.0.xsd",
 	}
 
 	// Add vehicle types (already in order since using slice)
 	for _, vt := range ve.VehicleTypes {
 		xmlType := XMLVehicleType{
-			ID: vt.ID,
+			ID:          vt.ID,
 			Description: vt.Description,
 			Capacity: XMLCapacity{
 				Seats: XMLSeats{
@@ -60,11 +60,11 @@ func (ve *VehicleExporter) Export(filename string) error {
 					Persons: vt.Capacity.Standing,
 				},
 			},
-			Length: vt.Length,
-			Width: vt.Width,
-			AccessTime: vt.AccessTime,
-			EgressTime: vt.EgressTime,
-			DoorOperation: vt.DoorOperation,
+			Length:                  vt.Length,
+			Width:                   vt.Width,
+			AccessTime:              vt.AccessTime,
+			EgressTime:              vt.EgressTime,
+			DoorOperation:           vt.DoorOperation,
 			PassengerCarEquivalents: vt.PassengerCarEquivalents,
 		}
 		root.VehicleTypes = append(root.VehicleTypes, xmlType)
@@ -73,7 +73,7 @@ func (ve *VehicleExporter) Export(filename string) error {
 	// Add vehicles (already in order since using slice)
 	for _, v := range ve.Vehicles {
 		xmlVehicle := XMLVehicle{
-			ID: v.ID,
+			ID:   v.ID,
 			Type: v.TypeID,
 		}
 		root.Vehicles = append(root.Vehicles, xmlVehicle)
@@ -95,12 +95,12 @@ func (ve *VehicleExporter) Export(filename string) error {
 // XML structures for MATSim vehicle definitions
 
 type VehicleDefinitions struct {
-	XMLName           xml.Name          `xml:"vehicleDefinitions"`
-	XMLNs             string            `xml:"xmlns,attr"`
-	XMLNsXsi          string            `xml:"xmlns:xsi,attr"`
-	XsiSchemaLocation string            `xml:"xsi:schemaLocation,attr"`
-	VehicleTypes      []XMLVehicleType  `xml:"vehicleType"`
-	Vehicles          []XMLVehicle      `xml:"vehicle"`
+	XMLName           xml.Name         `xml:"vehicleDefinitions"`
+	XMLNs             string           `xml:"xmlns,attr"`
+	XMLNsXsi          string           `xml:"xmlns:xsi,attr"`
+	XsiSchemaLocation string           `xml:"xsi:schemaLocation,attr"`
+	VehicleTypes      []XMLVehicleType `xml:"vehicleType"`
+	Vehicles          []XMLVehicle     `xml:"vehicle"`
 }
 
 type XMLVehicleType struct {
@@ -131,4 +131,15 @@ type XMLStandingRoom struct {
 type XMLVehicle struct {
 	ID   string `xml:"id,attr"`
 	Type string `xml:"type,attr"`
+}
+
+// SaveToFile is a convenience function that takes a VehicleManager and saves its data to a file
+func SaveToFile(manager *core.VehicleManager, filePath string) error {
+	exporter := NewVehicleExporter(manager.VehicleTypes, manager.Vehicles)
+	if err := exporter.Export(filePath); err != nil {
+		return fmt.Errorf("failed to save vehicles: %w", err)
+	}
+
+	manager.HasChanges = false
+	return nil
 }
