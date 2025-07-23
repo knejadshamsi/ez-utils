@@ -8,12 +8,16 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
 	"sync"
 	"time"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // NetworkProcessor for network processing.
 type NetworkProcessor struct {
+	app                     *App
 	db                      *Database
 	processID               int
 	telemetry               *ProcessTelemetry
@@ -25,9 +29,10 @@ type NetworkProcessor struct {
 }
 
 // NewNetworkProcessor creates a new network processor.
-func NewNetworkProcessor(db *Database, processID int) (*NetworkProcessor, error) {
+func NewNetworkProcessor(app *App, processID int) (*NetworkProcessor, error) {
 	return &NetworkProcessor{
-		db:        db,
+		app:       app,
+		db:        app.db,
 		processID: processID,
 		telemetry: &ProcessTelemetry{
 			ProcessID:   processID,
@@ -43,16 +48,20 @@ func (a *App) ProcessNetworkFile(filePath string) (map[string]any, error) {
 		return nil, fmt.Errorf("file path cannot be empty")
 	}
 
+	// Create process record synchronously to get real process ID
 	result, err := a.db.execQuery(createProcessQuery, fmt.Sprintf("failed to create process for file %s", filePath), filePath)
 	if err != nil {
 		return nil, err
 	}
+
 	id, err := result.LastInsertId()
 	if err != nil {
 		return nil, err
 	}
 	processID := int(id)
+	log.Printf("Created process %d for network file %s", processID, filePath)
 
+	// Now start the background processing with the real process ID
 	go a.processNetworkFile(filePath, processID)
 
 	return map[string]any{
@@ -67,17 +76,19 @@ func (a *App) processNetworkFile(filePath string, processID int) {
 		if _, err := a.db.execQuery(updateProcessStatusQuery, fmt.Sprintf("failed to update process status for ID %d", processID), status, processID); err != nil {
 			log.Printf("Failed to update status: %v", err)
 		}
+		runtime.EventsEmit(a.ctx, "process:status", map[string]interface{}{
+			"processId": processID,
+			"status":    status,
+		})
 	}
 
-	updateStatus("PROCESSING")
-	processor, err := NewNetworkProcessor(a.db, processID)
+	processor, err := NewNetworkProcessor(a, processID)
 	if err != nil {
 		log.Printf("Error creating network processor: %v", err)
 		updateStatus("PROCESSING_FAILED")
 		return
 	}
 
-	updateStatus("PROCESSING")
 	if err := processor.ProcessNetworkFile(filePath); err != nil {
 		log.Printf("Error processing network file %s: %v", filePath, err)
 		updateStatus("PROCESSING_FAILED")
@@ -284,29 +295,29 @@ func (p *NetworkProcessor) extractNodeData(xmlString string) (NodeData, error) {
 		if err != nil {
 			return NodeData{}, fmt.Errorf("failed to parse node XML: %w", err)
 		}
-		
+
 		if se, ok := token.(xml.StartElement); ok && se.Name.Local == "node" {
-			var id, x, y string
+			var id string
+			var lng, lat float64
 			for _, attr := range se.Attr {
 				switch attr.Name.Local {
 				case "id":
 					id = attr.Value
 				case "x":
-					x = attr.Value
+					lng, _ = strconv.ParseFloat(attr.Value, 64)
 				case "y":
-					y = attr.Value
+					lat, _ = strconv.ParseFloat(attr.Value, 64)
 				}
 			}
-			
-			if id == "" || x == "" || y == "" {
+
+			if id == "" {
 				return NodeData{}, fmt.Errorf("node missing required attributes")
 			}
-			
-			coords := fmt.Sprintf("%s,%s", x, y)
-			return NodeData{ID: id, Coords: coords, RawXML: xmlString}, nil
+
+			return NodeData{ID: id, Lng: lng, Lat: lat, RawXML: xmlString}, nil
 		}
 	}
-	
+
 	return NodeData{}, fmt.Errorf("no node element found in XML")
 }
 
@@ -322,26 +333,28 @@ func (p *NetworkProcessor) extractLinkData(xmlString string) (LinkData, error) {
 		if err != nil {
 			return LinkData{}, fmt.Errorf("failed to parse link XML: %w", err)
 		}
-		
+
 		if se, ok := token.(xml.StartElement); ok && se.Name.Local == "link" {
-			var from, to string
+			var id, from, to string
 			for _, attr := range se.Attr {
 				switch attr.Name.Local {
+				case "id":
+					id = attr.Value
 				case "from":
 					from = attr.Value
 				case "to":
 					to = attr.Value
 				}
 			}
-			
-			if from == "" || to == "" {
+
+			if id == "" || from == "" || to == "" {
 				return LinkData{}, fmt.Errorf("link missing required attributes")
 			}
-			
-			return LinkData{FromNode: from, ToNode: to, RawXML: xmlString}, nil
+
+			return LinkData{ID: id, FromNode: from, ToNode: to, RawXML: xmlString}, nil
 		}
 	}
-	
+
 	return LinkData{}, fmt.Errorf("no link element found in XML")
 }
 
@@ -367,6 +380,15 @@ func (p *NetworkProcessor) updateTelemetry(reader *CountingReader) {
 			p.telemetryMutex.Unlock()
 		}
 	}
+	
+	runtime.EventsEmit(p.app.ctx, "process:telemetry", map[string]interface{}{
+		"processId":  telemetry.ProcessID,
+		"bytesRead":  telemetry.BytesRead,
+		"nodesRead":  telemetry.NodesRead,
+		"linksRead":  telemetry.LinksRead,
+		"errorCount": telemetry.ErrorCount,
+		"lastUpdated": telemetry.LastUpdated,
+	})
 }
 
 // updateNetworkNode updates a network node's coordinates (internal function for interpreter)

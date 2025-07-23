@@ -24,9 +24,10 @@ type Person struct {
 
 // PersonData - Holds extracted information for a single person (used by processor)
 type PersonData struct {
-	ID     string
-	Coords string
-	RawXML string
+	ID     string  `json:"id"`
+	Lng    float64 `json:"lng"`
+	Lat    float64 `json:"lat"`
+	RawXML string  `json:"raw_xml"`
 }
 
 // PersonUpdate - Used for batch updates
@@ -58,6 +59,7 @@ type ProcessTelemetry struct {
 
 // Processor - Handles population file processing with telemetry
 type Processor struct {
+	app                     *App
 	db                      *Database
 	processID               int
 	telemetry               *ProcessTelemetry
@@ -78,16 +80,18 @@ type CountingReader struct {
 
 // NodeData represents a network node for database storage.
 type NodeData struct {
-	ID     string
-	Coords string
-	RawXML string
+	ID     string  `json:"id"`
+	Lng    float64 `json:"lng"`
+	Lat    float64 `json:"lat"`
+	RawXML string  `json:"raw_xml"`
 }
 
 // LinkData represents a network link for database storage.
 type LinkData struct {
-	FromNode string
-	ToNode   string
-	RawXML   string
+	ID       string `json:"id"`
+	FromNode string `json:"from_node"`
+	ToNode   string `json:"to_node"`
+	RawXML   string `json:"raw_xml"`
 }
 
 // BoundingBox represents a geographic bounding box.
@@ -101,8 +105,8 @@ type BoundingBox struct {
 // NodeResult represents a node query result with parsed coordinates.
 type NodeResult struct {
 	ID     string  `json:"id"`
-	X      float64 `json:"x"`
-	Y      float64 `json:"y"`
+	Lng    float64 `json:"lng"`
+	Lat    float64 `json:"lat"`
 	RawXML string  `json:"raw_xml"`
 }
 
@@ -125,8 +129,8 @@ type ProcessResult struct {
 // PTStop represents a transit stop with coordinates
 type PTStop struct {
 	ID     string  `json:"id"`
-	X      float64 `json:"x"`
-	Y      float64 `json:"y"`
+	Lng    float64 `json:"lng"`
+	Lat    float64 `json:"lat"`
 	Name   string  `json:"name"`
 	RawXML string  `json:"raw_xml"`
 }
@@ -172,27 +176,46 @@ type PTDeparture struct {
 
 // PTStopUpdate represents an update to a stop
 type PTStopUpdate struct {
-	X    float64
-	Y    float64
+	Lng  float64
+	Lat  float64
 	Name string
+}
+
+// Spatial query types
+
+// ViewportBounds represents a geographic viewport for spatial queries
+type ViewportBounds struct {
+	MinLat float64 `json:"minLat"`
+	MaxLat float64 `json:"maxLat"`
+	MinLng float64 `json:"minLng"`
+	MaxLng float64 `json:"maxLng"`
+}
+
+// LoadingParams represents parameters for the LoadProcessData function
+type LoadingParams struct {
+	ProcessId    int            `json:"processId"`
+	FileEditMode string         `json:"fileEditMode"`
+	Viewport     ViewportBounds `json:"viewport"`
+	RandomFactor float64        `json:"randomFactor"`
+	MaxElements  int            `json:"maxElements"`
 }
 
 // PT data structures for processing
 
 // PTStopData represents stop data during processing
 type PTStopData struct {
-	ID     string
-	X      float64
-	Y      float64
-	Name   string
-	RawXML string
+	ID     string  `json:"id"`
+	Lng    float64 `json:"lng"`
+	Lat    float64 `json:"lat"`
+	Name   string  `json:"name"`
+	RawXML string  `json:"raw_xml"`
 }
 
 // PTLineData represents line data during processing
 type PTLineData struct {
-	ID     string
-	Mode   string
-	RawXML string
+	ID     string `json:"id"`
+	Mode   string `json:"mode"`
+	RawXML string `json:"raw_xml"`
 }
 
 // PTRouteData represents route data during processing

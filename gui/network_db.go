@@ -4,7 +4,6 @@ package gui
 import (
 	"database/sql"
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -12,8 +11,8 @@ import (
 const (
 	createNodesTableQuery = `CREATE TABLE IF NOT EXISTS %s (
 		id TEXT PRIMARY KEY,
-		x REAL,
-		y REAL,
+		lng REAL NOT NULL,
+		lat REAL NOT NULL,
 		raw_xml TEXT
 	)`
 	createLinksTableQuery = `CREATE TABLE IF NOT EXISTS %s (
@@ -22,15 +21,15 @@ const (
 		to_node TEXT,
 		raw_xml TEXT
 	)`
-	createNodesIndexQuery       = `CREATE INDEX IF NOT EXISTS idx_nodes_coords_%d ON %s(x, y)`
-	selectAllNodesQuery         = `SELECT id, x, y, raw_xml FROM %s`
-	selectNodesByBboxQuery      = `SELECT id, x, y, raw_xml FROM %s WHERE x >= ? AND x <= ? AND y >= ? AND y <= ?`
+	createNodesIndexQuery       = `CREATE INDEX IF NOT EXISTS idx_nodes_coords_%d ON %s(lng, lat)`
+	selectAllNodesQuery         = `SELECT id, lng, lat, raw_xml FROM %s`
+	selectNodesByBboxQuery      = `SELECT id, lng, lat, raw_xml FROM %s WHERE lng >= ? AND lng <= ? AND lat >= ? AND lat <= ?`
 	selectAllLinksQuery         = `SELECT id, from_node, to_node, raw_xml FROM %s`
 	selectLinksByNodesQuery     = `SELECT id, from_node, to_node, raw_xml FROM %s WHERE from_node IN (%s) OR to_node IN (%s)`
-	updateNodeQuery             = `UPDATE %s SET x = ?, y = ?, raw_xml = ? WHERE id = ?`
+	updateNodeQuery             = `UPDATE %s SET lng = ?, lat = ?, raw_xml = ? WHERE id = ?`
 	updateLinkQuery             = `UPDATE %s SET raw_xml = ? WHERE id = ?`
 	insertLinkQuery             = `INSERT INTO %s (id, from_node, to_node, raw_xml) VALUES (?, ?, ?, ?)`
-	insertNodeBatchBaseQuery    = "INSERT OR REPLACE INTO %s (id, x, y, raw_xml) VALUES "
+	insertNodeBatchBaseQuery    = "INSERT OR REPLACE INTO %s (id, lng, lat, raw_xml) VALUES "
 	insertLinkBatchBaseQuery    = "INSERT INTO %s (id, from_node, to_node, raw_xml) VALUES "
 	networkInsertBatchPlaceholder = "(?, ?, ?, ?)"
 	updateTelemetryQueryNetwork = `UPDATE process_telemetry SET bytes_read = ?, nodes_read = ?, links_read = ?, error_count = ?, last_updated = CURRENT_TIMESTAMP WHERE process_id = ?`
@@ -53,30 +52,6 @@ const (
 	updateTelemetryErrorNetwork = "failed to update network telemetry for process %d"
 )
 
-// CreateNetworkTables creates tables and index for network data.
-func (db *Database) CreateNetworkTables(processID int) error {
-	// Ensure telemetry table has network columns
-	if err := db.AlterTelemetryTableForNetwork(); err != nil {
-		return fmt.Errorf("failed to update telemetry table: %w", err)
-	}
-	
-	nodesTable := fmt.Sprintf("network_nodes_%d", processID)
-	linksTable := fmt.Sprintf("network_links_%d", processID)
-
-	if err := db.execTableQuery(fmt.Sprintf(createNodesTableQuery, nodesTable)); err != nil {
-		return fmt.Errorf("%s: %w", fmt.Sprintf(createNodesTableError, nodesTable), err)
-	}
-
-	if err := db.execTableQuery(fmt.Sprintf(createLinksTableQuery, linksTable)); err != nil {
-		return fmt.Errorf("%s: %w", fmt.Sprintf(createLinksTableError, linksTable), err)
-	}
-
-	if err := db.execTableQuery(fmt.Sprintf(createNodesIndexQuery, processID, nodesTable)); err != nil {
-		return fmt.Errorf("%s: %w", fmt.Sprintf(createNodesIndexError, nodesTable), err)
-	}
-
-	return nil
-}
 
 // GetNodesInBBox retrieves nodes within a bounding box.
 func (db *Database) GetNodesInBBox(processID int, bbox BoundingBox) ([]NodeResult, error) {
@@ -91,7 +66,7 @@ func (db *Database) GetNodesInBBox(processID int, bbox BoundingBox) ([]NodeResul
 	var nodes []NodeResult
 	for rows.Next() {
 		var node NodeResult
-		if err := rows.Scan(&node.ID, &node.X, &node.Y, &node.RawXML); err != nil {
+		if err := rows.Scan(&node.ID, &node.Lng, &node.Lat, &node.RawXML); err != nil {
 			return nil, fmt.Errorf("failed to scan node: %w", err)
 		}
 		nodes = append(nodes, node)
@@ -131,10 +106,10 @@ func (db *Database) GetLinksInBBox(processID int, nodeIDs []string) ([]LinkResul
 }
 
 // UpdateNetworkNode updates a node's data.
-func (db *Database) UpdateNetworkNode(processID int, nodeID string, x, y float64, rawXML string) error {
+func (db *Database) UpdateNetworkNode(processID int, nodeID string, lng, lat float64, rawXML string) error {
 	tableName := fmt.Sprintf("network_nodes_%d", processID)
 	query := fmt.Sprintf(updateNodeQuery, tableName)
-	result, err := db.execQuery(query, fmt.Sprintf(updateNodeError, tableName), x, y, rawXML, nodeID)
+	result, err := db.execQuery(query, fmt.Sprintf(updateNodeError, tableName), lng, lat, rawXML, nodeID)
 	if err != nil {
 		return err
 	}
@@ -179,20 +154,8 @@ func (db *Database) InsertNodeBatch(processID int, nodes []NodeData) error {
 		var values []string
 		var args []interface{}
 		for _, node := range nodes {
-			coords := strings.Split(node.Coords, ",")
-			if len(coords) != 2 {
-				return fmt.Errorf("invalid coordinates for node %s", node.ID)
-			}
-			x, err := strconv.ParseFloat(strings.TrimSpace(coords[0]), 64)
-			if err != nil {
-				return err
-			}
-			y, err := strconv.ParseFloat(strings.TrimSpace(coords[1]), 64)
-			if err != nil {
-				return err
-			}
 			values = append(values, networkInsertBatchPlaceholder)
-			args = append(args, node.ID, x, y, node.RawXML)
+			args = append(args, node.ID, node.Lng, node.Lat, node.RawXML)
 		}
 		query += strings.Join(values, ", ")
 		_, err := tx.Exec(query, args...)
@@ -256,10 +219,10 @@ func (db *Database) DeleteLinksByNode(processID int, nodeID string) error {
 }
 
 // InsertNetworkNode inserts a new node into the network
-func (db *Database) InsertNetworkNode(processID int, nodeID string, x, y float64, rawXML string) error {
+func (db *Database) InsertNetworkNode(processID int, nodeID string, lng, lat float64, rawXML string) error {
 	tableName := fmt.Sprintf("network_nodes_%d", processID)
-	query := fmt.Sprintf("INSERT INTO %s (id, x, y, raw_xml) VALUES (?, ?, ?, ?)", tableName)
-	_, err := db.execQuery(query, fmt.Sprintf("failed to insert node into %s", tableName), nodeID, x, y, rawXML)
+	query := fmt.Sprintf("INSERT INTO %s (id, lng, lat, raw_xml) VALUES (?, ?, ?, ?)", tableName)
+	_, err := db.execQuery(query, fmt.Sprintf("failed to insert node into %s", tableName), nodeID, lng, lat, rawXML)
 	return err
 }
 
@@ -272,16 +235,16 @@ func (db *Database) InsertNetworkLink(processID int, linkID string, fromNode, to
 }
 
 // UpdateNode updates a network node's coordinates in the database
-func (db *Database) UpdateNode(processID int, nodeID string, x, y float64) error {
+func (db *Database) UpdateNode(processID int, nodeID string, lng, lat float64) error {
 	// Generate the new XML representation
-	rawXML := fmt.Sprintf(`<node id="%s" x="%.6f" y="%.6f"/>`, nodeID, x, y)
+	rawXML := fmt.Sprintf(`<node id="%s" x="%.6f" y="%.6f"/>`, nodeID, lng, lat)
 	
 	// Build the table name
 	tableName := fmt.Sprintf("network_nodes_%d", processID)
 	query := fmt.Sprintf(updateNodeQuery, tableName)
 	
 	// Execute the update using the consistent execQuery pattern
-	result, err := db.execQuery(query, fmt.Sprintf(updateNodeError, tableName), x, y, rawXML, nodeID)
+	result, err := db.execQuery(query, fmt.Sprintf(updateNodeError, tableName), lng, lat, rawXML, nodeID)
 	if err != nil {
 		return err
 	}
@@ -302,10 +265,10 @@ func (db *Database) UpdateNode(processID int, nodeID string, x, y float64) error
 // GetNode retrieves a single node by ID
 func (db *Database) GetNode(processID int, nodeID string) (*NodeResult, error) {
 	tableName := fmt.Sprintf("network_nodes_%d", processID)
-	query := fmt.Sprintf("SELECT id, x, y, raw_xml FROM %s WHERE id = ?", tableName)
+	query := fmt.Sprintf("SELECT id, lng, lat, raw_xml FROM %s WHERE id = ?", tableName)
 	
 	var node NodeResult
-	err := db.queryRow(query, "", nodeID).Scan(&node.ID, &node.X, &node.Y, &node.RawXML)
+	err := db.queryRow(query, "", nodeID).Scan(&node.ID, &node.Lng, &node.Lat, &node.RawXML)
 	if err == sql.ErrNoRows {
 		return nil, fmt.Errorf("node not found: %s", nodeID)
 	}
@@ -347,7 +310,7 @@ func (db *Database) GetAllNodes(processID int) ([]NodeResult, error) {
 	var nodes []NodeResult
 	for rows.Next() {
 		var node NodeResult
-		if err := rows.Scan(&node.ID, &node.X, &node.Y, &node.RawXML); err != nil {
+		if err := rows.Scan(&node.ID, &node.Lng, &node.Lat, &node.RawXML); err != nil {
 			return nil, fmt.Errorf("failed to scan node: %w", err)
 		}
 		nodes = append(nodes, node)
@@ -468,23 +431,7 @@ func (db *Database) BatchUpdateNodes(processID int, updates map[string]NodeData)
 		defer stmt.Close()
 		
 		for nodeID, data := range updates {
-			// Parse coordinates
-			coords := strings.Split(data.Coords, ",")
-			if len(coords) != 2 {
-				return fmt.Errorf("invalid coordinates for node %s: %s", nodeID, data.Coords)
-			}
-			
-			x, err := strconv.ParseFloat(coords[0], 64)
-			if err != nil {
-				return fmt.Errorf("invalid x coordinate for node %s: %s", nodeID, coords[0])
-			}
-			
-			y, err := strconv.ParseFloat(coords[1], 64)
-			if err != nil {
-				return fmt.Errorf("invalid y coordinate for node %s: %s", nodeID, coords[1])
-			}
-			
-			if _, err := stmt.Exec(x, y, data.RawXML, nodeID); err != nil {
+			if _, err := stmt.Exec(data.Lng, data.Lat, data.RawXML, nodeID); err != nil {
 				return fmt.Errorf("failed to update node %s: %w", nodeID, err)
 			}
 		}
@@ -558,7 +505,7 @@ func (db *Database) GetNetworkStatistics(processID int) (map[string]interface{},
 	stats["link_count"] = linkCount
 	
 	// Get bounding box
-	query = fmt.Sprintf("SELECT MIN(x), MAX(x), MIN(y), MAX(y) FROM %s", nodesTable)
+	query = fmt.Sprintf("SELECT MIN(lng), MAX(lng), MIN(lat), MAX(lat) FROM %s", nodesTable)
 	var minX, maxX, minY, maxY sql.NullFloat64
 	if err := db.queryRow(query, "").Scan(&minX, &maxX, &minY, &maxY); err != nil {
 		return nil, fmt.Errorf("failed to get bounding box: %w", err)

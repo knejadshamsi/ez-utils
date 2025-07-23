@@ -17,7 +17,6 @@ import {
   clearAllZones as clearPolygonsImpl
 } from './polygonDrawing';
 
-// Create the global map state using Svelte 5 runes
 export const mapState = $state<MapState>({
   mode: 'idle',
   cursor: 'default',
@@ -31,37 +30,36 @@ export const mapState = $state<MapState>({
     points: [],
     lines: [],
     showNumbers: true,
-    defaultPointColor: '#2563eb',  // Blue
-    defaultLineColor: '#3b82f6',    // Lighter blue
-    hoverPointColor: '#1d4ed8',     // Darker blue
-    hoverLineColor: '#2563eb'       // Darker blue
+    defaultPointColor: '#2563eb',
+    defaultLineColor: '#3b82f6',
+    hoverPointColor: '#1d4ed8',
+    hoverLineColor: '#2563eb'
   },
   
   network: {
     nodes: [],
     links: [],
     selectedNodeId: null,
-    defaultNodeColor: '#ef4444',    // Red
-    defaultLinkColor: '#ef4444',    // Red
-    hoverNodeColor: '#dc2626',      // Darker red
-    hoverLinkColor: '#dc2626'       // Darker red
+    defaultNodeColor: '#ef4444',
+    defaultLinkColor: '#ef4444',
+    hoverNodeColor: '#dc2626',
+    hoverLinkColor: '#dc2626'
   },
   
   polygon: {
     currentVertices: [],
     drawnPolygons: [],
     isDrawing: false,
-    defaultFillColor: '#8b5cf6',    // Purple
-    defaultStrokeColor: '#7c3aed',  // Darker purple
-    hoverFillColor: '#a78bfa',      // Lighter purple
-    hoverStrokeColor: '#6d28d9'     // Even darker purple
+    defaultFillColor: '#8b5cf6',
+    defaultStrokeColor: '#7c3aed',
+    hoverFillColor: '#a78bfa',
+    hoverStrokeColor: '#6d28d9'
   },
   
   isDragging: false,
   testMessage: 'Hello from global state!'
 });
 
-// Helper to get cursor style for a given mode
 export function getCursorForMode(mode: ToolMode): CursorStyle {
   switch (mode) {
     case 'drawing-connected':
@@ -82,44 +80,34 @@ export function getCursorForMode(mode: ToolMode): CursorStyle {
   }
 }
 
-// Mode management
 export function setMode(mode: ToolMode) {
   const previousMode = mapState.mode;
-  console.log(`Changing mode from ${previousMode} to ${mode}`);
   
-  // Clean up previous mode
   cleanupMode(previousMode);
   
-  // Set new mode
   mapState.mode = mode;
   mapState.cursor = getCursorForMode(mode);
   
-  // Update map cursor
   if (mapState.map) {
     mapState.map.getContainer().style.cursor = mapState.cursor;
   }
   
-  // Initialize new mode
   initializeMode(mode);
 }
 
 function cleanupMode(mode: ToolMode) {
   if (!mapState.map) return;
   
-  // Close any open popups
   mapState.map.closePopup();
   
-  // Mode-specific cleanup
   switch (mode) {
     case 'editing-connected':
-      // Disable dragging on all markers
       mapState.connectedDots.points.forEach(point => {
         point.marker.dragging?.disable();
       });
       break;
       
     case 'inspecting-connected':
-      // Remove click handlers from connected elements
       mapState.connectedDots.points.forEach(point => {
         point.marker.off('click');
       });
@@ -129,20 +117,16 @@ function cleanupMode(mode: ToolMode) {
       break;
       
     case 'adding-links':
-      // Clear selection
       mapState.network.selectedNodeId = null;
-      // Remove highlight from all nodes
       mapState.network.nodes.forEach(node => {
         updateNodeStyle(node, false);
       });
-      // Remove click handlers
       mapState.network.nodes.forEach(node => {
         node.marker.off('click');
       });
       break;
       
     case 'editing-attributes':
-      // Remove click handlers from network elements
       mapState.network.nodes.forEach(node => {
         node.marker.off('click');
       });
@@ -152,7 +136,6 @@ function cleanupMode(mode: ToolMode) {
       break;
       
     case 'moving-nodes':
-      // Disable dragging on all nodes
       mapState.network.nodes.forEach(node => {
         node.marker.dragging?.disable();
       });
@@ -164,12 +147,10 @@ function cleanupMode(mode: ToolMode) {
 function initializeMode(mode: ToolMode) {
   switch (mode) {
     case 'drawing-connected':
-      // Clear existing items when starting new drawing
       clearConnectedDots();
       break;
       
     case 'editing-connected':
-      // Enable dragging on all markers
       mapState.connectedDots.points.forEach(point => {
         point.marker.dragging?.enable();
       });
@@ -180,7 +161,6 @@ function initializeMode(mode: ToolMode) {
       break;
       
     case 'adding-nodes':
-      console.log('Add nodes mode activated');
       break;
       
     case 'adding-links':
@@ -188,7 +168,6 @@ function initializeMode(mode: ToolMode) {
       break;
       
     case 'editing-attributes':
-      // Attribute editing is handled via sidebar
       break;
       
     case 'moving-nodes':
@@ -197,20 +176,17 @@ function initializeMode(mode: ToolMode) {
       
     case 'drawing-polygon':
       mapState.polygon.isDrawing = true;
-      console.log('Polygon drawing mode activated');
       break;
       
   }
 }
 
-// Connected dots management
 export function clearConnectedDots() {
   clearConnectedDotsImpl();
 }
 
 export function setShowNumbers(show: boolean) {
   mapState.connectedDots.showNumbers = show;
-  // Update existing markers
   mapState.connectedDots.points.forEach((point, index) => {
     const icon = createNumberedIcon(index + 1, point.color || mapState.connectedDots.defaultPointColor);
     point.marker.setIcon(icon);
@@ -228,7 +204,6 @@ export function setConnectedDotsColors(
   if (hoverPointColor) mapState.connectedDots.hoverPointColor = hoverPointColor;
   if (hoverLineColor) mapState.connectedDots.hoverLineColor = hoverLineColor;
   
-  // Update existing elements
   mapState.connectedDots.points.forEach((point, index) => {
     if (!point.color) {
       const icon = createNumberedIcon(index + 1, mapState.connectedDots.defaultPointColor);
@@ -243,7 +218,6 @@ export function setConnectedDotsColors(
   });
 }
 
-// Network management
 export function clearNetwork() {
   if (mapState.networkLayer) {
     mapState.networkLayer.clearLayers();
@@ -264,7 +238,6 @@ export function setNetworkColors(
   if (hoverNodeColor) mapState.network.hoverNodeColor = hoverNodeColor;
   if (hoverLinkColor) mapState.network.hoverLinkColor = hoverLinkColor;
   
-  // Update existing elements
   mapState.network.nodes.forEach(node => {
     const icon = createNetworkNodeIcon(node.id, mapState.network.defaultNodeColor);
     node.marker.setIcon(icon);
@@ -275,23 +248,21 @@ export function setNetworkColors(
   });
 }
 
-// Helper function to create numbered icon
 export function createNumberedIcon(number: number, color: string, mode?: string): L.DivIcon {
   const showNumber = mapState.connectedDots.showNumbers;
   
-  // Determine shape class based on mode
-  let shapeClass = 'circle-marker'; // default
+  let shapeClass = 'circle-marker';
   let iconSize: [number, number] = [30, 30];
   let iconAnchor: [number, number] = [15, 15];
   
   if (mode === 'bus') {
-    shapeClass = 'circle-marker'; // stays circle
+    shapeClass = 'circle-marker';
   } else if (mode === 'metro') {
     shapeClass = 'square-marker';
   } else if (mode === 'tram') {
     shapeClass = 'rectangle-marker';
-    iconSize = [40, 30]; // wider for rectangle
-    iconAnchor = [20, 15]; // center it
+    iconSize = [40, 30];
+    iconAnchor = [20, 15];
   }
   
   return L.divIcon({
@@ -304,12 +275,10 @@ export function createNumberedIcon(number: number, color: string, mode?: string)
   });
 }
 
-// Helper function to create network node icon
 export function createNetworkNodeIcon(id: string, color: string): L.DivIcon {
-  // Calculate size based on ID length to ensure it fits
   const minSize = 40;
-  const charWidth = 7; // Approximate width per character
-  const padding = 16; // Total horizontal padding
+  const charWidth = 7;
+  const padding = 16;
   const width = Math.max(minSize, id.length * charWidth + padding);
   
   return L.divIcon({
@@ -322,15 +291,11 @@ export function createNetworkNodeIcon(id: string, color: string): L.DivIcon {
   });
 }
 
-// Central event dispatcher
 export function handleMapEvent(event: L.LeafletEvent, type: MapEventType) {
   if (!mapState.map) return;
   
-  console.log(`Map event: ${type} in mode: ${mapState.mode}`);
   
-  // Check for network-specific handling first
   if (type === 'click') {
-    // Import at the top of the file to avoid circular dependency
     import('./updateNetworkVisualization').then(module => {
       module.handleNetworkMapClick(event as L.LeafletMouseEvent);
     });
@@ -346,7 +311,6 @@ export function handleMapEvent(event: L.LeafletEvent, type: MapEventType) {
       break;
       
     case 'inspecting-connected':
-      // Handled by individual element click handlers
       break;
       
     case 'adding-nodes':
@@ -354,11 +318,9 @@ export function handleMapEvent(event: L.LeafletEvent, type: MapEventType) {
       break;
       
     case 'adding-links':
-      // Handled by node click handlers
       break;
       
     case 'editing-attributes':
-      // Handled by element click handlers
       break;
       
     case 'moving-nodes':
@@ -368,7 +330,6 @@ export function handleMapEvent(event: L.LeafletEvent, type: MapEventType) {
   }
 }
 
-// Export function to set up central event handlers
 export function setupCentralEventHandlers() {
   if (!mapState.map) return;
   
@@ -378,18 +339,14 @@ export function setupCentralEventHandlers() {
     mapState.map!.on(type, (e) => handleMapEvent(e, type));
   });
   
-  console.log('Central event handlers set up');
 }
 
-// Polygon management
 export function clearPolygons() {
   clearPolygonsImpl();
 }
 
-// Update test message
 export function setTestMessage(message: string) {
   mapState.testMessage = message;
 }
 
-// Re-export from other modules
 export { updateNodeStyle };

@@ -33,7 +33,25 @@ const (
 	createPopulationTableQuery = `
 		CREATE TABLE IF NOT EXISTS %s (
 			id TEXT PRIMARY KEY,
-			coords TEXT,
+			lng REAL NOT NULL,
+			lat REAL NOT NULL,
+			raw_xml TEXT
+		)`
+
+	// Network tables with separate lng/lat columns
+	createNetworkNodesTableQuery = `
+		CREATE TABLE IF NOT EXISTS %s (
+			id TEXT PRIMARY KEY,
+			lng REAL NOT NULL,
+			lat REAL NOT NULL,
+			raw_xml TEXT
+		)`
+
+	createNetworkLinksTableQuery = `
+		CREATE TABLE IF NOT EXISTS %s (
+			id TEXT PRIMARY KEY,
+			from_node TEXT NOT NULL,
+			to_node TEXT NOT NULL,
 			raw_xml TEXT
 		)`
 
@@ -43,8 +61,8 @@ const (
 	createPTStopsTableQuery = `
 		CREATE TABLE IF NOT EXISTS %s (
 			id TEXT PRIMARY KEY,
-			x REAL NOT NULL,
-			y REAL NOT NULL,
+			lng REAL NOT NULL,
+			lat REAL NOT NULL,
 			name TEXT,
 			raw_xml TEXT
 		)`
@@ -83,6 +101,11 @@ const (
 			departure_time TEXT NOT NULL,
 			FOREIGN KEY (route_id) REFERENCES %s(id) ON DELETE CASCADE
 		)`
+
+	// Spatial indexes for performance
+	createPopulationSpatialIndex = "CREATE INDEX IF NOT EXISTS idx_%s_spatial ON %s (lng, lat)"
+	createNodesSpatialIndex      = "CREATE INDEX IF NOT EXISTS idx_%s_spatial ON %s (lng, lat)"
+	createStopsSpatialIndex      = "CREATE INDEX IF NOT EXISTS idx_%s_spatial ON %s (lng, lat)"
 )
 
 // Error messages for table queries
@@ -270,6 +293,12 @@ func (db *Database) CreatePTTables(processID int) error {
 		return fmt.Errorf("failed to create PT departures table: %w", err)
 	}
 	
+	// Create spatial index for stops
+	indexName := fmt.Sprintf("stops_%d", processID)
+	if err := db.execTableQuery(fmt.Sprintf(createStopsSpatialIndex, indexName, stopsTable)); err != nil {
+		return fmt.Errorf("failed to create stops spatial index: %w", err)
+	}
+	
 	return nil
 }
 
@@ -288,6 +317,202 @@ func (db *Database) DropPTTables(processID int) error {
 		if err := db.execTableQuery(fmt.Sprintf(dropTableQuery, table)); err != nil {
 			return fmt.Errorf("failed to drop table %s: %w", table, err)
 		}
+	}
+	
+	return nil
+}
+
+// Spatial query functions
+
+// GetPopulationInBounds retrieves population data within viewport bounds with randomization
+func (db *Database) GetPopulationInBounds(processId int, viewport ViewportBounds, randomFactor float64, maxElements int) ([]PersonData, error) {
+	tableName := fmt.Sprintf("population_data_%d", processId)
+	
+	query := fmt.Sprintf(`
+		SELECT id, lng, lat, raw_xml 
+		FROM %s 
+		WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+		ORDER BY RANDOM()
+		LIMIT ?`, tableName)
+	
+	// Calculate actual limit based on random factor
+	estimatedCount := db.estimateRowsInBounds(tableName, viewport)
+	actualLimit := int(float64(estimatedCount) * randomFactor)
+	if actualLimit > maxElements {
+		actualLimit = maxElements
+	}
+	if actualLimit < 1 {
+		actualLimit = 1
+	}
+	
+	rows, err := db.queryRows(query, "failed to query population in bounds",
+		viewport.MinLat, viewport.MaxLat, viewport.MinLng, viewport.MaxLng, actualLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var persons []PersonData
+	for rows.Next() {
+		var p PersonData
+		if err := rows.Scan(&p.ID, &p.Lng, &p.Lat, &p.RawXML); err != nil {
+			return nil, err
+		}
+		persons = append(persons, p)
+	}
+	
+	return persons, nil
+}
+
+// GetNodesInBounds retrieves network nodes within viewport bounds
+func (db *Database) GetNodesInBounds(processId int, viewport ViewportBounds, randomFactor float64, maxElements int) ([]NodeData, error) {
+	tableName := fmt.Sprintf("nodes_data_%d", processId)
+	
+	query := fmt.Sprintf(`
+		SELECT id, lng, lat, raw_xml 
+		FROM %s 
+		WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+		ORDER BY RANDOM()
+		LIMIT ?`, tableName)
+	
+	estimatedCount := db.estimateRowsInBounds(tableName, viewport)
+	actualLimit := int(float64(estimatedCount) * randomFactor)
+	if actualLimit > maxElements {
+		actualLimit = maxElements
+	}
+	if actualLimit < 1 {
+		actualLimit = 1
+	}
+	
+	rows, err := db.queryRows(query, "failed to query nodes in bounds",
+		viewport.MinLat, viewport.MaxLat, viewport.MinLng, viewport.MaxLng, actualLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var nodes []NodeData
+	for rows.Next() {
+		var n NodeData
+		if err := rows.Scan(&n.ID, &n.Lng, &n.Lat, &n.RawXML); err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, n)
+	}
+	
+	return nodes, nil
+}
+
+// GetLinksForNodesInBounds retrieves network links where at least one node is in bounds
+func (db *Database) GetLinksForNodesInBounds(processId int, viewport ViewportBounds, randomFactor float64, maxElements int) ([]LinkData, error) {
+	linksTable := fmt.Sprintf("links_data_%d", processId)
+	nodesTable := fmt.Sprintf("nodes_data_%d", processId)
+	
+	// Get links where at least one node is in bounds
+	query := fmt.Sprintf(`
+		SELECT DISTINCT l.id, l.from_node, l.to_node, l.raw_xml
+		FROM %s l
+		WHERE l.from_node IN (
+			SELECT id FROM %s WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+		) OR l.to_node IN (
+			SELECT id FROM %s WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?
+		)
+		ORDER BY RANDOM()
+		LIMIT ?`, linksTable, nodesTable, nodesTable)
+	
+	rows, err := db.queryRows(query, "failed to query links in bounds",
+		viewport.MinLat, viewport.MaxLat, viewport.MinLng, viewport.MaxLng,
+		viewport.MinLat, viewport.MaxLat, viewport.MinLng, viewport.MaxLng,
+		maxElements)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var links []LinkData
+	for rows.Next() {
+		var l LinkData
+		if err := rows.Scan(&l.ID, &l.FromNode, &l.ToNode, &l.RawXML); err != nil {
+			return nil, err
+		}
+		links = append(links, l)
+	}
+	
+	return links, nil
+}
+
+// GetPTLinesInBounds retrieves PT lines that have stops within viewport bounds
+func (db *Database) GetPTLinesInBounds(processId int, viewport ViewportBounds, mode string, randomFactor float64, maxElements int) ([]PTLineData, error) {
+	linesTable := fmt.Sprintf("pt_data_%d_lines", processId)
+	stopsTable := fmt.Sprintf("pt_data_%d_stops", processId)
+	routesTable := fmt.Sprintf("pt_data_%d_routes", processId)
+	routeStopsTable := fmt.Sprintf("pt_data_%d_route_stops", processId)
+	
+	// Get lines that have stops in the viewport bounds
+	query := fmt.Sprintf(`
+		SELECT DISTINCT l.id, l.mode, l.raw_xml
+		FROM %s l
+		WHERE l.mode = ? AND l.id IN (
+			SELECT r.line_id FROM %s r
+			WHERE r.id IN (
+				SELECT rs.route_id FROM %s rs
+				WHERE rs.stop_ref_id IN (
+					SELECT s.id FROM %s s
+					WHERE s.lat BETWEEN ? AND ? AND s.lng BETWEEN ? AND ?
+				)
+			)
+		)
+		ORDER BY RANDOM()
+		LIMIT ?`, linesTable, routesTable, routeStopsTable, stopsTable)
+	
+	rows, err := db.queryRows(query, "failed to query PT lines in bounds",
+		mode, viewport.MinLat, viewport.MaxLat, viewport.MinLng, viewport.MaxLng, maxElements)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var lines []PTLineData
+	for rows.Next() {
+		var l PTLineData
+		if err := rows.Scan(&l.ID, &l.Mode, &l.RawXML); err != nil {
+			return nil, err
+		}
+		lines = append(lines, l)
+	}
+	
+	return lines, nil
+}
+
+// Helper function to estimate rows in bounds for random sampling
+func (db *Database) estimateRowsInBounds(tableName string, viewport ViewportBounds) int {
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?", tableName)
+	var count int
+	err := db.conn.QueryRow(query, viewport.MinLat, viewport.MaxLat, viewport.MinLng, viewport.MaxLng).Scan(&count)
+	if err != nil {
+		return 1000 // Fallback estimate
+	}
+	return count
+}
+
+// CreateNetworkTables creates network tables for a given process
+func (db *Database) CreateNetworkTables(processID int) error {
+	// Create nodes table
+	nodesTable := fmt.Sprintf("nodes_data_%d", processID)
+	if err := db.execTableQuery(fmt.Sprintf(createNetworkNodesTableQuery, nodesTable)); err != nil {
+		return fmt.Errorf("failed to create network nodes table: %w", err)
+	}
+	
+	// Create spatial index for nodes
+	indexName := fmt.Sprintf("nodes_%d", processID)
+	if err := db.execTableQuery(fmt.Sprintf(createNodesSpatialIndex, indexName, nodesTable)); err != nil {
+		return fmt.Errorf("failed to create nodes spatial index: %w", err)
+	}
+	
+	// Create links table
+	linksTable := fmt.Sprintf("links_data_%d", processID)
+	if err := db.execTableQuery(fmt.Sprintf(createNetworkLinksTableQuery, linksTable)); err != nil {
+		return fmt.Errorf("failed to create network links table: %w", err)
 	}
 	
 	return nil

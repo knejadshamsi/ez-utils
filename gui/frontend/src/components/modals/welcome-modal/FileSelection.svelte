@@ -4,7 +4,6 @@
   import { commandArgs } from "$lib/stores/app.svelte.ts";
   import { ValidatePopulationXML, ValidateNetworkXML, ValidatePTXML, SelectFile } from "@wailsjs/go/gui/App";
   
-  // Handle file selection using Wails native file dialog
   async function handleSelectFile() {
     try {
       const filePath = await SelectFile();
@@ -12,23 +11,19 @@
         commandArgs.filePath = filePath;
         commandArgs.isFilePathProvided = true;
         
-        // Auto-validate the selected file
         await validateFile();
       }
     } catch (error) {
-      console.error('Error selecting file:', error);
       commandArgs.validationStatus = 'FAIL';
     }
   }
 
-  // Handle change file button click
   function handleChangeFile() {
     commandArgs.filePath = '';
     commandArgs.isFilePathProvided = false;
     commandArgs.validationStatus = 'NOT';
   }
 
-  // Get the correct validator function based on file edit mode
   function getValidatorFunction() {
     switch (commandArgs.fileEditMode) {
       case 'POPULATION':
@@ -42,7 +37,6 @@
     }
   }
 
-  // Validate the selected file
   async function validateFile() {
     if (!commandArgs.filePath) return;
     
@@ -54,10 +48,8 @@
       commandArgs.validationStatus = result.isValid ? `VALIDATED_${commandArgs.fileEditMode}` : 'FAIL';
       
       if (!result.isValid) {
-        console.error('Validation failed:', result.error);
       }
     } catch (error) {
-      console.error('Validation error:', error);
       commandArgs.validationStatus = 'FAIL';
     }
   }

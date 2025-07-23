@@ -2,17 +2,14 @@ import L from 'leaflet';
 import type { NetworkNode, NetworkLink } from './types';
 import { mapState, getCursorForMode, setTestMessage, createNetworkNodeIcon } from './mapState.svelte';
 
-// Helper to extract display ID from node ID
 function getNodeDisplayId(nodeId: string): string {
-  // Extract just the timestamp numbers from "node-1234567890"
   const match = nodeId.match(/node-(\d+)/);
   if (match && match[1]) {
-    return match[1].slice(-4); // Last 4 digits
+    return match[1].slice(-4);
   }
-  return nodeId; // Fallback to full ID if pattern doesn't match
+  return nodeId;
 }
 
-// Network-specific handlers
 export function handleAddNodeClick(event: L.LeafletMouseEvent) {
   if (!mapState.map || !mapState.networkLayer) return;
   
@@ -21,10 +18,9 @@ export function handleAddNodeClick(event: L.LeafletMouseEvent) {
   const nodeId = `node-${timestamp}`;
   const nodeNumber = mapState.network.nodes.length + 1;
   
-  // Create node object with default attributes
   const node: NetworkNode = {
     id: nodeId,
-    marker: null as any, // Will be set below
+    marker: null as any,
     position: latlng,
     attributes: {
       label: `Node ${nodeNumber}`,
@@ -32,21 +28,18 @@ export function handleAddNodeClick(event: L.LeafletMouseEvent) {
     }
   };
   
-  // Create node marker with custom icon and color
   const nodeIcon = createNetworkNodeIcon(nodeId, mapState.network.defaultNodeColor);
   
   const marker = L.marker(latlng, {
-    draggable: false,  // Will be enabled in move mode
+    draggable: false,
     icon: nodeIcon
   }).addTo(mapState.networkLayer);
   
   node.marker = marker;
   
-  // Set up hover handlers for the node with state tracking
   type NodeState = 'idle' | 'hovered' | 'dragging' | 'selected';
   let nodeState: NodeState = 'idle';
   
-  // Track dragging state
   marker.on('dragstart', () => {
     nodeState = 'dragging';
     mapState.isDragging = true;
@@ -61,13 +54,12 @@ export function handleAddNodeClick(event: L.LeafletMouseEvent) {
     if (mapState.map) {
       mapState.map.getContainer().style.cursor = getCursorForMode(mapState.mode);
     }
-    // Reset icon to appropriate color after drag
     const isSelected = mapState.network.selectedNodeId === node.id;
     updateNodeStyle(node, isSelected);
   });
   
   marker.on('mouseover', () => {
-    if (nodeState === 'idle' && mapState.network.selectedNodeId !== node.id) { // Don't change color if selected
+    if (nodeState === 'idle' && mapState.network.selectedNodeId !== node.id) {
       nodeState = 'hovered';
       const hoverIcon = createNetworkNodeIcon(node.id, mapState.network.hoverNodeColor);
       marker.setIcon(hoverIcon);
@@ -83,27 +75,20 @@ export function handleAddNodeClick(event: L.LeafletMouseEvent) {
   });
   
   mapState.network.nodes.push(node);
-  console.log(`Added network node ${nodeNumber} at [${latlng.lng}, ${latlng.lat}]`);
 }
 
 export function setupLinkMode() {
-  // Set up click handlers for nodes to create links
   mapState.network.nodes.forEach(node => {
     node.marker.on('click', (e: L.LeafletMouseEvent) => {
       if (mapState.mode !== 'adding-links') return;
       
       if (!mapState.network.selectedNodeId) {
-        // First node selection
         mapState.network.selectedNodeId = node.id;
         updateNodeStyle(node, true);
-        console.log(`Selected first node: ${node.attributes.label}`);
       } else if (mapState.network.selectedNodeId === node.id) {
-        // Clicking the same node - deselect it
         mapState.network.selectedNodeId = null;
         updateNodeStyle(node, false);
-        console.log(`Deselected node: ${node.attributes.label}`);
       } else {
-        // Second node selection - create link
         const fromNode = mapState.network.nodes.find(n => n.id === mapState.network.selectedNodeId);
         if (!fromNode || !mapState.networkLayer) return;
         
@@ -129,7 +114,6 @@ export function setupLinkMode() {
           }
         };
         
-        // Set up hover handlers for the link with state tracking
         type LinkState = 'idle' | 'hovered';
         let linkState: LinkState = 'idle';
         
@@ -146,9 +130,7 @@ export function setupLinkMode() {
         });
         
         mapState.network.links.push(link);
-        console.log(`Created link from ${fromNode.attributes.label} to ${node.attributes.label}`);
         
-        // Reset selection
         updateNodeStyle(fromNode, false);
         mapState.network.selectedNodeId = null;
       }
@@ -157,10 +139,6 @@ export function setupLinkMode() {
     });
   });
 }
-
-// Attribute editing is now handled via sidebar, not popups
-
-// Popover functions removed - using sidebar for editing
 
 export function updateNodeStyle(node: NetworkNode, selected: boolean) {
   const color = selected ? '#f59e0b' : mapState.network.defaultNodeColor;
@@ -172,28 +150,22 @@ export function updateNodeStyle(node: NetworkNode, selected: boolean) {
 }
 
 export function setupMoveNodesMode() {
-  // Enable dragging on all network nodes
   mapState.network.nodes.forEach(node => {
     node.marker.dragging?.enable();
     
-    // Remove any existing drag handlers first to prevent duplicates
     node.marker.off('drag');
     
-    // Update position and connected links when dragging
     node.marker.on('drag', () => {
       const newPosition = node.marker.getLatLng();
       node.position = newPosition;
       
-      // Update all connected links
       mapState.network.links.forEach(link => {
         if (link.fromNodeId === node.id) {
-          // This node is the 'from' node of the link
           const toNode = mapState.network.nodes.find(n => n.id === link.toNodeId);
           if (toNode) {
             link.polyline.setLatLngs([newPosition, toNode.position]);
           }
         } else if (link.toNodeId === node.id) {
-          // This node is the 'to' node of the link
           const fromNode = mapState.network.nodes.find(n => n.id === link.fromNodeId);
           if (fromNode) {
             link.polyline.setLatLngs([fromNode.position, newPosition]);
@@ -202,11 +174,7 @@ export function setupMoveNodesMode() {
       });
     });
   });
-  
-  console.log('Move nodes mode activated');
 }
 
 export function handleNodeMoveStart(_event: L.LeafletMouseEvent) {
-  // This is handled by Leaflet's built-in dragging
-  // We can add additional logic here if needed
 }

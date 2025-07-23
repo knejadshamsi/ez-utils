@@ -3,32 +3,26 @@
   import { PlusOutline, CheckOutline, CloseOutline } from 'flowbite-svelte-icons';
   import { populationState, type PersonAttribute } from '$lib/stores/population.svelte';
   import { trackPersonChange } from '$lib/utils/populationChangeTracking';
-  import { editingSession } from '$lib/stores/app.svelte.ts';
   import CompactSelect from '../CompactSelect.svelte';
   
-  // Get selected person
   const selectedPerson = $derived(
     populationState.selectedPersonId 
       ? populationState.persons.get(populationState.selectedPersonId)
       : null
   );
   
-  // Local state for editing attributes
   let editingAttributes = $state<PersonAttribute[]>([]);
   let tempCustomAttribute = $state<{ name: string; type: PersonAttribute['type']; value: string | number | boolean } | null>(null);
   let customAttributeError = $state<string>('');
   
-  // Initialize editing attributes when modal opens
   $effect(() => {
     if (populationState.showAttributesModal && selectedPerson) {
-      // Deep clone the attributes for editing
       editingAttributes = selectedPerson.attributes.map((attr: PersonAttribute) => ({
         ...attr
       }));
     }
   });
   
-  // Attribute type options
   const attributeTypes = [
     { value: 'java.lang.String', name: 'String' },
     { value: 'java.lang.Integer', name: 'Integer' },
@@ -49,7 +43,6 @@
     const attr = editingAttributes[index];
     let parsedValue: string | number | boolean = value;
     
-    // Parse value based on type
     if (attr.type === 'java.lang.Integer') {
       parsedValue = parseInt(value, 10) || 0;
     } else if (attr.type === 'java.lang.Double') {
@@ -65,20 +58,14 @@
   function saveAttributeChanges() {
     if (!selectedPerson) return;
     
-    // Create updated person with current attributes
     const updatedPerson = {
       ...selectedPerson,
       attributes: editingAttributes
     };
     
-    // Update in store
     populationState.persons.set(selectedPerson.id, updatedPerson);
     
-    console.log('[AttributesModal] Saving attribute changes');
-    console.log('[AttributesModal] Updated person:', updatedPerson);
-    console.log('[AttributesModal] editingSession.tableName:', editingSession.tableName);
     
-    // Track change
     trackPersonChange(updatedPerson, 'update');
   }
   
@@ -86,7 +73,6 @@
     populationState.showAttributesModal = false;
   }
   
-  // Common attribute presets with default values
   const commonAttributes = [
     { name: 'age', type: 'java.lang.Integer' as PersonAttribute['type'], defaultValue: 30 },
     { name: 'employed', type: 'java.lang.Boolean' as PersonAttribute['type'], defaultValue: true },
@@ -97,22 +83,18 @@
     { name: 'householdSize', type: 'java.lang.Integer' as PersonAttribute['type'], defaultValue: 2 }
   ];
   
-  // Check if attribute name already exists
   function isAttributeNameUsed(name: string): boolean {
     return editingAttributes.some(attr => attr.name.toLowerCase() === name.toLowerCase());
   }
   
-  // Check if common attribute is already added
   function isCommonAttributeUsed(name: string): boolean {
     return isAttributeNameUsed(name);
   }
   
-  // Check if attribute is from common presets
   function isCommonAttribute(name: string): boolean {
     return commonAttributes.some(attr => attr.name.toLowerCase() === name.toLowerCase());
   }
   
-  // Get all custom attributes that are currently added
   const addedCustomAttributes = $derived(
     editingAttributes
       .filter(attr => !isCommonAttribute(attr.name))
@@ -125,10 +107,8 @@
     );
     
     if (existingIndex >= 0) {
-      // Remove if exists
       editingAttributes = editingAttributes.filter((_, i) => i !== existingIndex);
     } else {
-      // Add with default value
       editingAttributes = [...editingAttributes, {
         name: preset.name,
         type: preset.type,
@@ -154,9 +134,8 @@
       return;
     }
     
-    // Check if value is empty or default
     const hasValue = tempCustomAttribute.type === 'java.lang.Boolean' 
-      ? true // Boolean always has a value (true/false)
+      ? true
       : tempCustomAttribute.type === 'java.lang.Integer' || tempCustomAttribute.type === 'java.lang.Double'
       ? tempCustomAttribute.value !== 0 && tempCustomAttribute.value !== 0.0
       : tempCustomAttribute.value !== '';
@@ -168,7 +147,6 @@
     
     const nameLower = tempCustomAttribute.name.trim().toLowerCase();
     
-    // Check for duplicates
     const isDuplicate = editingAttributes.some(attr => 
       attr.name.toLowerCase() === nameLower
     );
@@ -182,7 +160,6 @@
       return;
     }
     
-    // Add the attribute
     editingAttributes = [...editingAttributes, {
       name: tempCustomAttribute.name.trim(),
       type: tempCustomAttribute.type,
@@ -190,11 +167,9 @@
       included: true
     }];
     
-    // Clear temp state
     tempCustomAttribute = null;
     customAttributeError = '';
     
-    // Save changes immediately
     saveAttributeChanges();
   }
   
@@ -208,7 +183,6 @@
     
     let parsedValue: string | number | boolean = value;
     
-    // Parse value based on type
     if (tempCustomAttribute.type === 'java.lang.Integer') {
       parsedValue = parseInt(value, 10) || 0;
     } else if (tempCustomAttribute.type === 'java.lang.Double') {

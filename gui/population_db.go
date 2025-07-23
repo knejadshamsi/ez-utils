@@ -9,19 +9,19 @@ import (
 
 // Population table queries
 const (
-	selectAllFromPopulationQuery = `SELECT id, coords, raw_xml FROM %s`
-	selectPopulationByBboxQuery  = `SELECT id, coords, raw_xml FROM %s WHERE coords IS NOT NULL AND coords != ''`
-	selectPersonByIDQuery        = `SELECT id, coords, raw_xml FROM %s WHERE id = ?`
-	selectPopulationPaginatedQuery = `SELECT id, coords, raw_xml FROM %s ORDER BY id LIMIT ? OFFSET ?`
+	selectAllFromPopulationQuery = `SELECT id, lng, lat, raw_xml FROM %s`
+	selectPopulationByBboxQuery  = `SELECT id, lng, lat, raw_xml FROM %s WHERE lng IS NOT NULL AND lat IS NOT NULL`
+	selectPersonByIDQuery        = `SELECT id, lng, lat, raw_xml FROM %s WHERE id = ?`
+	selectPopulationPaginatedQuery = `SELECT id, lng, lat, raw_xml FROM %s ORDER BY id LIMIT ? OFFSET ?`
 	countPopulationQuery = `SELECT COUNT(*) FROM %s`
-	selectZonesWithCountsQuery = `SELECT coords, COUNT(*) as count FROM %s WHERE coords IS NOT NULL AND coords != '' GROUP BY coords`
+	selectZonesWithCountsQuery = `SELECT lng, lat, COUNT(*) as count FROM %s WHERE lng IS NOT NULL AND lat IS NOT NULL GROUP BY lng, lat`
 	updatePersonXMLQuery         = `UPDATE %s SET raw_xml = ? WHERE id = ?`
-	updatePersonCoordsQuery      = `UPDATE %s SET coords = ? WHERE id = ?`
-	updatePersonFullQuery        = `UPDATE %s SET coords = ?, raw_xml = ? WHERE id = ?`
+	updatePersonCoordsQuery      = `UPDATE %s SET lng = ?, lat = ? WHERE id = ?`
+	updatePersonFullQuery        = `UPDATE %s SET lng = ?, lat = ?, raw_xml = ? WHERE id = ?`
 	deletePersonQuery                   = `DELETE FROM %s WHERE id = ?`
-	insertPersonQuery                   = `INSERT INTO %s (id, coords, raw_xml) VALUES (?, ?, ?)`
-	populationInsertBatchPlaceholder    = "(?, ?, ?)"
-	insertBatchBaseQuery                = "INSERT INTO %s (id, coords, raw_xml) VALUES "
+	insertPersonQuery                   = `INSERT INTO %s (id, lng, lat, raw_xml) VALUES (?, ?, ?, ?)`
+	populationInsertBatchPlaceholder    = "(?, ?, ?, ?)"
+	insertBatchBaseQuery                = "INSERT INTO %s (id, lng, lat, raw_xml) VALUES "
 )
 
 // Population table error messages
@@ -52,9 +52,11 @@ func (db *Database) GetPopulationData(tableName string) ([]Person, error) {
 	var persons []Person
 	for rows.Next() {
 		var p Person
-		if err := rows.Scan(&p.ID, &p.Coords, &p.RawXML); err != nil {
+		var lng, lat float64
+		if err := rows.Scan(&p.ID, &lng, &lat, &p.RawXML); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
+		p.Coords = fmt.Sprintf("%f,%f", lng, lat)
 		persons = append(persons, p)
 	}
 
@@ -77,21 +79,15 @@ func (db *Database) GetPopulationByBbox(tableName string, minLat, minLng, maxLat
 	var persons []Person
 	for rows.Next() {
 		var p Person
-		if err := rows.Scan(&p.ID, &p.Coords, &p.RawXML); err != nil {
+		var lng, lat float64
+		if err := rows.Scan(&p.ID, &lng, &lat, &p.RawXML); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
-		// Parse coordinates and check if within bbox
-		parts := strings.Split(p.Coords, ",")
-		if len(parts) == 2 {
-			x, err1 := strconv.ParseFloat(parts[0], 64)
-			y, err2 := strconv.ParseFloat(parts[1], 64)
-			if err1 == nil && err2 == nil {
-				// Check if coordinates are within bounding box
-				if x >= minLng && x <= maxLng && y >= minLat && y <= maxLat {
-					persons = append(persons, p)
-				}
-			}
+		// Check if coordinates are within bounding box
+		if lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat {
+			p.Coords = fmt.Sprintf("%f,%f", lng, lat)
+			persons = append(persons, p)
 		}
 	}
 
@@ -106,7 +102,11 @@ func (db *Database) GetPopulationByBbox(tableName string, minLat, minLng, maxLat
 func (db *Database) GetPerson(tableName, personID string) (*Person, error) {
 	query := fmt.Sprintf(selectPersonByIDQuery, tableName)
 	var p Person
-	err := db.queryRow(query, fmt.Sprintf(selectPersonByIDError, tableName), personID).Scan(&p.ID, &p.Coords, &p.RawXML)
+	var lng, lat float64
+	err := db.queryRow(query, fmt.Sprintf(selectPersonByIDError, tableName), personID).Scan(&p.ID, &lng, &lat, &p.RawXML)
+	if err == nil {
+		p.Coords = fmt.Sprintf("%f,%f", lng, lat)
+	}
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("person with ID %s not found in table %s", personID, tableName)
@@ -118,8 +118,22 @@ func (db *Database) GetPerson(tableName, personID string) (*Person, error) {
 
 // AddPerson adds a new person to a population table
 func (db *Database) AddPerson(tableName string, id, coords, rawXML string) error {
+	// Parse coordinates
+	parts := strings.Split(coords, ",")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid coordinates format: %s", coords)
+	}
+	lng, err := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+	if err != nil {
+		return fmt.Errorf("invalid longitude: %s", parts[0])
+	}
+	lat, err := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
+	if err != nil {
+		return fmt.Errorf("invalid latitude: %s", parts[1])
+	}
+	
 	query := fmt.Sprintf(insertPersonQuery, tableName)
-	if _, err := db.execQuery(query, fmt.Sprintf(insertPersonError, tableName), id, coords, rawXML); err != nil {
+	if _, err := db.execQuery(query, fmt.Sprintf(insertPersonError, tableName), id, lng, lat, rawXML); err != nil {
 		return fmt.Errorf("failed to add person: %w", err)
 	}
 	return nil
@@ -237,7 +251,7 @@ func InsertBatch(tx *sql.Tx, tableName string, batch []PersonData) error {
 	var args []any
 	for _, person := range batch {
 		values = append(values, populationInsertBatchPlaceholder)
-		args = append(args, person.ID, person.Coords, person.RawXML)
+		args = append(args, person.ID, person.Lng, person.Lat, person.RawXML)
 	}
 	query += strings.Join(values, ", ")
 

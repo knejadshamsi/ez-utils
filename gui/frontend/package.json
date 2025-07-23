@@ -17,6 +17,7 @@
     "leaflet": "^1.9.4",
     "leaflet-draw": "^1.0.4",
     "leaflet-edgebuffer": "^1.0.7",
+    "simple-svelte-autocomplete": "^2.5.2",
     "tailwindcss": "^4.1.11"
   },
   "devDependencies": {

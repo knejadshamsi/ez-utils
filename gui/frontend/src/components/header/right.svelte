@@ -2,7 +2,7 @@
   import { Button, Modal, Badge } from "flowbite-svelte";
   import { ExclamationCircleOutline, CogOutline, DownloadOutline, CloseOutline, FloppyDiskOutline } from "flowbite-svelte-icons";
   import { slide } from "svelte/transition";
-  import { appState, commandArgs, editingSession } from "$lib/stores/app.svelte.ts";
+  import { appState, commandArgs } from "$lib/stores/app.svelte";
   import { ExitApplication, SyncChanges, SaveFile, ExportPopulationFile, ExportNetworkFile, ExportPTFile, GetExportInfo } from "@wailsjs/go/gui/App";
   import { EventsOn, EventsOff } from "@wailsjs/runtime";
   import { changeTracker } from "../../lib/changeTracker.svelte";
@@ -106,19 +106,20 @@
       // Export based on file type
       switch (commandArgs.fileEditMode) {
         case 'POPULATION':
-          if (!editingSession.tableName) {
+          if (!appState.processId) {
             exportProgress.isExporting = false;
-            showError('No population table available for export');
+            showError('No population process available for export');
             EventsOff("export:progress");
             EventsOff("export:complete");
             EventsOff("export:error");
             return;
           }
-          await ExportPopulationFile(editingSession.tableName, outputPath);
+          const tableName = `population_data_${appState.processId}`;
+          await ExportPopulationFile(tableName, outputPath);
           break;
           
         case 'NETWORK':
-          if (!editingSession.processId) {
+          if (!appState.processId) {
             exportProgress.isExporting = false;
             showError('No network process available for export');
             EventsOff("export:progress");
@@ -127,11 +128,11 @@
             return;
           }
           // Export entire network (empty bounding box array means all data)
-          await ExportNetworkFile(editingSession.processId, outputPath, []);
+          await ExportNetworkFile(appState.processId, outputPath, []);
           break;
           
         case 'PT':
-          if (!editingSession.processId) {
+          if (!appState.processId) {
             exportProgress.isExporting = false;
             showError('No PT process available for export');
             EventsOff("export:progress");
@@ -139,7 +140,7 @@
             EventsOff("export:error");
             return;
           }
-          await ExportPTFile(editingSession.processId, outputPath);
+          await ExportPTFile(appState.processId, outputPath);
           break;
           
         default:
@@ -179,21 +180,10 @@
       console.log('SyncChanges result:', result);
       console.log('Successfully synced', changeCount, 'changes');
       
-      // Clear pending changes after successful sync
       changeTracker.pendingChanges = [];
       
-      // Show success notification
       showSuccess(`Successfully saved ${changeCount} change${changeCount > 1 ? 's' : ''}`);
     } catch (error) {
-      console.error('Sync failed:', error);
-      // Check if error has details about the specific failure
-      if (error instanceof Error) {
-        console.error('Error details:', error.message);
-        if (error.stack) {
-          console.error('Stack trace:', error.stack);
-        }
-      }
-      // Show error notification with specific error message
       showError(`Failed to save changes: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       changeTracker.isSyncing = false;

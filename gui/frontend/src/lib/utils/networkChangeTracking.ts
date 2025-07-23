@@ -1,11 +1,11 @@
 import { changeTracker } from '$lib/changeTracker.svelte';
-import { editingSession } from '$lib/stores/app.svelte.ts';
+import { appState } from '$lib/stores/app.svelte.ts';
 import type { NetworkNode, NetworkLink } from '$lib/stores/network.svelte';
 
 // Track node changes
 export function trackNodeChange(node: NetworkNode, operation: 'add' | 'update' | 'delete') {
   // Validate prerequisites
-  if (!editingSession.processId) {
+  if (!appState.processId) {
     console.warn('[NetworkChangeTracking] No active process ID - change not tracked');
     return;
   }
@@ -21,11 +21,11 @@ export function trackNodeChange(node: NetworkNode, operation: 'add' | 'update' |
       type: 'network' as const,
       elementType: 'node' as const,
       action: 'create' as const,
-      processId: editingSession.processId,
+      processId: appState.processId,
       nodeId: node.id,
-      x: node.x,
-      y: node.y,
-      rawXML: `<node id="${node.id}" x="${node.x}" y="${node.y}" />`
+      lng: node.lng,
+      lat: node.lat,
+      rawXML: `<node id="${node.id}" x="${node.lng}" y="${node.lat}" />`
     };
     changeTracker.pendingChanges.push(change);
   } else if (operation === 'update') {
@@ -33,11 +33,11 @@ export function trackNodeChange(node: NetworkNode, operation: 'add' | 'update' |
       type: 'network' as const,
       elementType: 'node' as const,
       action: 'update' as const,
-      processId: editingSession.processId,
+      processId: appState.processId,
       nodeId: node.id,
-      x: node.x,
-      y: node.y,
-      rawXML: `<node id="${node.id}" x="${node.x}" y="${node.y}" />`
+      lng: node.lng,
+      lat: node.lat,
+      rawXML: `<node id="${node.id}" x="${node.lng}" y="${node.lat}" />`
     };
     changeTracker.pendingChanges.push(change);
   } else if (operation === 'delete') {
@@ -45,7 +45,7 @@ export function trackNodeChange(node: NetworkNode, operation: 'add' | 'update' |
       type: 'network' as const,
       elementType: 'node' as const,
       action: 'delete' as const,
-      processId: editingSession.processId,
+      processId: appState.processId,
       nodeId: node.id,
       deleteConnectedLinks: true
     };
@@ -58,7 +58,7 @@ export function trackNodeChange(node: NetworkNode, operation: 'add' | 'update' |
 // Track link changes
 export function trackLinkChange(link: NetworkLink, operation: 'add' | 'update' | 'delete') {
   // Validate prerequisites
-  if (!editingSession.processId) {
+  if (!appState.processId) {
     console.warn('[NetworkChangeTracking] No active process ID - change not tracked');
     return;
   }
@@ -78,7 +78,7 @@ export function trackLinkChange(link: NetworkLink, operation: 'add' | 'update' |
       type: 'network' as const,
       elementType: 'link' as const,
       action: 'create' as const,
-      processId: editingSession.processId,
+      processId: appState.processId,
       linkId: link.id,
       fromNode: link.from,
       toNode: link.to,
@@ -90,7 +90,7 @@ export function trackLinkChange(link: NetworkLink, operation: 'add' | 'update' |
       type: 'network' as const,
       elementType: 'link' as const,
       action: 'update' as const,
-      processId: editingSession.processId,
+      processId: appState.processId,
       linkId: link.id,
       rawXML: `<link id="${link.id}" from="${link.from}" to="${link.to}" />`
     };
@@ -100,7 +100,7 @@ export function trackLinkChange(link: NetworkLink, operation: 'add' | 'update' |
       type: 'network' as const,
       elementType: 'link' as const,
       action: 'delete' as const,
-      processId: editingSession.processId,
+      processId: appState.processId,
       linkId: link.id
     };
     changeTracker.pendingChanges.push(change);

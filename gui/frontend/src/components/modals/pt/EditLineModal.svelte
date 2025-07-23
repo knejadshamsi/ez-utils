@@ -50,12 +50,10 @@
       return;
     }
 
-    // Update line properties
     line.name = name.trim();
     line.number = number.trim();
     line.mode = mode;
 
-    // Add to change tracker
     changeTracker.pendingChanges.push({
       type: 'pt',
       elementType: 'line',
@@ -69,7 +67,6 @@
       }
     });
 
-    // Update state to trigger reactivity
     const newLines = new Map(ptState.lines);
     newLines.set(line.id, { ...line });
     ptState.lines = newLines;
@@ -83,7 +80,6 @@
       return;
     }
 
-    // Add to change tracker
     changeTracker.pendingChanges.push({
       type: 'pt',
       elementType: 'line',
@@ -92,12 +88,10 @@
       lineId: line.id
     });
 
-    // Remove from state
     const newLines = new Map(ptState.lines);
     newLines.delete(line.id);
     ptState.lines = newLines;
 
-    // Clear selection if this line was selected
     if (ptState.selectedLineId === line.id) {
       ptState.setSelectedLine(null);
     }

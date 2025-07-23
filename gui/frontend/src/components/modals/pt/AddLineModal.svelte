@@ -55,12 +55,10 @@
       routes: []
     };
 
-    // Create new Map to trigger Svelte 5 reactivity
     const newLines = new Map(ptState.lines);
     newLines.set(newLine.id, newLine);
     ptState.lines = newLines;
     
-    // Track the new line
     trackLineChange(newLine, 'add');
     ptState.setSelectedLine(newLine.id);
     

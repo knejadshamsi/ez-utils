@@ -1,5 +1,5 @@
-import { editingSession } from '$lib/stores/app.svelte.ts';
+import { appState } from '$lib/stores/app.svelte.ts';
 
 export function getCurrentProcessId(): number {
-  return editingSession.processId;
+  return appState.processId;
 }

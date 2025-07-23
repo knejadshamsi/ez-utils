@@ -121,7 +121,6 @@
       sequence: route.stopSequence.length + 1
     };
 
-    // Calculate arrival offset from first departure
     const arrivalOffset = ptState.timeToMinutes(arrival) - ptState.timeToMinutes(route.firstDeparture);
     const departureOffset = arrivalOffset + parseInt(dwellMinutes);
 

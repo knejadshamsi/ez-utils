@@ -9,8 +9,8 @@ import (
 // PT Query Constants
 const (
 	// SELECT queries
-	selectAllPTStopsQuery     = "SELECT id, x, y, name, raw_xml FROM %s ORDER BY id"
-	selectPTStopByIDQuery     = "SELECT id, x, y, name, raw_xml FROM %s WHERE id = ?"
+	selectAllPTStopsQuery     = "SELECT id, lng, lat, name, raw_xml FROM %s ORDER BY id"
+	selectPTStopByIDQuery     = "SELECT id, lng, lat, name, raw_xml FROM %s WHERE id = ?"
 	selectAllPTLinesQuery     = "SELECT id, mode, raw_xml FROM %s ORDER BY id"
 	selectPTLineByIDQuery     = "SELECT id, mode, raw_xml FROM %s WHERE id = ?"
 	selectPTLinesByModeQuery  = "SELECT id, mode, raw_xml FROM %s WHERE mode = ? ORDER BY id"
@@ -19,14 +19,14 @@ const (
 	selectPTDeparturesQuery   = "SELECT id, route_id, departure_time FROM %s WHERE route_id = ? ORDER BY departure_time"
 	
 	// INSERT queries
-	insertPTStopQuery      = "INSERT INTO %s (id, x, y, name, raw_xml) VALUES (?, ?, ?, ?, ?)"
+	insertPTStopQuery      = "INSERT INTO %s (id, lng, lat, name, raw_xml) VALUES (?, ?, ?, ?, ?)"
 	insertPTLineQuery      = "INSERT INTO %s (id, mode, raw_xml) VALUES (?, ?, ?)"
 	insertPTRouteQuery     = "INSERT INTO %s (id, line_id, raw_xml) VALUES (?, ?, ?)"
 	insertPTRouteStopQuery = "INSERT INTO %s (route_id, stop_ref_id, stop_order, arrival_offset, departure_offset) VALUES (?, ?, ?, ?, ?)"
 	insertPTDepartureQuery = "INSERT INTO %s (id, route_id, departure_time) VALUES (?, ?, ?)"
 	
 	// UPDATE queries
-	updatePTStopQuery = "UPDATE %s SET x = ?, y = ?, name = ?, raw_xml = ? WHERE id = ?"
+	updatePTStopQuery = "UPDATE %s SET lng = ?, lat = ?, name = ?, raw_xml = ? WHERE id = ?"
 	
 	// DELETE queries
 	deletePTStopQuery      = "DELETE FROM %s WHERE id = ?"
@@ -104,7 +104,7 @@ func (db *Database) GetPTStops(processID int) ([]PTStop, error) {
 	var stops []PTStop
 	for rows.Next() {
 		var stop PTStop
-		if err := rows.Scan(&stop.ID, &stop.X, &stop.Y, &stop.Name, &stop.RawXML); err != nil {
+		if err := rows.Scan(&stop.ID, &stop.Lng, &stop.Lat, &stop.Name, &stop.RawXML); err != nil {
 			return nil, fmt.Errorf("failed to scan PT stop: %w", err)
 		}
 		stops = append(stops, stop)
@@ -122,7 +122,7 @@ func (db *Database) GetPTStop(processID int, stopID string) (*PTStop, error) {
 	query := fmt.Sprintf(selectPTStopByIDQuery, stopsTable)
 	var stop PTStop
 	err := db.queryRow(query, fmt.Sprintf(selectPTStopByIDError, stopsTable), stopID).Scan(
-		&stop.ID, &stop.X, &stop.Y, &stop.Name, &stop.RawXML)
+		&stop.ID, &stop.Lng, &stop.Lat, &stop.Name, &stop.RawXML)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("PT stop not found: %s", stopID)
@@ -280,7 +280,7 @@ func (db *Database) AddPTStop(processID int, stop PTStop) error {
 	
 	query := fmt.Sprintf(insertPTStopQuery, stopsTable)
 	_, err := db.execQuery(query, fmt.Sprintf(insertPTStopError, stopsTable),
-		stop.ID, stop.X, stop.Y, stop.Name, stop.RawXML)
+		stop.ID, stop.Lng, stop.Lat, stop.Name, stop.RawXML)
 	return err
 }
 
@@ -291,11 +291,11 @@ func (db *Database) UpdatePTStop(processID int, stopID string, update PTStopUpda
 	
 	// Build raw XML
 	rawXML := fmt.Sprintf(`<stopFacility id="%s" x="%.6f" y="%.6f" name="%s"/>`,
-		stopID, update.X, update.Y, escapeXML(update.Name))
+		stopID, update.Lng, update.Lat, escapeXML(update.Name))
 	
 	query := fmt.Sprintf(updatePTStopQuery, stopsTable)
 	result, err := db.execQuery(query, fmt.Sprintf(updatePTStopError, stopsTable),
-		update.X, update.Y, update.Name, rawXML, stopID)
+		update.Lng, update.Lat, update.Name, rawXML, stopID)
 	
 	if err != nil {
 		return err
@@ -352,9 +352,9 @@ func (db *Database) BatchUpdatePTStops(processID int, updates map[string]PTStopU
 		
 		for stopID, update := range updates {
 			rawXML := fmt.Sprintf(`<stopFacility id="%s" x="%.6f" y="%.6f" name="%s"/>`,
-				stopID, update.X, update.Y, escapeXML(update.Name))
+				stopID, update.Lng, update.Lat, escapeXML(update.Name))
 			
-			if _, err := stmt.Exec(update.X, update.Y, update.Name, rawXML, stopID); err != nil {
+			if _, err := stmt.Exec(update.Lng, update.Lat, update.Name, rawXML, stopID); err != nil {
 				return fmt.Errorf("failed to update stop %s: %w", stopID, err)
 			}
 		}
@@ -576,7 +576,7 @@ func (db *Database) InsertPTStopBatch(processID int, stops []PTStopData) error {
 		defer stmt.Close()
 		
 		for _, stop := range stops {
-			if _, err := stmt.Exec(stop.ID, stop.X, stop.Y, stop.Name, stop.RawXML); err != nil {
+			if _, err := stmt.Exec(stop.ID, stop.Lng, stop.Lat, stop.Name, stop.RawXML); err != nil {
 				return fmt.Errorf("failed to insert stop %s: %w", stop.ID, err)
 			}
 		}

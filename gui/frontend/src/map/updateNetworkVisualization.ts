@@ -10,7 +10,6 @@ import {
   updateNodeStyle 
 } from './networkEditor';
 
-// Generate unique ID with Math.random to ensure uniqueness
 function generateNodeId(): string {
   return `node_${Math.floor(Math.random() * 1000000000)}`;
 }
@@ -19,19 +18,16 @@ function generateLinkId(fromId: string, toId: string): string {
   return `link_${fromId}_${toId}_${Math.floor(Math.random() * 1000000)}`;
 }
 
-// Sync map visualization with network store state
 export function updateNetworkVisualization() {
   if (!mapState.map || !mapState.networkLayer) return;
 
-  // Clear existing network visualization
   clearNetwork();
 
-  // Add nodes from network store to map
   networkState.nodes.forEach(node => {
     const mapNode: MapNetworkNode = {
       id: node.id,
       marker: null as any,
-      position: L.latLng(node.y, node.x),
+      position: L.latLng(node.lat, node.lng),
       attributes: {
         label: node.label || node.id,
         type: node.type || 'default',
@@ -39,7 +35,6 @@ export function updateNetworkVisualization() {
       }
     };
 
-    // Create marker with full ID
     const nodeIcon = createNetworkNodeIcon(
       node.id,
       mapState.network.defaultNodeColor
@@ -199,25 +194,18 @@ function setupNodeMarkerEvents(marker: L.Marker, node: MapNetworkNode) {
 
   // Click event for selection and link creation
   marker.on('click', (e: L.LeafletMouseEvent) => {
-    console.log('[Network Node Click] Node clicked:', node.id);
-    console.log('[Network Node Click] Current network mode:', appState.networkMode);
-    console.log('[Network Node Click] Current selected node:', networkState.selection.selectedNodeId);
     
     if (appState.networkMode === 'EDIT' || appState.networkMode === 'VIEW') {
       // Check if clicking on already selected node
       if (networkState.selection.selectedNodeId === node.id) {
-        console.log('[Network Node Click] Deselecting node');
         // Deselect
         networkState.selection.selectedNodeId = null;
         updateNodeStyle(node, false);
         appState.secondarySidebar = 'HIDDEN';
-        console.log('[Network Node Click] Secondary sidebar set to HIDDEN');
       } else {
-        console.log('[Network Node Click] Selecting node');
         // Select node in network store
         networkState.selection.selectedNodeId = node.id;
         networkState.selection.selectedLinkId = null;
-        console.log('[Network Node Click] Set selectedNodeId to:', node.id);
         
         // Reset all links to default style
         mapState.network.links.forEach(l => {
@@ -235,8 +223,6 @@ function setupNodeMarkerEvents(marker: L.Marker, node: MapNetworkNode) {
         
         // Open secondary sidebar
         appState.secondarySidebar = 'EXPANDED';
-        console.log('[Network Node Click] Secondary sidebar set to EXPANDED');
-        console.log('[Network Node Click] Final appState.secondarySidebar:', appState.secondarySidebar);
       }
     } else if (networkState.isAddingLink && appState.networkMode === 'CREATE') {
       // Handle link creation
@@ -244,12 +230,10 @@ function setupNodeMarkerEvents(marker: L.Marker, node: MapNetworkNode) {
         // First node selection
         networkState.selection.selectedNodeId = node.id;
         updateNodeStyle(node, true);
-        console.log(`Selected first node for link: ${node.id}`);
       } else if (networkState.selection.selectedNodeId === node.id) {
         // Clicking same node - deselect
         networkState.selection.selectedNodeId = null;
         updateNodeStyle(node, false);
-        console.log(`Deselected node: ${node.id}`);
       } else {
         // Second node selection - create link
         const fromId = networkState.selection.selectedNodeId;
@@ -278,7 +262,6 @@ function setupNodeMarkerEvents(marker: L.Marker, node: MapNetworkNode) {
         // Update visualization to show new link
         updateNetworkVisualization();
         
-        console.log(`Created link from ${fromId} to ${toId}`);
       }
     }
     e.originalEvent.stopPropagation();
@@ -389,7 +372,6 @@ export function handleNetworkMapClick(e: L.LeafletMouseEvent) {
     // Update visualization
     updateNetworkVisualization();
     
-    console.log(`Added node ${nodeId} at [${latlng.lng}, ${latlng.lat}]`);
   }
 }
 
