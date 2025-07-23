@@ -31,13 +31,13 @@ export function updatePTVisualization() {
     // Create dots for each stop in the route
     route.stopSequence.forEach((stopTime, index) => {
       const stop = ptState.stops.get(stopTime.stopId);
-      if (!stop || (stop.x === 0 && stop.y === 0)) return;
+      if (!stop || (stop.lng === 0 && stop.lat === 0)) return;
       
       // Create point
       const point: ConnectedPoint = {
         id: `pt_${line.id}_stop_${stop.id}`,
         marker: null as any,
-        position: L.latLng(stop.y || 0, stop.x || 0),
+        position: L.latLng(stop.lat || 0, stop.lng || 0),
         color: color
       };
       

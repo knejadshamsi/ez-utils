@@ -2,9 +2,7 @@
   import { Button, Checkbox, Label, Input } from 'flowbite-svelte';
   import { PlusOutline, CheckOutline, CloseOutline, EditOutline, TrashBinOutline } from 'flowbite-svelte-icons';
   import { ptState } from '$lib/stores/pt.svelte';
-  import { appState } from '$lib/stores/app.svelte.ts';
-  import { changeTracker } from '$lib/changeTracker.svelte';
-  import { getCurrentProcessId } from '$lib/utils/processId';
+  import { appState } from '$lib/stores/app.svelte';
   import { generateId } from '$lib/utils/generateId';
   import { trackRouteChange, trackLineChange } from '$lib/utils/ptChangeTracking';
   import type { LineWithRoutes } from '$lib/stores/pt.svelte';
@@ -253,13 +251,21 @@
                     <!-- Line Card -->
                     <div class="rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                       <!-- Line Header -->
-                      <button
-                        class="w-full flex items-center gap-2 p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                      <div
+                        class="w-full flex items-center gap-2 p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                         onclick={async () => await toggleLineCollapse(summary.id)}
+                        onkeydown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleLineCollapse(summary.id);
+                          }
+                        }}
+                        role="button"
+                        tabindex="0"
                       >
                         <div class="flex-1">
                           {#if editingLineId === summary.id}
-                            <div class="flex items-center gap-2" onclick={(e) => e.stopPropagation()}>
+                            <div class="flex items-center gap-2" onclick={(e) => e.stopPropagation()} role="group">
                               <Input
                                 type="text"
                                 bind:value={editingLineNumber}
@@ -290,7 +296,7 @@
                               </Button>
                             </div>
                           {:else if deletingLineId === summary.id}
-                            <div class="flex items-center justify-between w-full" onclick={(e) => e.stopPropagation()}>
+                            <div class="flex items-center justify-between w-full" onclick={(e) => e.stopPropagation()} role="group">
                               <span class="text-sm text-gray-600 dark:text-gray-400">Delete this line?</span>
                               <div class="flex items-center gap-1">
                                 <button
@@ -315,6 +321,15 @@
                                   e.stopPropagation();
                                   handleLineClick(summary.id);
                                 }}
+                                onkeydown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleLineClick(summary.id);
+                                  }
+                                }}
+                                role="link"
+                                tabindex="0"
                               >
                                 {truncateText(summary.name)} <span class="text-xs font-normal text-gray-500 dark:text-gray-400">• {summary.route_count} route{summary.route_count !== 1 ? 's' : ''}</span>
                               </div>
@@ -341,7 +356,7 @@
                             </div>
                           {/if}
                         </div>
-                      </button>
+                      </div>
                       
                       <!-- Routes Content -->
                       {#if !collapsedLines.has(summary.id)}

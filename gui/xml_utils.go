@@ -12,18 +12,17 @@ func compactXML(xmlStr string) string {
 	// Remove leading/trailing whitespace from each line and join
 	lines := strings.Split(xmlStr, "\n")
 	var compacted []string
-	
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed != "" {
 			compacted = append(compacted, trimmed)
 		}
 	}
-	
+
 	// Join without newlines to create compact XML
 	return strings.Join(compacted, "")
 }
-
 
 // formatPersonXML formats a person XML element with proper MATSim structure
 func formatPersonXML(xmlStr string) (string, error) {
@@ -31,7 +30,7 @@ func formatPersonXML(xmlStr string) (string, error) {
 	decoder := xml.NewDecoder(strings.NewReader(xmlStr))
 	encoder := xml.NewEncoder(&result)
 	encoder.Indent("", "\t")
-	
+
 	// Copy tokens from decoder to encoder
 	for {
 		tok, err := decoder.Token()
@@ -44,7 +43,7 @@ func formatPersonXML(xmlStr string) (string, error) {
 		encoder.EncodeToken(tok)
 	}
 	encoder.Flush()
-	
+
 	return result.String(), nil
 }
 
@@ -54,7 +53,7 @@ func formatNetworkXML(xmlStr string) (string, error) {
 	decoder := xml.NewDecoder(strings.NewReader(xmlStr))
 	encoder := xml.NewEncoder(&result)
 	encoder.Indent("        ", "\t") // Start with 8 spaces, then use tabs for nested elements
-	
+
 	// Copy tokens from decoder to encoder
 	for {
 		tok, err := decoder.Token()
@@ -67,7 +66,6 @@ func formatNetworkXML(xmlStr string) (string, error) {
 		encoder.EncodeToken(tok)
 	}
 	encoder.Flush()
-	
+
 	return result.String(), nil
 }
-

@@ -94,16 +94,13 @@ class PTState {
   selectedRoute = $derived(() => {
     // Force recomputation when updateVersion changes
     const version = this.updateVersion;
-    console.log('[ptState] Computing selectedRoute with selectedRouteId:', this.selectedRouteId, 'version:', version);
     if (!this.selectedRouteId) return null;
     for (const line of this.lines.values()) {
       const route = line.routes.find(r => r.id === this.selectedRouteId);
       if (route) {
-        console.log('[ptState] Found selected route:', route.id, 'in line:', line.id);
         return { line, route };
       }
     }
-    console.log('[ptState] Selected route not found!');
     return null;
   });
 
@@ -163,10 +160,8 @@ class PTState {
     const newSet = new Set(this.visibleModes);
     if (newSet.has(mode)) {
       newSet.delete(mode);
-      console.log(`[ptState] Mode ${mode} hidden, visible modes:`, Array.from(newSet));
     } else {
       newSet.add(mode);
-      console.log(`[ptState] Mode ${mode} shown, visible modes:`, Array.from(newSet));
     }
     this.visibleModes = newSet;
   }
@@ -200,19 +195,16 @@ class PTState {
   }
   
   setSelectedRoute(routeId: string | null) {
-    console.log('[ptState] setSelectedRoute called with:', routeId);
     this.selectedRouteId = routeId;
     // Auto-select the line when route is selected
     if (routeId) {
       for (const line of this.lines.values()) {
         if (line.routes.some(r => r.id === routeId)) {
           this.selectedLineId = line.id;
-          console.log('[ptState] Found route in line:', line.id);
           break;
         }
       }
     }
-    console.log('[ptState] After setSelectedRoute - selectedRouteId:', this.selectedRouteId);
   }
 
   toggleVisibility(type: 'stops' | 'routes') {
@@ -221,14 +213,12 @@ class PTState {
 
   // Load only line summaries initially
   loadLineSummaries(summaries: gui.PTLineSummary[]) {
-    console.log('[ptState] Loading line summaries, received:', summaries?.length || 0);
     
     // Always create a new map, even if empty
     const newSummaries = new Map<string, gui.PTLineSummary>();
     
     if (summaries && summaries.length > 0) {
       for (const summary of summaries) {
-        console.log('[ptState] Adding summary:', summary.id, summary.name, summary.mode);
         newSummaries.set(summary.id, summary);
       }
     }
@@ -427,8 +417,8 @@ class PTState {
 
   getStopCoords(stopId: string): string {
     const stop = this.stops.get(stopId);
-    if (stop?.x !== undefined && stop?.y !== undefined) {
-      return `${stop.x.toFixed(4)}, ${stop.y.toFixed(4)}`;
+    if (stop?.lng !== undefined && stop?.lat !== undefined) {
+      return `${stop.lng.toFixed(4)}, ${stop.lat.toFixed(4)}`;
     }
     return 'No coordinates';
   }

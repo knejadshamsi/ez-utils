@@ -17,21 +17,16 @@
   import NetworkController from "./components/network/NetworkController.svelte";
   import { networkState } from "$lib/stores/network.svelte";
   
-  // Load PT data when editing PT files - using onMount instead of $effect
   import { onMount } from 'svelte';
   
   onMount(async () => {
     if (appState.display === 'EDITING' && commandArgs.fileEditMode === 'PT') {
-      console.log('[App] Loading PT data for default mode (bus)...');
       try {
-        await PTService.loadPTData('BUS'); // Load only BUS mode initially
+        await PTService.loadPTData('BUS');
       } catch (error) {
-        console.error('[App] Failed to load PT data on app start:', error);
       }
     }
   });
-  
-  // Network drawing handlers - to be reimplemented with Leaflet
 </script>
 
 <Header />

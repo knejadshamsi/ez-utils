@@ -4,10 +4,8 @@
   import EzRadioGroup from "../../EzRadioGroup.svelte";
   import EzRadioOption from "../../EzRadioOption.svelte";
 
-  // Handle file edit mode selection
   function handleEditModeSelect(value: string) {
     commandArgs.fileEditMode = value as FileEditMode;
-    // User has made a selection, so mark it as provided
     commandArgs.isFileEditModeProvided = true;
   }
 </script>

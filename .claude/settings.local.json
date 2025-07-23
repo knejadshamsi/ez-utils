@@ -11,7 +11,10 @@
       "Bash(go install:*)",
       "WebFetch(domain:github.com)",
       "Bash(go build:*)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "mcp__serena__list_dir",
+      "mcp__serena__find_file",
+      "mcp__serena__search_for_pattern"
     ],
     "deny": []
   }

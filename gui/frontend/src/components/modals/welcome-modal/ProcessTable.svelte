@@ -3,20 +3,18 @@
   import { ExclamationCircleOutline } from "flowbite-svelte-icons";
   import { welcomeModalState, getPaginatedProcesses, getTotalPages } from "./welcome.svelte";
   import { GetProcessesByFile, SyncChanges } from "@wailsjs/go/gui/App";
-  import { commandArgs } from "$lib/stores/app.svelte.ts";
+  import { commandArgs, appState } from "$lib/stores/app.svelte.ts";
   import { changeTracker } from "../../../lib/changeTracker.svelte";
   
   let error = $state<string | null>(null);
   let showDeleteConfirmation = $state(false);
   let processToDelete = $state<number | null>(null);
 
-  // Show delete confirmation modal
   function showDeleteModal(processId: number) {
     processToDelete = processId;
     showDeleteConfirmation = true;
   }
   
-  // Handle delete confirmation
   async function confirmDelete() {
     if (!processToDelete) return;
     
@@ -25,9 +23,6 @@
     processToDelete = null;
     
     try {
-      console.log('Deleting process:', processId);
-      
-      // Queue the delete action
       changeTracker.pendingChanges.push({
         type: 'process',
         elementType: 'process',
@@ -35,36 +30,25 @@
         processId: processId
       });
       
-      console.log('Syncing changes:', changeTracker.pendingChanges);
-      
-      // Sync immediately for delete operations
       await SyncChanges(changeTracker.pendingChanges);
       changeTracker.pendingChanges = [];
       
-      console.log('Delete successful, refreshing process list');
-      
-      // Refresh the process list
       const updatedProcesses = await GetProcessesByFile(commandArgs.filePath);
-      console.log('Updated processes:', updatedProcesses);
       welcomeModalState.processes = updatedProcesses || [];
       
-      // If we deleted the selected process, clear selection
-      if (welcomeModalState.selectedProcessId === processId) {
-        welcomeModalState.selectedProcessId = welcomeModalState.processes.length > 0 ? welcomeModalState.processes[0].process_id : null;
+      if (appState.processId === processId) {
+        appState.processId = welcomeModalState.processes.length > 0 ? welcomeModalState.processes[0].process_id : 0;
       }
       
       
-      // Reset to first page if current page is now empty
       if (welcomeModalState.currentPage > getTotalPages()) {
         welcomeModalState.currentPage = Math.max(1, getTotalPages());
       }
     } catch (err) {
-      console.error('Delete failed:', err);
       error = err instanceof Error ? err.message : 'Failed to delete process';
     }
   }
   
-  // Cancel delete
   function cancelDelete() {
     showDeleteConfirmation = false;
     processToDelete = null;
@@ -92,7 +76,6 @@
       <TableHead>
         <TableHeadCell class="w-10"></TableHeadCell>
         <TableHeadCell>Process ID</TableHeadCell>
-        <TableHeadCell>Status</TableHeadCell>
         <TableHeadCell>Timestamp</TableHeadCell>
         <TableHeadCell class="w-20">Actions</TableHeadCell>
       </TableHead>
@@ -103,16 +86,11 @@
               <Radio 
                 name="processSelection"
                 value={process.process_id}
-                checked={welcomeModalState.selectedProcessId === process.process_id}
-                onchange={() => welcomeModalState.selectedProcessId = process.process_id}
+                checked={appState.processId === process.process_id}
+                onchange={() => appState.processId = process.process_id}
               />
             </TableBodyCell>
             <TableBodyCell>{process.process_id}</TableBodyCell>
-            <TableBodyCell>
-              <span class={process.status === 'COMPLETED' ? 'text-green-600 font-medium' : process.status === 'FAILED' ? 'text-red-600 font-medium' : 'text-yellow-600'}>
-                {process.status}
-              </span>
-            </TableBodyCell>
             <TableBodyCell>{new Date(process.timestamp).toLocaleString()}</TableBodyCell>
             <TableBodyCell>
               <Button 

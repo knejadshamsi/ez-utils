@@ -9,8 +9,7 @@
     getPersonsInSelectedZones,
     type Person
   } from '$lib/stores/population.svelte';
-  import { appState, editingSession } from '$lib/stores/app.svelte.ts';
-  import { onMount } from 'svelte';
+  import { appState } from '$lib/stores/app.svelte.ts';
   import { trackPersonChange } from '$lib/utils/populationChangeTracking';
   import { loadPopulationPage, handlePageChange, handleZoneFilterChange, initializeFilterSession, addZoneToFilter, removeZoneFromFilter } from '$lib/services/populationPagination';
   import { syncChanges } from '$lib/syncManager';
@@ -22,19 +21,16 @@
   
   let editingZoneId = $state<string | null>(null);
 
-  // Watch for changes to editingSession.tableName and load data when it's available
-  $effect(() => {
-    if (editingSession.tableName && editingSession.tableName !== '') {
-      // Load data when table name becomes available
-      loadPopulationData();
+    $effect(() => {
+    if (appState.processId && appState.processId !== 0) {
+            loadPopulationData();
     }
   });
   
   async function loadPopulationData() {
     try {
-      // Don't initialize filter session yet - we want unfiltered data first
-      // Load first page of population data (no zones initially)
-      await loadPopulationPage(editingSession.tableName, 1);
+            const tableName = `population_data_${appState.processId}`;
+            await loadPopulationPage(tableName, 1);
       
     } catch (error) {
       console.error('Failed to load population data:', error);
@@ -44,29 +40,22 @@
   async function handleAddNewPerson() {
     if (!mapState.map) return;
     
-    // Set a flag to indicate we're waiting for a click
-    populationState.isSelectingActivityLocation = true;
+        populationState.isSelectingActivityLocation = true;
     appState.secondarySidebar = 'HIDDEN';
     
-    // Create a temporary handler for the map click
-    const clickHandler = (e: L.LeafletMouseEvent) => {
-      // Reset the flag
-      populationState.isSelectingActivityLocation = false;
+        const clickHandler = (e: L.LeafletMouseEvent) => {
+            populationState.isSelectingActivityLocation = false;
       
-      // Generate new person ID
-      const timestamp = Date.now();
+            const timestamp = Date.now();
       const newId = `person_${timestamp}`;
       const activityId = `activity_${timestamp}_0`;
       
-      // Get click coordinates
-      const coords: [number, number] = [e.latlng.lng, e.latlng.lat];
+            const coords: [number, number] = [e.latlng.lng, e.latlng.lat];
       
-      // Create new person with Plan 1 and home activity at clicked location
-      const newPerson: Person = {
+            const newPerson: Person = {
         id: newId,
         zoneId: populationState.zones[0]?.id || 'default',
-        attributes: [], // New persons start with no attributes
-        plans: [{
+        attributes: [],         plans: [{
           id: 1,
           activities: [{
             id: activityId,
@@ -79,50 +68,37 @@
         }]
       };
       
-      // Add to store
-      populationState.persons.set(newId, newPerson);
+            populationState.persons.set(newId, newPerson);
       
-      // Make visible by default
-      populationState.visiblePersons.add(newId);
+            populationState.visiblePersons.add(newId);
       
-      // Track change
-      trackPersonChange(newPerson, 'create');
+            trackPersonChange(newPerson, 'create');
       
-      // Select the new person
-      selectPerson(newId);
+            selectPerson(newId);
       
-      // Open secondary sidebar
-      appState.secondarySidebar = 'EXPANDED';
+            appState.secondarySidebar = 'EXPANDED';
       
-      // Update connected dots for new person
-      updateConnectedDots();
+            updateConnectedDots();
       
-      // Update total count
-      populationState.totalPersons++;
+            populationState.totalPersons++;
       
-      // Recalculate total pages if needed
-      populationState.totalPages = Math.ceil(populationState.totalPersons / populationState.pageSize);
+            populationState.totalPages = Math.ceil(populationState.totalPersons / populationState.pageSize);
       
-      // Remove the click handler
-      mapState.map.off('click', clickHandler);
+            mapState.map.off('click', clickHandler);
     };
     
-    // Add click handler to map
-    mapState.map.on('click', clickHandler);
+        mapState.map.on('click', clickHandler);
   }
 
   function handlePersonClick(personId: string) {
-    // Toggle behavior: if clicking the same person, deselect and hide sidebar
-    if (populationState.selectedPersonId === personId) {
+        if (populationState.selectedPersonId === personId) {
       selectPerson(null);
       appState.secondarySidebar = 'HIDDEN';
-      // Clear connected dots when deselecting
-      updateConnectedDots();
+            updateConnectedDots();
     } else {
       selectPerson(personId);
       appState.secondarySidebar = 'EXPANDED';
-      // Update connected dots for selected person
-      updateConnectedDots();
+            updateConnectedDots();
     }
   }
 
@@ -174,8 +150,7 @@
         appState.secondarySidebar = 'HIDDEN';
       }
       
-      // Update total count
-      populationState.totalPersons--;
+            populationState.totalPersons--;
       
       // Recalculate total pages
       populationState.totalPages = Math.ceil(populationState.totalPersons / populationState.pageSize);
@@ -188,7 +163,7 @@
   }
 
   async function handleAddNewZone() {
-    if (!mapState.map || !editingSession.tableName) return;
+    if (!mapState.map || !appState.processId) return;
     
     populationState.isDrawingZone = true;
     
@@ -209,15 +184,16 @@
         
         
         // Initialize filter session if this is the first zone
+        const tableName = `population_data_${appState.processId}`;
         if (populationState.zones.length === 0) {
-          await initializeFilterSession(editingSession.tableName);
+          await initializeFilterSession(tableName);
         }
         
         // Add zone to filter session
         await addZoneToFilter(
           zoneId,
           coordinates, // [lng, lat] pairs
-          editingSession.tableName
+          tableName
         );
         
         // Add zone to frontend state (local only)
@@ -283,22 +259,24 @@
     const zone = populationState.zones.find(z => z.id === zoneId);
     if (!zone) return;
     
+    const tableName = `population_data_${appState.processId}`;
     if (populationState.selectedZones.has(zoneId)) {
       // Remove zone
       populationState.selectedZones.delete(zoneId);
-      await removeZoneFromFilter(zoneId, editingSession.tableName);
+      await removeZoneFromFilter(zoneId, tableName);
     } else {
       // Add zone
       populationState.selectedZones.add(zoneId);
-      await addZoneToFilter(zoneId, zone.polygon, editingSession.tableName);
+      await addZoneToFilter(zoneId, zone.polygon, tableName);
     }
   }
   
   // Handle page navigation
   async function handlePageNavigation(page: number) {
-    if (!editingSession.tableName) return;
+    if (!appState.processId) return;
     
-    await handlePageChange(page, editingSession.tableName, async () => {
+    const tableName = `population_data_${appState.processId}`;
+    await handlePageChange(page, tableName, async () => {
       const confirmed = confirm('You have unsaved changes. Save before switching pages?');
       if (confirmed) {
         await syncChanges();

@@ -210,6 +210,10 @@ export function GetZonesWithCounts(arg1) {
   return window['go']['gui']['App']['GetZonesWithCounts'](arg1);
 }
 
+export function LoadProcessData(arg1) {
+  return window['go']['gui']['App']['LoadProcessData'](arg1);
+}
+
 export function ProcessNetworkFile(arg1) {
   return window['go']['gui']['App']['ProcessNetworkFile'](arg1);
 }
@@ -240,6 +244,10 @@ export function SelectFile() {
 
 export function SetDatabase(arg1) {
   return window['go']['gui']['App']['SetDatabase'](arg1);
+}
+
+export function StartProcessing(arg1, arg2) {
+  return window['go']['gui']['App']['StartProcessing'](arg1, arg2);
 }
 
 export function SyncChanges(arg1) {

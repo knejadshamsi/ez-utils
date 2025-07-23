@@ -21,8 +21,8 @@ type TransitSchedule struct {
 
 type TransitStop struct {
 	ID   string  `xml:"id,attr" json:"id"`
-	X    float64 `xml:"x,attr" json:"x"`
-	Y    float64 `xml:"y,attr" json:"y"`
+	Lng  float64 `xml:"x,attr" json:"lng"`
+	Lat  float64 `xml:"y,attr" json:"lat"`
 	Name string  `xml:"name,attr" json:"name"`
 }
 
@@ -53,12 +53,13 @@ type Departure struct {
 	DepartureTime string `xml:"departureTime,attr" json:"departureTime"`
 }
 
-
-
-
 // ProcessPTFile is the main entry point for PT file processing
 func (a *App) ProcessPTFile(filePath string) (*ProcessResult, error) {
-	// Create process record
+	if filePath == "" {
+		return nil, fmt.Errorf("file path cannot be empty")
+	}
+
+	// Create process record synchronously to get real process ID
 	result, err := a.db.execQuery(
 		createProcessQuery,
 		"failed to create process record",
@@ -73,7 +74,40 @@ func (a *App) ProcessPTFile(filePath string) (*ProcessResult, error) {
 		return nil, fmt.Errorf("failed to get process ID: %w", err)
 	}
 
-	// Create PT tables
+	// Ensure telemetry table has PT columns before creating any records
+	if err := a.db.AlterTelemetryTableForPT(); err != nil {
+		a.db.execQuery(
+			"UPDATE processes SET status = ? WHERE process_id = ?",
+			"", "PROCESSING_FAILED", processID,
+		)
+		return nil, fmt.Errorf("failed to update telemetry table: %w", err)
+	}
+
+	// Get file info
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		a.db.execQuery(
+			"UPDATE processes SET status = ? WHERE process_id = ?",
+			"", "PROCESSING_FAILED", processID,
+		)
+		return nil, fmt.Errorf("failed to get file info: %w", err)
+	}
+
+	// Create telemetry record with PT columns available
+	_, err = a.db.execQuery(
+		"INSERT INTO process_telemetry (process_id, total_file_size, stops_extracted, lines_extracted, routes_extracted) VALUES (?, ?, 0, 0, 0)",
+		"failed to create telemetry record",
+		processID, fileInfo.Size(),
+	)
+	if err != nil {
+		a.db.execQuery(
+			"UPDATE processes SET status = ? WHERE process_id = ?",
+			"", "PROCESSING_FAILED", processID,
+		)
+		return nil, err
+	}
+
+	// Create PT tables synchronously
 	if err := a.db.CreatePTTables(int(processID)); err != nil {
 		a.db.execQuery(
 			"UPDATE processes SET status = ? WHERE process_id = ?",
@@ -82,30 +116,7 @@ func (a *App) ProcessPTFile(filePath string) (*ProcessResult, error) {
 		return nil, err
 	}
 
-	// Get file info
-	fileInfo, err := os.Stat(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get file info: %w", err)
-	}
-
-	// Create telemetry record
-	_, err = a.db.execQuery(
-		"INSERT INTO process_telemetry (process_id, total_file_size) VALUES (?, ?)",
-		"failed to create telemetry record",
-		processID, fileInfo.Size(),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// Update status to INITIALIZING
-	a.db.execQuery(
-		"UPDATE processes SET status = ? WHERE process_id = ?",
-		"failed to update process status",
-		"PROCESSING", processID,
-	)
-	
-	// Start async processing
+	// Start async processing with real process ID
 	go a.processPTFileAsync(int(processID), filePath, fileInfo.Size())
 
 	return &ProcessResult{
@@ -115,13 +126,6 @@ func (a *App) ProcessPTFile(filePath string) (*ProcessResult, error) {
 }
 
 func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64) {
-	// Update to PROCESSING
-	a.db.execQuery(
-		"UPDATE processes SET status = ? WHERE process_id = ?",
-		"failed to update process status",
-		"PROCESSING", processID,
-	)
-	
 	processor := &PTProcessor{
 		processID: processID,
 		db:        a.db,
@@ -178,6 +182,11 @@ func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64)
 		status, processID,
 	); updateErr != nil {
 	}
+	
+	wailsruntime.EventsEmit(a.ctx, "process:status", map[string]interface{}{
+		"processId": processID,
+		"status":    status,
+	})
 
 	// Emit completion event
 	wailsruntime.EventsEmit(a.ctx, "pt-processing-complete", map[string]interface{}{
@@ -188,7 +197,7 @@ func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64)
 
 func (p *PTProcessor) process(countingReader *CountingReader) error {
 	decoder := xml.NewDecoder(countingReader)
-	
+
 	// Batch processing
 	const batchSize = 100
 	var stopBatch []PTStopData
@@ -222,21 +231,21 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 				var stop TransitStop
 				var stopXML strings.Builder
 				stopXML.WriteString(p.captureElementStart(&se))
-				
+
 				// Extract attributes
 				for _, attr := range se.Attr {
 					switch attr.Name.Local {
 					case "id":
 						stop.ID = attr.Value
 					case "x":
-						stop.X, _ = strconv.ParseFloat(attr.Value, 64)
+						stop.Lng, _ = strconv.ParseFloat(attr.Value, 64)
 					case "y":
-						stop.Y, _ = strconv.ParseFloat(attr.Value, 64)
+						stop.Lat, _ = strconv.ParseFloat(attr.Value, 64)
 					case "name":
 						stop.Name = attr.Value
 					}
 				}
-				
+
 				// Capture inner content until matching end element
 				depth := 1
 				for depth > 0 {
@@ -244,7 +253,7 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 					if err != nil {
 						break
 					}
-					
+
 					switch t := token.(type) {
 					case xml.StartElement:
 						stopXML.WriteString(p.captureElementStart(&t))
@@ -256,12 +265,12 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 						stopXML.Write(t)
 					}
 				}
-				
+
 				if stop.ID != "" {
 					stopBatch = append(stopBatch, PTStopData{
 						ID:     stop.ID,
-						X:      stop.X,
-						Y:      stop.Y,
+						Lng:    stop.Lng,
+						Lat:    stop.Lat,
 						Name:   stop.Name,
 						RawXML: stopXML.String(),
 					})
@@ -344,7 +353,7 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 						})
 					}
 				}
-			
+
 			case "transportMode":
 				if currentRoute != nil {
 					// Read the transportMode text content
@@ -366,7 +375,7 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 							}
 						}
 					}
-					transportModeDone:
+				transportModeDone:
 				}
 			}
 
@@ -381,7 +390,7 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 						RawXML: currentRouteRawXML + "</transitRoute>",
 					})
 					atomic.AddInt64(&p.routeCount, 1)
-					
+
 					if len(routeBatch) >= batchSize {
 						if err := p.insertRouteBatch(routeBatch); err != nil {
 							atomic.AddInt64(&p.errorCount, 1)
@@ -407,7 +416,7 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 						}
 						departureBatch = departureBatch[:0]
 					}
-					
+
 					currentRoute = nil
 				}
 
@@ -424,7 +433,7 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 						RawXML: currentLineRawXML + "</transitLine>",
 					})
 					atomic.AddInt64(&p.lineCount, 1)
-					
+
 					if len(lineBatch) >= batchSize {
 						if err := p.insertLineBatch(lineBatch); err != nil {
 							atomic.AddInt64(&p.errorCount, 1)
@@ -432,7 +441,7 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 						}
 						lineBatch = lineBatch[:0]
 					}
-					
+
 					currentLine = nil
 				}
 			}
@@ -480,15 +489,14 @@ func (p *PTProcessor) captureElementStart(start *xml.StartElement) string {
 	var rawXML strings.Builder
 	rawXML.WriteString("<")
 	rawXML.WriteString(start.Name.Local)
-	
+
 	for _, attr := range start.Attr {
 		rawXML.WriteString(fmt.Sprintf(` %s="%s"`, attr.Name.Local, attr.Value))
 	}
 	rawXML.WriteString(">")
-	
+
 	return rawXML.String()
 }
-
 
 func (p *PTProcessor) updateTelemetry(countingReader *CountingReader, done chan bool) {
 	ticker := time.NewTicker(1 * time.Second)
@@ -510,7 +518,7 @@ func (p *PTProcessor) sendTelemetryUpdate(countingReader *CountingReader) {
 	if countingReader != nil {
 		bytesRead = countingReader.BytesRead()
 	}
-	
+
 	p.telemetryMutex.RLock()
 	telemetry := &PTTelemetry{
 		ProcessID:       p.telemetry.ProcessID,
@@ -536,8 +544,17 @@ func (p *PTProcessor) sendTelemetryUpdate(countingReader *CountingReader) {
 		return
 	}
 
-	// Emit event
+	// Emit events
 	wailsruntime.EventsEmit(p.app.ctx, "pt-telemetry-update", telemetry)
+	wailsruntime.EventsEmit(p.app.ctx, "process:telemetry", map[string]interface{}{
+		"processId":        telemetry.ProcessID,
+		"bytesRead":        telemetry.BytesRead,
+		"stopsExtracted":   telemetry.StopsExtracted,
+		"linesExtracted":   telemetry.LinesExtracted,
+		"routesExtracted":  telemetry.RoutesExtracted,
+		"errorCount":       telemetry.ErrorCount,
+		"lastUpdated":      telemetry.LastUpdated,
+	})
 }
 
 // Batch insert methods

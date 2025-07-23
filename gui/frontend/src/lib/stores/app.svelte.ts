@@ -28,12 +28,14 @@ export const appState = $state<{
   display: DisplayState,
   primarySidebar: SidebarState,
   secondarySidebar: SidebarState,
-  networkMode: NetworkMode
+  networkMode: NetworkMode,
+  processId: number
 }>({ 
   display: 'WELCOME',
   primarySidebar: 'EXPANDED',
   secondarySidebar: 'HIDDEN',
-  networkMode: 'VIEW'
+  networkMode: 'VIEW',
+  processId: 0
 });
 
 // Create separate state for command arguments
@@ -51,14 +53,6 @@ export const commandArgs = $state<{
   validationStatus: 'NOT'
 });
 
-// State for current editing session
-export const editingSession = $state<{
-  processId: number,
-  tableName: string
-}>({
-  processId: 0,
-  tableName: ''
-});
 
 // Map component reference for cross-component communication
 export const mapComponent = $state<{

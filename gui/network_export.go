@@ -2,7 +2,6 @@
 package gui
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"os"

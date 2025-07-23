@@ -46,7 +46,7 @@
     const newRoute: RouteWithTiming = {
       id: generateId(),
       lineId: lineId,
-      line_id: lineId, // Backend expects snake_case
+      line_id: lineId,
       direction: direction.trim(),
       telemetryId: '',
       raw_xml: '',

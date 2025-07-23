@@ -1,7 +1,7 @@
 import { changeTracker } from '$lib/changeTracker.svelte';
 import type { Person, PersonAttribute, Plan, Activity } from '$lib/stores/population.svelte';
 import type { SyncAction } from '$lib/changeTracker.svelte';
-import { editingSession } from '$lib/stores/app.svelte.ts';
+import { appState } from '$lib/stores/app.svelte.ts';
 
 function convertPersonToXML(person: Person): string {
   // Convert person data to XML format - compact for storage
@@ -69,7 +69,9 @@ function extractCoordinatesFromPerson(person: Person): string {
 }
 
 export function trackPersonChange(person: Person, action: 'create' | 'update' | 'delete') {
-  if (!editingSession.tableName) return;
+  if (!appState.processId) return;
+  
+  const tableName = `population_data_${appState.processId}`;
   
   // Check if there's already a pending "add" action for this person
   const existingAddAction = changeTracker.pendingChanges.find(
@@ -118,7 +120,7 @@ export function trackPersonChange(person: Person, action: 'create' | 'update' | 
       type: 'population',
       elementType: 'person',
       action: 'add',
-      tableName: editingSession.tableName,
+      tableName: tableName,
       data: {
         id: person.id,
         coords: extractCoordinatesFromPerson(person),
@@ -131,7 +133,7 @@ export function trackPersonChange(person: Person, action: 'create' | 'update' | 
       type: 'population',
       elementType: 'person',
       action: 'update',
-      tableName: editingSession.tableName,
+      tableName: tableName,
       personId: person.id,
       planXML: convertPersonToXML(person)
     };
@@ -144,7 +146,7 @@ export function trackPersonChange(person: Person, action: 'create' | 'update' | 
       type: 'population',
       elementType: 'person',
       action: 'delete',
-      tableName: editingSession.tableName,
+      tableName: tableName,
       personId: person.id
     };
     changeTracker.pendingChanges = [...changeTracker.pendingChanges, deleteAction];

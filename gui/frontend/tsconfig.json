@@ -11,7 +11,8 @@
     "noEmit": true,
     "paths": {
       "@wailsjs/*": ["./wailsjs/*"],
-      "@map/*": ["./src/map/*"]
+      "@map/*": ["./src/map/*"],
+      "$lib/*": ["./src/lib/*"]
     }
   },
   "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte", "wailsjs/**/*"],

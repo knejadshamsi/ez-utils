@@ -3,17 +3,17 @@
   import { ExclamationCircleOutline } from "flowbite-svelte-icons";
   import { slide } from "svelte/transition";
   import { welcomeModalState } from "./welcome.svelte";
-  import { commandArgs, appState } from "$lib/stores/app.svelte.ts";
+  import { commandArgs, appState } from "$lib/stores/app.svelte";
   import { ExitApplication } from "@wailsjs/go/gui/App";
   
   interface Props {
     onNext: () => Promise<void>;
     onGoBack: () => void;
-    onStart: () => void;
+    onLoadExisting: () => void;
     onNewProcess: () => void;
   }
   
-  let { onNext, onGoBack, onStart, onNewProcess }: Props = $props();
+  let { onNext, onGoBack, onLoadExisting, onNewProcess }: Props = $props();
   
   let showExitConfirmation = $state(false);
   
@@ -21,7 +21,6 @@
     try {
       await ExitApplication();
     } catch (error) {
-      console.error('Failed to exit application:', error);
     }
   }
 </script>
@@ -42,7 +41,7 @@
     {#if !welcomeModalState.showTable}
       <Button 
         color="primary"
-        disabled={!commandArgs.isFilePathProvided || commandArgs.validationStatus !== `VALIDATED_${commandArgs.fileEditMode}` || welcomeModalState.isProcessFetching}
+        disabled={commandArgs.validationStatus !== `VALIDATED_${commandArgs.fileEditMode}` || welcomeModalState.isProcessFetching}
         onclick={onNext}
       >
         {welcomeModalState.isProcessFetching ? 'Loading...' : 'Next'}
@@ -66,11 +65,8 @@
       {#if welcomeModalState.processes.length > 0}
         <Button 
           color="primary"
-          disabled={!welcomeModalState.selectedProcessId}
-          onclick={() => {
-            appState.display = 'LOADING';
-            onStart();
-          }}
+          disabled={!appState.processId}
+          onclick={onLoadExisting}
         >
           Load
         </Button>

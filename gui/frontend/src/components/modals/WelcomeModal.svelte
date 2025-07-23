@@ -1,129 +1,93 @@
 <script lang="ts">
   import { Modal, P } from "flowbite-svelte";
-  import { appState, commandArgs, type FileEditMode } from "$lib/stores/app.svelte.ts";
+  import { appState, commandArgs, type FileEditMode } from "$lib/stores/app.svelte";
   import { onMount } from "svelte";
-  import { GetStartupConfig, GetProcessesByFile, ValidatePopulationXML, ValidateNetworkXML, ValidatePTXML } from "@wailsjs/go/gui/App";
+  import { GetStartupConfig, GetProcessesByFile, ValidatePopulationXML, ValidateNetworkXML, ValidatePTXML, StartProcessing } from "@wailsjs/go/gui/App";
   import SelectEditMode from "./welcome-modal/SelectEditMode.svelte";
   import FileSelection from "./welcome-modal/FileSelection.svelte";
   import ProcessTable from "./welcome-modal/ProcessTable.svelte";
   import WelcomeModalFooter from "./welcome-modal/WelcomeModalFooter.svelte";
   import { welcomeModalState } from "./welcome-modal/welcome.svelte";
 
-  // Handle form submission (for loading existing process)
-  function handleStart() {
-    // Don't change state here - let ProcessingModal handle the transition
-    // The WelcomeModalFooter already sets appState.display = 'LOADING'
-  }
   
-  // Handle creating new process
-  function handleNewProcess() {
-    appState.display = 'PROCESSING';
+  async function createNewProcess() {
+    try {
+      appState.display = 'PROCESSING';
+      const result = await StartProcessing(commandArgs.filePath, commandArgs.fileEditMode);
+      appState.processId = result.process_id;
+    } catch (error) {
+      appState.display = 'PROCESSING_FAILED';
+    }
   }
 
-  // Handle next button click
-  async function handleNext() {
-    console.log('handleNext called', { filePath: commandArgs.filePath, isFilePathProvided: commandArgs.isFilePathProvided });
-    // Mark both as provided since user is proceeding with their choices
+  async function showProcessSelectionTable() {
     commandArgs.isFileEditModeProvided = true;
     welcomeModalState.isProcessFetching = true;
     
     try {
-      // Fetch processes for the selected file
-      
       const processes = await GetProcessesByFile(commandArgs.filePath);
-      console.log('GetProcessesByFile returned:', processes);
       
-      if (processes === null) {
-        console.log('Error case: processes is null');
-        // Handle error - don't show table
-        welcomeModalState.showTable = false;
-      } else {
-        console.log('Success case: processes array length:', processes.length);
-        // Set processes (empty array or filled array)
+      if (processes?.length > 0) {
         welcomeModalState.processes = processes;
-        
-        if (welcomeModalState.processes.length > 0) {
-          // Auto-select the first process
-          welcomeModalState.selectedProcessId = (welcomeModalState.processes[0] as any).process_id;
-        }
-        
+        appState.processId = processes[0].process_id;
         welcomeModalState.showTable = true;
+      } else {
+        welcomeModalState.showTable = false;
       }
     } catch (error) {
-      console.error('Error in handleNext:', error);
       welcomeModalState.showTable = false;
-    }
-    
-    welcomeModalState.isProcessFetching = false;
-  }
-
-  // Handle go back button click
-  function handleGoBack() {
-    welcomeModalState.showTable = false;
-    welcomeModalState.selectedProcessId = null;
-    welcomeModalState.currentPage = 1;
-    welcomeModalState.processes = [];
-  }
-
-  // Get the correct validator function based on file edit mode
-  function getValidatorFunction() {
-    switch (commandArgs.fileEditMode) {
-      case 'POPULATION':
-        return ValidatePopulationXML;
-      case 'NETWORK':
-        return ValidateNetworkXML;
-      case 'PT':
-        return ValidatePTXML;
-      default:
-        throw new Error(`Unknown file edit mode: ${commandArgs.fileEditMode}`);
+    } finally {
+      welcomeModalState.isProcessFetching = false;
     }
   }
 
-  // Validate file (used for startup files)
+  function returnToFileSelection() {
+    const state = welcomeModalState;
+    state.showTable = false;
+    state.currentPage = 1;
+    state.processes = [];
+    appState.processId = 0;
+  }
+
   async function validateFile() {
     if (!commandArgs.filePath) return;
     
-    commandArgs.validationStatus = 'VALIDATING';
+    const validators = {
+      POPULATION: ValidatePopulationXML,
+      NETWORK: ValidateNetworkXML,
+      PT: ValidatePTXML
+    };
     
+    const validator = validators[commandArgs.fileEditMode];
+    
+    commandArgs.validationStatus = 'VALIDATING';
     try {
-      const validator = getValidatorFunction();
       const result = await validator(commandArgs.filePath);
-      commandArgs.validationStatus = result.isValid ? `VALIDATED_${commandArgs.fileEditMode}` : 'FAIL';
-      
-      if (!result.isValid) {
-        console.error('Validation failed:', result.error);
-      }
+      commandArgs.validationStatus = result.isValid 
+        ? `VALIDATED_${commandArgs.fileEditMode}` 
+        : 'FAIL';
     } catch (error) {
-      console.error('Validation error:', error);
       commandArgs.validationStatus = 'FAIL';
     }
   }
 
-  // Receive command arguments from Wails/Go backend
   onMount(async () => {
     try {
       const config = await GetStartupConfig();
       
-      // Handle edit mode
-      if (config.editMode && config.editMode !== '') {
+      commandArgs.isFileEditModeProvided = !!config.editMode;
+      if (config.editMode) {
         commandArgs.fileEditMode = config.editMode.toUpperCase() as FileEditMode;
-        commandArgs.isFileEditModeProvided = true;
-      } else {
-        commandArgs.isFileEditModeProvided = false;
       }
       
-      // Handle file path
-      if (config.filePath && config.filePath !== '') {
+      commandArgs.isFilePathProvided = !!config.filePath;
+      if (config.filePath) {
         commandArgs.filePath = config.filePath;
-        commandArgs.isFilePathProvided = true;
-        
-        // Auto-validate the startup file
         await validateFile();
-      } else {
-        commandArgs.isFilePathProvided = false;
       }
     } catch (error) {
-      console.error('Failed to get startup config from backend:', error);
+      commandArgs.isFileEditModeProvided = false;
+      commandArgs.isFilePathProvided = false;
     }
   });
 </script>
@@ -159,10 +123,10 @@
 
   {#snippet footer()}
     <WelcomeModalFooter 
-      onNext={handleNext}
-      onGoBack={handleGoBack}
-      onStart={handleStart}
-      onNewProcess={handleNewProcess}
+      onNext={showProcessSelectionTable}
+      onGoBack={returnToFileSelection}
+      onLoadExisting={() => appState.display = 'LOADING'}
+      onNewProcess={createNewProcess}
     />
   {/snippet}
 </Modal>

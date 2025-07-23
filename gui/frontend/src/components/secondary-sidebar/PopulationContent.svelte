@@ -13,7 +13,6 @@
   } from '$lib/stores/population.svelte';
   import { appState } from '$lib/stores/app.svelte.ts';
   import { GetPerson } from '@wailsjs/go/gui/App';
-  import { editingSession } from '$lib/stores/app.svelte.ts';
   import { trackActivityChange } from '$lib/utils/populationChangeTracking';
   import { parsePersonXML } from '$lib/utils/populationXmlParser';
   import { updateConnectedDots } from '../../map/updateConnectedDots';
@@ -32,27 +31,25 @@
   
   // Load person details when selection changes
   $effect(() => {
-    if (populationState.selectedPersonId && editingSession.tableName) {
+    if (populationState.selectedPersonId && appState.processId) {
       loadPersonDetails(populationState.selectedPersonId);
     }
   });
   
   async function loadPersonDetails(personId: string) {
     try {
-      const personData = await GetPerson(editingSession.tableName, personId);
+      const tableName = `population_data_${appState.processId}`;
+      const personData = await GetPerson(tableName, personId);
       
-      // Parse the raw XML to get updated plans
       const parsedData = parsePersonXML(personData.raw_xml);
       const person = populationState.persons.get(personId);
       
       if (person) {
-        // Create a new person object with parsed plans to trigger reactivity
         const updatedPerson = {
           ...person,
           plans: parsedData.plans || []
         };
         
-        // Ensure at least one plan exists
         if (updatedPerson.plans.length === 0) {
           updatedPerson.plans.push({
             id: 1,
@@ -61,7 +58,6 @@
           });
         }
         
-        // Update the Map to trigger reactivity
         populationState.persons.set(personId, updatedPerson);
       }
     } catch (error) {
@@ -72,17 +68,14 @@
   function handleClose() {
     populationState.selectedPersonId = null;
     appState.secondarySidebar = 'HIDDEN';
-    // Clear the visualization
     updateConnectedDots();
   }
   
   function addActivity() {
     if (!selectedPerson || !currentPlan || !mapState.map) return;
     
-    // Enter add activity mode
     populationState.isAddingActivity = true;
     
-    // Set up click handler for adding activities
     const clickHandler = (e: L.LeafletMouseEvent) => {
       const coords: [number, number] = [e.latlng.lng, e.latlng.lat];
       const newActivity: Activity = {
@@ -93,7 +86,6 @@
         endTime: getNextEndTime()
       };
       
-      // Create a new person object with updated activities
       const updatedPerson = {
         ...selectedPerson,
         plans: selectedPerson.plans.map((plan, index) => 
@@ -103,22 +95,17 @@
         )
       };
       
-      // Update the Map to trigger reactivity
       populationState.persons.set(selectedPerson.id, updatedPerson);
       
-      // Sort activities and regenerate legs
       autoSortActivities();
       
-      // Track change
       trackActivityChange(selectedPerson.id, updatedPerson);
       
-      // Update visualization
       updateConnectedDots();
     };
     
     mapState.map.on('click', clickHandler);
     
-    // Store handler reference to remove later
     (window as any).__addActivityHandler = clickHandler;
   }
   
@@ -127,7 +114,6 @@
     
     populationState.isAddingActivity = false;
     
-    // Remove click handler
     const handler = (window as any).__addActivityHandler;
     if (handler) {
       mapState.map.off('click', handler);
@@ -141,7 +127,6 @@
     const lastActivity = currentPlan.activities[currentPlan.activities.length - 1];
     const [hours, minutes] = lastActivity.endTime.split(':').map(Number);
     
-    // Add 30 minutes
     let newMinutes = minutes + 30;
     let newHours = hours;
     
@@ -157,7 +142,6 @@
     const startTime = getNextStartTime();
     const [hours, minutes] = startTime.split(':').map(Number);
     
-    // Add 30 minutes
     let newMinutes = minutes + 30;
     let newHours = hours;
     
@@ -172,7 +156,6 @@
   function deleteActivity(activityId: string) {
     if (!selectedPerson || !currentPlan) return;
     
-    // Create a new person object with filtered activities
     const updatedPerson = {
       ...selectedPerson,
       plans: selectedPerson.plans.map((plan, index) => 
@@ -182,19 +165,16 @@
       )
     };
     
-    // Update the Map to trigger reactivity
     populationState.persons.set(selectedPerson.id, updatedPerson);
     
     autoSortActivities();
     
-    // Track change
     trackActivityChange(selectedPerson.id, updatedPerson);
   }
   
   function updateActivityTime(activityId: string, field: 'startTime' | 'endTime', value: string) {
     if (!selectedPerson || !currentPlan) return;
     
-    // Create a new person object with updated activity time
     const updatedPerson = {
       ...selectedPerson,
       plans: selectedPerson.plans.map((plan, index) => 
@@ -211,19 +191,16 @@
       )
     };
     
-    // Update the Map to trigger reactivity
     populationState.persons.set(selectedPerson.id, updatedPerson);
     
     autoSortActivities();
     
-    // Track change
     trackActivityChange(selectedPerson.id, updatedPerson);
   }
   
   function updateActivityType(activityId: string, type: ActivityType) {
     if (!selectedPerson || !currentPlan) return;
     
-    // Create a new person object with updated activity type
     const updatedPerson = {
       ...selectedPerson,
       plans: selectedPerson.plans.map((plan, index) => 
@@ -240,17 +217,14 @@
       )
     };
     
-    // Update the Map to trigger reactivity
     populationState.persons.set(selectedPerson.id, updatedPerson);
     
-    // Track change
     trackActivityChange(selectedPerson.id, updatedPerson);
   }
   
   function updateLegMode(leg: Leg, mode: TravelMode) {
     if (!selectedPerson || !currentPlan) return;
     
-    // Create a new person object with updated leg mode
     const updatedPerson = {
       ...selectedPerson,
       plans: selectedPerson.plans.map((plan, index) => 
@@ -267,17 +241,14 @@
       )
     };
     
-    // Update the Map to trigger reactivity
     populationState.persons.set(selectedPerson.id, updatedPerson);
     
-    // Track change
     trackActivityChange(selectedPerson.id, updatedPerson);
   }
   
   function updateLegDuration(leg: Leg, duration: number) {
     if (!selectedPerson || !currentPlan) return;
     
-    // Create a new person object with updated leg duration
     const updatedPerson = {
       ...selectedPerson,
       plans: selectedPerson.plans.map((plan, index) => 
@@ -294,36 +265,30 @@
       )
     };
     
-    // Update the Map to trigger reactivity
     populationState.persons.set(selectedPerson.id, updatedPerson);
     
-    // Track change
     trackActivityChange(selectedPerson.id, updatedPerson);
   }
   
   function autoSortActivities() {
     if (!selectedPerson || !currentPlan) return;
     
-    // Get current person from the Map to ensure we have the latest data
     const currentPerson = populationState.persons.get(selectedPerson.id);
     if (!currentPerson) return;
     
     const plan = currentPerson.plans[populationState.currentPlanIndex];
     if (!plan) return;
     
-    // Sort activities by start time
     const sortedActivities = [...plan.activities].sort((a, b) => {
       const [hoursA = 0, minutesA = 0] = a.startTime.split(':').map(Number);
       const [hoursB = 0, minutesB = 0] = b.startTime.split(':').map(Number);
       return (hoursA * 60 + minutesA) - (hoursB * 60 + minutesB);
     });
     
-    // Preserve existing leg data where possible
     const existingLegs = new Map(plan.legs.map(leg => 
       [`${leg.fromActivityId}-${leg.toActivityId}`, leg]
     ));
     
-    // Regenerate legs
     const newLegs: Leg[] = [];
     for (let i = 0; i < sortedActivities.length - 1; i++) {
       const fromId = sortedActivities[i].id;
@@ -338,7 +303,6 @@
       });
     }
     
-    // Create a new person object with sorted activities and regenerated legs
     const updatedPerson = {
       ...currentPerson,
       plans: currentPerson.plans.map((p, index) => 
@@ -348,17 +312,14 @@
       )
     };
     
-    // Update the Map to trigger reactivity
     populationState.persons.set(currentPerson.id, updatedPerson);
     
-    // Update map visualization
     updateConnectedDots();
   }
   
   function addPlan() {
     if (!selectedPerson) return;
     
-    // Create a new person object with added plan
     const updatedPerson = {
       ...selectedPerson,
       plans: [...selectedPerson.plans, {
@@ -368,33 +329,27 @@
       }]
     };
     
-    // Update the Map to trigger reactivity
     populationState.persons.set(selectedPerson.id, updatedPerson);
     
-    // Update plan index
     populationState.currentPlanIndex = updatedPerson.plans.length - 1;
   }
   
   function deletePlan() {
     if (!selectedPerson || selectedPerson.plans.length <= 1) return;
     
-    // Create a new person object with deleted plan
     const updatedPerson = {
       ...selectedPerson,
       plans: selectedPerson.plans.filter((_, index) => index !== populationState.currentPlanIndex)
     };
     
-    // Update the Map to trigger reactivity
     populationState.persons.set(selectedPerson.id, updatedPerson);
     
-    // Update plan index
     populationState.currentPlanIndex = Math.max(0, populationState.currentPlanIndex - 1);
   }
   
   function selectActivityLocation(activityId: string) {
     if (!mapState.map || !selectedPerson || !currentPlan) return;
     
-    // If already selecting this activity, cancel
     if (populationState.selectingActivityId === activityId) {
       populationState.isSelectingActivityLocation = false;
       populationState.selectingActivityId = null;
@@ -404,11 +359,9 @@
     populationState.isSelectingActivityLocation = true;
     populationState.selectingActivityId = activityId;
     
-    // Set up one-time click handler
     const clickHandler = (e: L.LeafletMouseEvent) => {
       const coords: [number, number] = [e.latlng.lng, e.latlng.lat];
       
-      // Update activity location
       const updatedPerson = {
         ...selectedPerson,
         plans: selectedPerson.plans.map((plan, index) => 
@@ -425,20 +378,15 @@
         )
       };
       
-      // Update the Map to trigger reactivity
       populationState.persons.set(selectedPerson.id, updatedPerson);
       
-      // Reset selection state
       populationState.isSelectingActivityLocation = false;
       populationState.selectingActivityId = null;
       
-      // Track change
       trackActivityChange(selectedPerson.id, updatedPerson);
       
-      // Update visualization
       updateConnectedDots();
       
-      // Remove handler
       mapState.map.off('click', clickHandler);
     };
     
@@ -454,17 +402,14 @@
   
   function toggleActivityDragging() {
     populationState.isDraggingActivity = !populationState.isDraggingActivity;
-    // Update the dragging state in updateConnectedDots
     updateConnectedDots();
   }
   
-  // Activity type options
   const activityTypeOptions = Object.entries(activityTypeConfig).map(([value, config]) => ({
     value,
     name: `${config.icon} ${config.label}`
   }));
   
-  // Travel mode options
   const travelModeOptions = Object.entries(travelModeConfig).map(([value, config]) => ({
     value,
     name: `${config.icon} ${config.label}`
@@ -474,7 +419,6 @@
 
 {#if selectedPerson}
   <div class="h-full flex flex-col bg-gray-800">
-    <!-- Header -->
     <div class="flex items-center justify-between p-4 border-b border-gray-600">
       <div class="flex items-center gap-2">
         <h2 class="text-lg font-semibold text-white">{selectedPerson.id}</h2>
@@ -491,7 +435,6 @@
       <CloseButton onclick={handleClose} class="text-gray-400 hover:text-white" />
     </div>
     
-    <!-- Plan selector -->
     <div class="p-4 border-b border-gray-600">
       <div class="flex items-center gap-2 flex-nowrap">
         <span class="text-sm text-gray-300 whitespace-nowrap">Currently viewing</span>
@@ -508,12 +451,10 @@
       </div>
     </div>
     
-    <!-- Activities and legs -->
     <div class="flex-1 overflow-y-auto px-5 py-5">
       {#if currentPlan}
         <div class="space-y-3">
           {#each currentPlan.activities as activity, index}
-            <!-- Activity -->
             <div class="bg-gray-700 rounded-lg px-3 pt-3 pb-7">
               <div class="flex items-baseline mb-2">
                 <span class="text-lg font-semibold text-white">{index + 1}.</span>
@@ -567,7 +508,6 @@
               </div>
             </div>
             
-            <!-- Leg (if not last activity) -->
             {#if index < currentPlan.activities.length - 1}
               {@const leg = currentPlan.legs.find(l => l.fromActivityId === activity.id)}
               {#if leg}
@@ -603,7 +543,6 @@
       {/if}
     </div>
     
-    <!-- Footer -->
     <div class="p-4 border-t border-gray-600 space-y-2">
       <Button 
         color={populationState.isDraggingActivity ? "yellow" : "alternative"} 

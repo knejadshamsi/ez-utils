@@ -60,7 +60,7 @@ export function mapPTRoute(route: gui.PTRoute): PTRouteExtended {
 export function mapPTStop(stop: gui.PTStop): PTStopExtended {
   return {
     ...stop,
-    location: [stop.x, stop.y],
+    location: [stop.lng, stop.lat],
     telemetryId: ''
   };
 }

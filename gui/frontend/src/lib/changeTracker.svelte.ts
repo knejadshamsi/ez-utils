@@ -48,8 +48,8 @@ interface UpdateNodeAction {
   action: 'update';
   processId: number;
   nodeId: string;
-  x: number;
-  y: number;
+  lng: number;
+  lat: number;
   rawXML: string;
 }
 
@@ -59,8 +59,8 @@ interface CreateNodeAction {
   action: 'create';
   processId: number;
   nodeId: string;
-  x: number;
-  y: number;
+  lng: number;
+  lat: number;
   rawXML: string;
 }
 
@@ -78,7 +78,7 @@ interface BatchUpdateNodesAction {
   elementType: 'node';
   action: 'batchUpdate';
   processId: number;
-  updates: Record<string, { x: number; y: number }>;
+  updates: Record<string, { lng: number; lat: number }>;
 }
 
 interface BatchDeleteNodesAction {

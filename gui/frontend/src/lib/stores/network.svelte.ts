@@ -2,8 +2,8 @@
 export interface NetworkNode {
   id: string;
   label: string;
-  x: number;
-  y: number;
+  lng: number;
+  lat: number;
   type?: string;
   capacity?: number;
 }

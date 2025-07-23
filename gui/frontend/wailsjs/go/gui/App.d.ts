@@ -107,6 +107,8 @@ export function GetZoneStats(arg1:string):Promise<Record<string, any>>;
 
 export function GetZonesWithCounts(arg1:string):Promise<Array<gui.ZoneCount>>;
 
+export function LoadProcessData(arg1:gui.LoadingParams):Promise<Record<string, any>>;
+
 export function ProcessNetworkFile(arg1:string):Promise<Record<string, any>>;
 
 export function ProcessPTFile(arg1:string):Promise<gui.ProcessResult>;
@@ -122,6 +124,8 @@ export function SaveZone(arg1:gui.Zone):Promise<void>;
 export function SelectFile():Promise<string>;
 
 export function SetDatabase(arg1:gui.Database):Promise<void>;
+
+export function StartProcessing(arg1:string,arg2:string):Promise<Record<string, any>>;
 
 export function SyncChanges(arg1:Array<json.RawMessage>):Promise<void>;
 

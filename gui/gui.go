@@ -466,6 +466,114 @@ func (a *App) ValidatePTXML(filePath string) (*ValidationResult, error) {
 	}, nil
 }
 
+// StartProcessing routes to the appropriate processor based on edit mode
+func (a *App) StartProcessing(filePath string, fileEditMode string) (map[string]any, error) {
+	switch fileEditMode {
+	case "POPULATION":
+		return a.ProcessPopulationFile(filePath)
+	case "NETWORK":
+		return a.ProcessNetworkFile(filePath)
+	case "PT":
+		result, err := a.ProcessPTFile(filePath)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{
+			"message":    result.Message,
+			"process_id": result.ProcessID,
+		}, nil
+	}
+	return nil, fmt.Errorf("unknown file edit mode: %s", fileEditMode)
+}
+
+// LoadProcessData loads the processed data for editing with spatial filtering based on LoadingParams
+func (a *App) LoadProcessData(params LoadingParams) (map[string]any, error) {
+	log.Printf("LoadProcessData called with params: %+v", params)
+	
+	// Calculate 60% of viewport bounds
+	filteredViewport := calculate60PercentViewport(params.Viewport)
+	
+	switch params.FileEditMode {
+	case "POPULATION":
+		persons, err := a.db.GetPopulationInBounds(
+			params.ProcessId, 
+			filteredViewport,
+			params.RandomFactor,
+			params.MaxElements,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load population data: %v", err)
+		}
+		return map[string]any{
+			"data": persons,
+			"type": "population",
+		}, nil
+		
+	case "NETWORK":
+		nodes, err := a.db.GetNodesInBounds(
+			params.ProcessId,
+			filteredViewport,
+			params.RandomFactor,
+			params.MaxElements,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load network nodes: %v", err)
+		}
+		
+		links, err := a.db.GetLinksForNodesInBounds(
+			params.ProcessId,
+			filteredViewport,
+			params.RandomFactor,
+			params.MaxElements,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load network links: %v", err)
+		}
+		
+		return map[string]any{
+			"data": map[string]any{
+				"nodes": nodes,
+				"links": links,
+			},
+			"type": "network",
+		}, nil
+		
+	case "PT":
+		lines, err := a.db.GetPTLinesInBounds(
+			params.ProcessId,
+			filteredViewport,
+			"BUS", // Default mode
+			params.RandomFactor,
+			params.MaxElements,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load PT lines: %v", err)
+		}
+		
+		return map[string]any{
+			"data": map[string]any{
+				"lines": lines,
+			},
+			"type": "pt",
+		}, nil
+		
+	default:
+		return nil, fmt.Errorf("unknown file edit mode: %s", params.FileEditMode)
+	}
+}
+
+// Helper function to calculate 60% viewport
+func calculate60PercentViewport(viewport ViewportBounds) ViewportBounds {
+	latMargin := (viewport.MaxLat - viewport.MinLat) * 0.2  // 20% margin = 60% viewport
+	lngMargin := (viewport.MaxLng - viewport.MinLng) * 0.2
+	
+	return ViewportBounds{
+		MinLat: viewport.MinLat + latMargin,
+		MaxLat: viewport.MaxLat - latMargin,
+		MinLng: viewport.MinLng + lngMargin,
+		MaxLng: viewport.MaxLng + lngMargin,
+	}
+}
 
 // Run creates and runs the Wails application.
 func Run(filePath string, editMode string) {

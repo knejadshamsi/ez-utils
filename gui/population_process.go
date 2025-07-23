@@ -10,8 +10,9 @@ import (
 	"regexp"
 	"strconv"
 	"time"
-)
 
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+)
 
 // ProcessPopulationFile starts the processing of a given file path.
 func (a *App) ProcessPopulationFile(filePath string) (map[string]any, error) {
@@ -19,17 +20,20 @@ func (a *App) ProcessPopulationFile(filePath string) (map[string]any, error) {
 		return nil, fmt.Errorf("file path cannot be empty")
 	}
 
+	// Create process record synchronously to get real process ID
 	result, err := a.db.execQuery(createProcessQuery, fmt.Sprintf("failed to create process for file %s", filePath), filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create process record: %w", err)
 	}
-	
+
 	id, err := result.LastInsertId()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get last insert ID: %w", err)
 	}
 	processID := int(id)
+	log.Printf("Created process %d for file %s", processID, filePath)
 
+	// Now start the background processing with the real process ID
 	go a.processPopulationFile(filePath, processID)
 
 	response := map[string]any{
@@ -45,17 +49,19 @@ func (a *App) processPopulationFile(filePath string, processID int) {
 		if _, err := a.db.execQuery(updateProcessStatusQuery, fmt.Sprintf("failed to update process status for ID %d", processID), status, processID); err != nil {
 			log.Printf("Failed to update process status for processID %d: %v", processID, err)
 		}
+		runtime.EventsEmit(a.ctx, "process:status", map[string]interface{}{
+			"processId": processID,
+			"status":    status,
+		})
 	}
 
-	updateStatus("PROCESSING")
-	processor, err := NewProcessor(a.db, processID)
+	processor, err := NewProcessor(a, processID)
 	if err != nil {
 		log.Printf("Error creating processor: %v", err)
 		updateStatus("PROCESSING_FAILED")
 		return
 	}
 
-	updateStatus("PROCESSING")
 	if err := processor.ProcessPopulationFile(filePath); err != nil {
 		log.Printf("Error processing file %s: %v", filePath, err)
 		updateStatus("PROCESSING_FAILED")
@@ -104,12 +110,12 @@ func (a *App) GetPopulationPaginated(tableName string, page int, pageSize int, s
 	if pageSize < 1 || pageSize > 1000 {
 		pageSize = 50 // Default page size
 	}
-	
+
 	// If sessionID is provided, use filter session
 	if sessionID != "" {
 		return a.GetFilteredPopulationPage(sessionID, page, pageSize)
 	}
-	
+
 	// Otherwise, simple pagination without filtering
 	return a.GetPopulationSimple(tableName, page, pageSize)
 }
@@ -131,7 +137,7 @@ func (a *App) GetPopulationSimple(tableName string, page int, pageSize int) (*Pa
 			PageSize:    pageSize,
 		}, nil
 	}
-	
+
 	// Count total persons
 	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)
 	var totalCount int
@@ -139,11 +145,11 @@ func (a *App) GetPopulationSimple(tableName string, page int, pageSize int) (*Pa
 	if err != nil {
 		return nil, fmt.Errorf("failed to count population: %w", err)
 	}
-	
+
 	// Calculate pagination
 	totalPages := (totalCount + pageSize - 1) / pageSize
 	offset := (page - 1) * pageSize
-	
+
 	// Query page of persons
 	query := fmt.Sprintf(`
 		SELECT id, coords, raw_xml 
@@ -151,13 +157,13 @@ func (a *App) GetPopulationSimple(tableName string, page int, pageSize int) (*Pa
 		ORDER BY id 
 		LIMIT ? OFFSET ?
 	`, tableName)
-	
+
 	rows, err := a.db.conn.Query(query, pageSize, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query population: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var persons []Person
 	for rows.Next() {
 		var p Person
@@ -166,7 +172,7 @@ func (a *App) GetPopulationSimple(tableName string, page int, pageSize int) (*Pa
 		}
 		persons = append(persons, p)
 	}
-	
+
 	return &PaginatedResponse{
 		Persons:     persons,
 		TotalCount:  totalCount,
@@ -191,7 +197,7 @@ func (a *App) addPerson(tableName string, person map[string]any) (map[string]any
 	}
 	coords, _ := person["coords"].(string)
 	rawXML, _ := person["raw_xml"].(string)
-	
+
 	if err := a.db.AddPerson(tableName, id, coords, rawXML); err != nil {
 		return nil, err
 	}
@@ -206,17 +212,17 @@ func (a *App) updatePersonPlan(tableName string, personId string, planXML string
 		limit = len(planXML)
 	}
 	log.Printf("XML content (first %d chars): %s", limit, planXML[:limit])
-	
+
 	if err := a.db.UpdatePersonXML(tableName, personId, planXML); err != nil {
 		return nil, fmt.Errorf("failed to update person plan: %w", err)
 	}
-	
+
 	// Extract and update coordinates from the updated XML
 	// Updated regex to handle both self-closing and non-self-closing tags
 	// Looking for pattern like: <activity ... x="123.456" ... y="789.012" ... /> or <activity ... x="123.456" ... y="789.012" ... >
 	activityPattern := regexp.MustCompile(`<activity[^>]*\sx="([^"]+)"[^>]*\sy="([^"]+)"[^>]*(?:/>|>)`)
 	matches := activityPattern.FindStringSubmatch(planXML)
-	
+
 	var coords string
 	if len(matches) >= 3 {
 		coords = fmt.Sprintf("%s,%s", matches[1], matches[2])
@@ -224,13 +230,13 @@ func (a *App) updatePersonPlan(tableName string, personId string, planXML string
 		// Try reverse order (y before x)
 		activityPatternReverse := regexp.MustCompile(`<activity[^>]*\sy="([^"]+)"[^>]*\sx="([^"]+)"[^>]*(?:/>|>)`)
 		matches = activityPatternReverse.FindStringSubmatch(planXML)
-		
+
 		if len(matches) >= 3 {
 			coords = fmt.Sprintf("%s,%s", matches[2], matches[1])
 		}
 	}
 	log.Printf("Extracted coordinates for person %s: %s", personId, coords)
-	
+
 	if coords != "" {
 		if err := a.db.UpdatePersonCoords(tableName, personId, coords); err != nil {
 			return nil, fmt.Errorf("failed to update person coordinates: %w", err)
@@ -239,20 +245,20 @@ func (a *App) updatePersonPlan(tableName string, personId string, planXML string
 	} else {
 		log.Printf("No coordinates found in XML for person %s", personId)
 	}
-	
+
 	// Fetch and return the updated person
 	updatedPerson, err := a.db.GetPerson(tableName, personId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch updated person: %w", err)
 	}
-	
+
 	return updatedPerson, nil
 }
 
 // batchUpdatePersons handles batch updating multiple persons in a single transaction (internal function for interpreter)
 func (a *App) batchUpdatePersons(tableName string, updates []map[string]any) error {
 	log.Printf("BatchUpdatePersons called for %d persons in table %s", len(updates), tableName)
-	
+
 	// Convert map updates to PersonUpdate structs
 	var personUpdates []PersonUpdate
 	for _, update := range updates {
@@ -260,30 +266,30 @@ func (a *App) batchUpdatePersons(tableName string, updates []map[string]any) err
 		if !ok {
 			return fmt.Errorf("missing or invalid id in update")
 		}
-		
+
 		coords, ok := update["coords"].(string)
 		if !ok {
 			return fmt.Errorf("missing or invalid coords in update for person %s", id)
 		}
-		
+
 		rawXML, ok := update["raw_xml"].(string)
 		if !ok {
 			return fmt.Errorf("missing or invalid raw_xml in update for person %s", id)
 		}
-		
+
 		personUpdates = append(personUpdates, PersonUpdate{
 			ID:     id,
 			Coords: coords,
 			RawXML: rawXML,
 		})
 	}
-	
+
 	// Execute batch update
 	err := a.db.BatchUpdatePersons(tableName, personUpdates)
 	if err != nil {
 		return fmt.Errorf("failed to batch update persons: %w", err)
 	}
-	
+
 	log.Printf("Successfully batch updated %d persons", len(personUpdates))
 	return nil
 }
@@ -297,9 +303,10 @@ func (a *App) deletePerson(tableName string, personId string) (map[string]string
 }
 
 // NewProcessor creates a new population processor
-func NewProcessor(db *Database, processID int) (*Processor, error) {
+func NewProcessor(app *App, processID int) (*Processor, error) {
 	return &Processor{
-		db:        db,
+		app:       app,
+		db:        app.db,
 		processID: processID,
 		telemetry: &ProcessTelemetry{
 			ProcessID:   processID,
@@ -338,6 +345,12 @@ func (p *Processor) ProcessPopulationFile(filePath string) error {
 	if err := p.db.execTableQuery(fmt.Sprintf(createPopulationTableQuery, tableName)); err != nil {
 		return err
 	}
+	
+	// Create spatial index for performance
+	indexName := fmt.Sprintf("population_%d", p.processID)
+	if err := p.db.execTableQuery(fmt.Sprintf(createPopulationSpatialIndex, indexName, tableName)); err != nil {
+		return fmt.Errorf("failed to create population spatial index: %w", err)
+	}
 
 	// Start telemetry ticker
 	ticker := time.NewTicker(1 * time.Second)
@@ -366,7 +379,7 @@ func (p *Processor) ProcessPopulationFile(filePath string) error {
 	// Process XML
 	err = p.processXML(countingReader, tableName)
 	done <- err
-	
+
 	// Wait for telemetry goroutine to finish
 	<-telemetryDone
 
@@ -378,7 +391,7 @@ func (p *Processor) ProcessPopulationFile(filePath string) error {
 	p.telemetryMutex.Lock()
 	failCount := p.telemetryFailureCounter
 	p.telemetryMutex.Unlock()
-	
+
 	if failCount > 0 {
 		log.Printf("Process %d completed with %d telemetry update failures", p.processID, failCount)
 	}
@@ -393,7 +406,7 @@ func (p *Processor) processXML(reader io.Reader, tableName string) error {
 	personEncoder := xml.NewEncoder(&personBuffer)
 	personDepth := 0
 
-	var homeX, homeY float64
+	var homeLng, homeLat float64
 	var foundCoords bool
 
 	for {
@@ -413,12 +426,12 @@ func (p *Processor) processXML(reader io.Reader, tableName string) error {
 					for _, attr := range se.Attr {
 						switch attr.Name.Local {
 						case "x":
-							homeX, _ = strconv.ParseFloat(attr.Value, 64)
+							homeLng, _ = strconv.ParseFloat(attr.Value, 64)
 						case "y":
-							homeY, _ = strconv.ParseFloat(attr.Value, 64)
+							homeLat, _ = strconv.ParseFloat(attr.Value, 64)
 						}
 					}
-					if homeX != 0 || homeY != 0 {
+					if homeLng != 0 || homeLat != 0 {
 						foundCoords = true
 					}
 				}
@@ -431,7 +444,7 @@ func (p *Processor) processXML(reader io.Reader, tableName string) error {
 				if personDepth == 0 {
 					personBuffer.Reset()
 					personEncoder.EncodeToken(se)
-					homeX, homeY, foundCoords = 0, 0, false
+					homeLng, homeLat, foundCoords = 0, 0, false
 				}
 				personDepth++
 			}
@@ -461,7 +474,7 @@ func (p *Processor) processXML(reader io.Reader, tableName string) error {
 							break
 						}
 					}
-					
+
 					if !foundID || id == "" {
 						log.Printf("could not extract id for person, skipping")
 						p.telemetryMutex.Lock()
@@ -470,14 +483,13 @@ func (p *Processor) processXML(reader io.Reader, tableName string) error {
 						continue
 					}
 
-					coords := fmt.Sprintf("%f,%f", homeX, homeY)
-
 					// Compact XML before storing to save space
 					compactedXML := compactXML(personBuffer.String())
-					
+
 					batch = append(batch, PersonData{
 						ID:     id,
-						Coords: coords,
+						Lng:    homeLng,
+						Lat:    homeLat,
 						RawXML: compactedXML,
 					})
 
@@ -520,14 +532,14 @@ func (p *Processor) insertPersonBatch(tableName string, persons []PersonData) er
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare(fmt.Sprintf("INSERT OR REPLACE INTO %s (id, coords, raw_xml) VALUES (?, ?, ?)", tableName))
+	stmt, err := tx.Prepare(fmt.Sprintf("INSERT OR REPLACE INTO %s (id, lng, lat, raw_xml) VALUES (?, ?, ?, ?)", tableName))
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
 	defer stmt.Close()
 
 	for _, person := range persons {
-		if _, err := stmt.Exec(person.ID, person.Coords, person.RawXML); err != nil {
+		if _, err := stmt.Exec(person.ID, person.Lng, person.Lat, person.RawXML); err != nil {
 			return fmt.Errorf("failed to execute statement for person %s: %w", person.ID, err)
 		}
 	}
@@ -552,7 +564,7 @@ func (p *Processor) updateTelemetry(reader *CountingReader) {
 	_, err := p.db.execQuery(updateTelemetryQuery, fmt.Sprintf("failed to update telemetry for process %d", telemetry.ProcessID), telemetry.BytesRead, telemetry.PersonsExtracted, telemetry.ErrorCount, telemetry.ProcessID)
 	if err != nil {
 		log.Printf("Failed to update telemetry for process %d (attempt 1): %v", p.processID, err)
-		
+
 		// Wait briefly and retry once
 		time.Sleep(100 * time.Millisecond)
 		_, err = p.db.execQuery(updateTelemetryQuery, fmt.Sprintf("failed to update telemetry for process %d", telemetry.ProcessID), telemetry.BytesRead, telemetry.PersonsExtracted, telemetry.ErrorCount, telemetry.ProcessID)
@@ -561,11 +573,18 @@ func (p *Processor) updateTelemetry(reader *CountingReader) {
 			p.telemetryFailureCounter++
 			failCount := p.telemetryFailureCounter
 			p.telemetryMutex.Unlock()
-			
+
 			log.Printf("Failed to update telemetry for process %d (attempt 2): %v. Total failures: %d", p.processID, err, failCount)
 		} else {
 			log.Printf("Telemetry update succeeded on retry for process %d", p.processID)
 		}
 	}
+	
+	runtime.EventsEmit(p.app.ctx, "process:telemetry", map[string]interface{}{
+		"processId":        telemetry.ProcessID,
+		"bytesRead":        telemetry.BytesRead,
+		"personsExtracted": telemetry.PersonsExtracted,
+		"errorCount":       telemetry.ErrorCount,
+		"lastUpdated":      telemetry.LastUpdated,
+	})
 }
-

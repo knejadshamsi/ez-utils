@@ -97,7 +97,7 @@ func (e *PTExporter) exportTransitStops(file *os.File) error {
 		} else {
 			// Construct XML manually
 			stopXML := fmt.Sprintf(`<stopFacility id="%s" x="%.6f" y="%.6f"`,
-				escapeXML(stop.ID), stop.X, stop.Y)
+				escapeXML(stop.ID), stop.Lng, stop.Lat)
 			
 			if stop.Name != "" {
 				stopXML += fmt.Sprintf(` name="%s"`, escapeXML(stop.Name))
@@ -301,7 +301,7 @@ func (e *PTExporter) ExportSubset(bbox BoundingBox, outputPath string) error {
 	// Filter stops by bounding box
 	var stops []PTStop
 	for _, stop := range allStops {
-		if stop.X >= bbox.West && stop.X <= bbox.East && stop.Y >= bbox.South && stop.Y <= bbox.North {
+		if stop.Lng >= bbox.West && stop.Lng <= bbox.East && stop.Lat >= bbox.South && stop.Lat <= bbox.North {
 			stops = append(stops, stop)
 		}
 	}
@@ -379,7 +379,7 @@ func (e *PTExporter) ExportSubset(bbox BoundingBox, outputPath string) error {
 	}
 	for _, stop := range stops {
 		stopXML := fmt.Sprintf(`<stopFacility id="%s" x="%.6f" y="%.6f"`,
-			escapeXML(stop.ID), stop.X, stop.Y)
+			escapeXML(stop.ID), stop.Lng, stop.Lat)
 		if stop.Name != "" {
 			stopXML += fmt.Sprintf(` name="%s"`, escapeXML(stop.Name))
 		}

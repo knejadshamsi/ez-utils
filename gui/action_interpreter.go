@@ -115,13 +115,13 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 		var act struct {
 			ProcessID int     `json:"processId"`
 			NodeID    string  `json:"nodeId"`
-			X         float64 `json:"x"`
-			Y         float64 `json:"y"`
+			Lng       float64 `json:"lng"`
+			Lat       float64 `json:"lat"`
 		}
 		if err := json.Unmarshal(actionJSON, &act); err != nil {
 			return fmt.Errorf("failed to unmarshal update node action: %w", err)
 		}
-		return a.db.UpdateNode(act.ProcessID, act.NodeID, act.X, act.Y)
+		return a.db.UpdateNode(act.ProcessID, act.NodeID, act.Lng, act.Lat)
 		
 	case "network.node.delete":
 		var act struct {
@@ -138,8 +138,8 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 		var act struct {
 			ProcessID int                          `json:"processId"`
 			Updates   map[string]struct{
-				X float64 `json:"x"`
-				Y float64 `json:"y"`
+				Lng float64 `json:"lng"`
+				Lat float64 `json:"lat"`
 			} `json:"updates"`
 		}
 		if err := json.Unmarshal(actionJSON, &act); err != nil {
@@ -148,8 +148,9 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 		updates := make(map[string]NodeData)
 		for id, data := range act.Updates {
 			updates[id] = NodeData{
-				ID:     id,
-				Coords: fmt.Sprintf("%f,%f", data.X, data.Y),
+				ID:  id,
+				Lng: data.Lng,
+				Lat: data.Lat,
 			}
 		}
 		return a.db.BatchUpdateNodes(act.ProcessID, updates)
@@ -169,14 +170,14 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 		var act struct {
 			ProcessID int     `json:"processId"`
 			NodeID    string  `json:"nodeId"`
-			X         float64 `json:"x"`
-			Y         float64 `json:"y"`
+			Lng       float64 `json:"lng"`
+			Lat       float64 `json:"lat"`
 			RawXML    string  `json:"rawXML"`
 		}
 		if err := json.Unmarshal(actionJSON, &act); err != nil {
 			return fmt.Errorf("failed to unmarshal create node action: %w", err)
 		}
-		return a.db.InsertNetworkNode(act.ProcessID, act.NodeID, act.X, act.Y, act.RawXML)
+		return a.db.InsertNetworkNode(act.ProcessID, act.NodeID, act.Lng, act.Lat, act.RawXML)
 		
 	case "network.link.create":
 		var act struct {
