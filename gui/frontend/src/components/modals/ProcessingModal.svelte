@@ -5,9 +5,11 @@
   import { welcomeModalState } from "./welcome-modal/welcome.svelte";
   import { EventsOn, EventsOff } from "@wailsjs/runtime/runtime";
 
+  import { onMount, onDestroy } from "svelte";
+  
   let telemetryData = $state<Record<string, any>>({});
   
-  function setupEventListeners() {
+  onMount(() => {
     EventsOn("process:status", (data: any) => {
       appState.display = data.status;
     });
@@ -15,15 +17,11 @@
     EventsOn("process:telemetry", (data: any) => {
       telemetryData = data;
     });
-  }
+  });
   
-  $effect(() => {
-    if (appState.display === 'PROCESSING') {
-      setupEventListeners();
-    } else {
-      EventsOff("process:status");
-      EventsOff("process:telemetry");
-    }
+  onDestroy(() => {
+    EventsOff("process:status");
+    EventsOff("process:telemetry");
   });
 
 </script>

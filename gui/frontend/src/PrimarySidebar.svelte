@@ -1,8 +1,8 @@
 <script lang="ts">
   import { Drawer } from 'flowbite-svelte';
   import { sineIn } from 'svelte/easing';
-  import type { SidebarState } from '$lib/stores/app.svelte.ts';
-  import { commandArgs } from '$lib/stores/app.svelte.ts';
+  import type { SidebarState } from '$lib/stores/app.svelte';
+  import { commandArgs } from '$lib/stores/app.svelte';
   import PopulationContent from './components/primary-sidebar/PopulationContent.svelte';
   import PTContent from './components/primary-sidebar/PTContent.svelte';
   import NetworkContent from './components/primary-sidebar/NetworkContent.svelte';

@@ -426,7 +426,7 @@
                                       {truncateText(route.direction || 'Route')}
                                     </span>
                                     <span class="text-xs text-gray-500 dark:text-gray-400">
-                                      {route.stopSequence.length} stops
+                                      {route.stopSequence?.length || 0} stops
                                     </span>
                                   </div>
                                 </button>

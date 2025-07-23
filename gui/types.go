@@ -17,9 +17,10 @@ type App struct {
 
 // Person - Structure for population data
 type Person struct {
-	ID     string `json:"id"`
-	Coords string `json:"coords"`
-	RawXML string `json:"raw_xml"`
+	ID     string  `json:"id"`
+	Lng    float64 `json:"lng"`
+	Lat    float64 `json:"lat"`
+	RawXML string  `json:"raw_xml"`
 }
 
 // PersonData - Holds extracted information for a single person (used by processor)
@@ -33,7 +34,8 @@ type PersonData struct {
 // PersonUpdate - Used for batch updates
 type PersonUpdate struct {
 	ID     string
-	Coords string
+	Lng    float64
+	Lat    float64
 	RawXML string
 }
 

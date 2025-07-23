@@ -23,10 +23,10 @@ func (a *App) GetPersonsInPolygon(tableName string, polygon []Point, page int, p
 	
 	// Query persons within bounding box
 	query := fmt.Sprintf(`
-		SELECT id, coords, raw_xml 
+		SELECT id, lng, lat, raw_xml 
 		FROM %s 
-		WHERE CAST(substr(coords, 1, instr(coords, ',') - 1) AS REAL) BETWEEN ? AND ?
-		AND CAST(substr(coords, instr(coords, ',') + 1) AS REAL) BETWEEN ? AND ?
+		WHERE lng BETWEEN ? AND ?
+		AND lat BETWEEN ? AND ?
 	`, tableName)
 	
 	rows, err := a.db.queryRows(query, "failed to query persons", minX, maxX, minY, maxY)
@@ -39,18 +39,12 @@ func (a *App) GetPersonsInPolygon(tableName string, polygon []Point, page int, p
 	var persons []Person
 	for rows.Next() {
 		var p Person
-		if err := rows.Scan(&p.ID, &p.Coords, &p.RawXML); err != nil {
-			continue
-		}
-		
-		// Parse coordinates
-		x, y, err := ParseCoordinates(p.Coords)
-		if err != nil {
+		if err := rows.Scan(&p.ID, &p.Lng, &p.Lat, &p.RawXML); err != nil {
 			continue
 		}
 		
 		// Check if point is in polygon
-		if pointInPolygon(x, y, polygon) {
+		if pointInPolygon(p.Lng, p.Lat, polygon) {
 			persons = append(persons, p)
 		}
 	}

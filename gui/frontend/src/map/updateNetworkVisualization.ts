@@ -1,6 +1,6 @@
 import { mapState, clearNetwork, createNetworkNodeIcon } from './mapState.svelte';
 import { networkState } from '$lib/stores/network.svelte';
-import { appState } from '$lib/stores/app.svelte.ts';
+import { appState } from '$lib/stores/app.svelte';
 import L from 'leaflet';
 import type { NetworkNode as MapNetworkNode, NetworkLink as MapNetworkLink } from './types';
 import { 

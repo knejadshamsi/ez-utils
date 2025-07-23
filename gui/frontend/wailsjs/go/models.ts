@@ -258,7 +258,8 @@ export namespace gui {
 	}
 	export class Person {
 	    id: string;
-	    coords: string;
+	    lng: number;
+	    lat: number;
 	    raw_xml: string;
 	
 	    static createFrom(source: any = {}) {
@@ -268,7 +269,8 @@ export namespace gui {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.coords = source["coords"];
+	        this.lng = source["lng"];
+	        this.lat = source["lat"];
 	        this.raw_xml = source["raw_xml"];
 	    }
 	}

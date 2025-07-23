@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { appState, type NetworkMode } from '$lib/stores/app.svelte.ts';
+  import { appState, type NetworkMode } from '$lib/stores/app.svelte';
   import EzRadioGroup from '../EzRadioGroup.svelte';
   import EzRadioOption from '../EzRadioOption.svelte';
   import { EyeOutline, CogOutline, PlusOutline } from 'flowbite-svelte-icons';

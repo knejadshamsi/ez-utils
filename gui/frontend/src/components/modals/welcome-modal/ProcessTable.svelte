@@ -3,7 +3,7 @@
   import { ExclamationCircleOutline } from "flowbite-svelte-icons";
   import { welcomeModalState, getPaginatedProcesses, getTotalPages } from "./welcome.svelte";
   import { GetProcessesByFile, SyncChanges } from "@wailsjs/go/gui/App";
-  import { commandArgs, appState } from "$lib/stores/app.svelte.ts";
+  import { commandArgs, appState } from "$lib/stores/app.svelte";
   import { changeTracker } from "../../../lib/changeTracker.svelte";
   
   let error = $state<string | null>(null);
@@ -37,7 +37,7 @@
       welcomeModalState.processes = updatedProcesses || [];
       
       if (appState.processId === processId) {
-        appState.processId = welcomeModalState.processes.length > 0 ? welcomeModalState.processes[0].process_id : 0;
+        appState.processId = 0;
       }
       
       
@@ -55,19 +55,7 @@
   }
 </script>
 
-{#if welcomeModalState.processes.length === 0}
-  <!-- No records found message -->
-  <div class="text-center py-8">
-    <P class="text-gray-600 dark:text-gray-400 mb-4">
-      No previous processes found for this file.
-    </P>
-    <P class="text-sm text-gray-500 dark:text-gray-500">
-      Click "New Process" to start processing this file.
-    </P>
-  </div>
-{:else}
-  <!-- Process table -->
-  <div>
+<div>
     <P class="text-gray-600 dark:text-gray-400 mb-4">
       Select a previous process to continue editing, or create a new process.
     </P>
@@ -135,7 +123,6 @@
       <P class="mt-4 text-red-600 dark:text-red-400">{error}</P>
     {/if}
   </div>
-{/if}
 
 <!-- Delete Confirmation Modal -->
 <Modal bind:open={showDeleteConfirmation} size="xs" autoclose={false}>

@@ -6,7 +6,8 @@ interface AddPersonAction {
   tableName: string;
   data: {
     id: string;
-    coords: string;
+    lng: number;
+    lat: number;
     rawXML: string;
   };
 }
@@ -18,7 +19,8 @@ interface UpdatePersonAction {
   tableName: string;
   personId: string;
   planXML?: string;
-  coords?: string;
+  lng?: number;
+  lat?: number;
 }
 
 interface DeletePersonAction {
@@ -36,7 +38,8 @@ interface BatchUpdatePersonsAction {
   tableName: string;
   updates: Array<{
     personId: string;
-    coords?: string;
+    lng?: number;
+    lat?: number;
     planXML?: string;
   }>;
 }

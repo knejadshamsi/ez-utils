@@ -1,7 +1,7 @@
 import { changeTracker } from '$lib/changeTracker.svelte';
 import type { Person, PersonAttribute, Plan, Activity } from '$lib/stores/population.svelte';
 import type { SyncAction } from '$lib/changeTracker.svelte';
-import { appState } from '$lib/stores/app.svelte.ts';
+import { appState } from '$lib/stores/app.svelte';
 
 function convertPersonToXML(person: Person): string {
   // Convert person data to XML format - compact for storage
@@ -59,13 +59,13 @@ function convertPersonToXML(person: Person): string {
   return xml;
 }
 
-function extractCoordinatesFromPerson(person: Person): string {
+function extractCoordinatesFromPerson(person: Person): [number, number] {
   // Extract coordinates from the first activity of the first plan
   const firstActivity = person.plans[0]?.activities[0];
   if (firstActivity && firstActivity.location && (firstActivity.location[0] !== 0 || firstActivity.location[1] !== 0)) {
-    return `${firstActivity.location[0]},${firstActivity.location[1]}`;
+    return [firstActivity.location[0], firstActivity.location[1]];
   }
-  return '0,0';
+  return [0, 0];
 }
 
 export function trackPersonChange(person: Person, action: 'create' | 'update' | 'delete') {
@@ -89,11 +89,13 @@ export function trackPersonChange(person: Person, action: 'create' | 'update' | 
     // Update the existing add action with new data
     const addActionIndex = changeTracker.pendingChanges.indexOf(existingAddAction);
     if (addActionIndex !== -1) {
+      const [lng, lat] = extractCoordinatesFromPerson(person);
       const updatedAddAction: SyncAction = {
         ...existingAddAction,
         data: {
           id: person.id,
-          coords: extractCoordinatesFromPerson(person),
+          lng: lng,
+          lat: lat,
           rawXML: convertPersonToXML(person)
         }
       };
@@ -116,6 +118,7 @@ export function trackPersonChange(person: Person, action: 'create' | 'update' | 
   }
   
   if (action === 'create') {
+    const [lng, lat] = extractCoordinatesFromPerson(person);
     const addAction: SyncAction = {
       type: 'population',
       elementType: 'person',
@@ -123,7 +126,8 @@ export function trackPersonChange(person: Person, action: 'create' | 'update' | 
       tableName: tableName,
       data: {
         id: person.id,
-        coords: extractCoordinatesFromPerson(person),
+        lng: lng,
+        lat: lat,
         rawXML: convertPersonToXML(person)
       }
     };

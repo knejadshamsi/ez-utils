@@ -91,13 +91,8 @@ func (a *App) GetPopulationByZones(tableName string, page int, pageSize int, zon
 }
 
 // FindZoneForCoordinates finds which zone contains the given coordinates
-func (a *App) FindZoneForCoordinates(coordStr string) (*Zone, error) {
-	x, y, err := ParseCoordinates(coordStr)
-	if err != nil {
-		return nil, err
-	}
-	
-	zones, err := a.db.FindZonesContainingPoint(x, y)
+func (a *App) FindZoneForCoordinates(lng, lat float64) (*Zone, error) {
+	zones, err := a.db.FindZonesContainingPoint(lng, lat)
 	if err != nil {
 		return nil, err
 	}

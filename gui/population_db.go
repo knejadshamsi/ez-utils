@@ -30,7 +30,7 @@ const (
 	selectPopulationByBboxError  = "failed to query table %s"
 	selectPersonByIDError        = "failed to query person in table %s"
 	updatePersonXMLError         = "failed to update person XML in table %s"
-	updatePersonCoordsError      = "failed to update person coords in table %s"
+	updatePersonCoordsError      = "failed to update person location in table %s"
 	updatePersonFullError        = "failed to prepare update statement"
 	deletePersonError            = "failed to delete person from table %s"
 	insertPersonError            = "failed to insert person into table %s"
@@ -52,11 +52,9 @@ func (db *Database) GetPopulationData(tableName string) ([]Person, error) {
 	var persons []Person
 	for rows.Next() {
 		var p Person
-		var lng, lat float64
-		if err := rows.Scan(&p.ID, &lng, &lat, &p.RawXML); err != nil {
+		if err := rows.Scan(&p.ID, &p.Lng, &p.Lat, &p.RawXML); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
-		p.Coords = fmt.Sprintf("%f,%f", lng, lat)
 		persons = append(persons, p)
 	}
 
@@ -79,14 +77,12 @@ func (db *Database) GetPopulationByBbox(tableName string, minLat, minLng, maxLat
 	var persons []Person
 	for rows.Next() {
 		var p Person
-		var lng, lat float64
-		if err := rows.Scan(&p.ID, &lng, &lat, &p.RawXML); err != nil {
+		if err := rows.Scan(&p.ID, &p.Lng, &p.Lat, &p.RawXML); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
 		// Check if coordinates are within bounding box
-		if lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat {
-			p.Coords = fmt.Sprintf("%f,%f", lng, lat)
+		if p.Lng >= minLng && p.Lng <= maxLng && p.Lat >= minLat && p.Lat <= maxLat {
 			persons = append(persons, p)
 		}
 	}
@@ -102,11 +98,7 @@ func (db *Database) GetPopulationByBbox(tableName string, minLat, minLng, maxLat
 func (db *Database) GetPerson(tableName, personID string) (*Person, error) {
 	query := fmt.Sprintf(selectPersonByIDQuery, tableName)
 	var p Person
-	var lng, lat float64
-	err := db.queryRow(query, fmt.Sprintf(selectPersonByIDError, tableName), personID).Scan(&p.ID, &lng, &lat, &p.RawXML)
-	if err == nil {
-		p.Coords = fmt.Sprintf("%f,%f", lng, lat)
-	}
+	err := db.queryRow(query, fmt.Sprintf(selectPersonByIDError, tableName), personID).Scan(&p.ID, &p.Lng, &p.Lat, &p.RawXML)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("person with ID %s not found in table %s", personID, tableName)
@@ -117,21 +109,7 @@ func (db *Database) GetPerson(tableName, personID string) (*Person, error) {
 }
 
 // AddPerson adds a new person to a population table
-func (db *Database) AddPerson(tableName string, id, coords, rawXML string) error {
-	// Parse coordinates
-	parts := strings.Split(coords, ",")
-	if len(parts) != 2 {
-		return fmt.Errorf("invalid coordinates format: %s", coords)
-	}
-	lng, err := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-	if err != nil {
-		return fmt.Errorf("invalid longitude: %s", parts[0])
-	}
-	lat, err := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-	if err != nil {
-		return fmt.Errorf("invalid latitude: %s", parts[1])
-	}
-	
+func (db *Database) AddPerson(tableName string, id string, lng, lat float64, rawXML string) error {
 	query := fmt.Sprintf(insertPersonQuery, tableName)
 	if _, err := db.execQuery(query, fmt.Sprintf(insertPersonError, tableName), id, lng, lat, rawXML); err != nil {
 		return fmt.Errorf("failed to add person: %w", err)
@@ -158,9 +136,9 @@ func (db *Database) UpdatePersonXML(tableName, personID, rawXML string) error {
 }
 
 // UpdatePersonCoords updates a person's coordinates
-func (db *Database) UpdatePersonCoords(tableName, personID, coords string) error {
+func (db *Database) UpdatePersonCoords(tableName, personID string, lng, lat float64) error {
 	query := fmt.Sprintf(updatePersonCoordsQuery, tableName)
-	if _, err := db.execQuery(query, fmt.Sprintf(updatePersonCoordsError, tableName), coords, personID); err != nil {
+	if _, err := db.execQuery(query, fmt.Sprintf(updatePersonCoordsError, tableName), lng, lat, personID); err != nil {
 		return fmt.Errorf("failed to update person coordinates: %w", err)
 	}
 	return nil
@@ -230,7 +208,7 @@ func (db *Database) BatchUpdatePersons(tableName string, updates []PersonUpdate)
 		defer stmt.Close()
 
 		for _, update := range updates {
-			_, err := stmt.Exec(update.Coords, update.RawXML, update.ID)
+			_, err = stmt.Exec(update.Lng, update.Lat, update.RawXML, update.ID)
 			if err != nil {
 				return fmt.Errorf("failed to update person %s: %w", update.ID, err)
 			}

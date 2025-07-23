@@ -93,7 +93,7 @@ func (e *PopulationExporter) ExportPopulationFile(tableName string, outputPath s
 	for offset := 0; offset < totalCount; offset += EXPORT_BATCH_SIZE {
 		// Query batch
 		query := fmt.Sprintf(`
-			SELECT id, coords, raw_xml 
+			SELECT id, lng, lat, raw_xml 
 			FROM %s 
 			ORDER BY id
 			LIMIT %d OFFSET %d
@@ -110,8 +110,9 @@ func (e *PopulationExporter) ExportPopulationFile(tableName string, outputPath s
 		// Process batch
 		batchCount := 0
 		for rows.Next() {
-			var id, coords, rawXML string
-			err := rows.Scan(&id, &coords, &rawXML)
+			var id, rawXML string
+			var lng, lat float64
+			err := rows.Scan(&id, &lng, &lat, &rawXML)
 			if err != nil {
 				log.Printf("Error scanning row: %v", err)
 				continue

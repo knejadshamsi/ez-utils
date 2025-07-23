@@ -27,13 +27,8 @@
     try {
       const processes = await GetProcessesByFile(commandArgs.filePath);
       
-      if (processes?.length > 0) {
-        welcomeModalState.processes = processes;
-        appState.processId = processes[0].process_id;
-        welcomeModalState.showTable = true;
-      } else {
-        welcomeModalState.showTable = false;
-      }
+      welcomeModalState.processes = processes || [];
+      welcomeModalState.showTable = true;
     } catch (error) {
       welcomeModalState.showTable = false;
     } finally {
@@ -117,7 +112,18 @@
       <SelectEditMode />
       <FileSelection />
     {:else}
-      <ProcessTable />
+      {#if welcomeModalState.processes.filter(p => p.status === 'PROCESSING_SUCCESS').length === 0}
+        <div class="text-center py-8">
+          <P class="text-gray-600 dark:text-gray-400 mb-4">
+            No previous processes found for this file.
+          </P>
+          <P class="text-sm text-gray-500 dark:text-gray-500">
+            Click "New Process" to start processing this file.
+          </P>
+        </div>
+      {:else}
+        <ProcessTable />
+      {/if}
     {/if}
   </div>
 

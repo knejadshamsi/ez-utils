@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { commandArgs, appState } from '$lib/stores/app.svelte.ts';
+  import { commandArgs, appState } from '$lib/stores/app.svelte';
   import { loadInitialViewportData, loadNetworkInPolygon } from '$lib/api/network';
   import { networkState } from '$lib/stores/network.svelte';
   import { mapState } from '../../map/mapState.svelte';

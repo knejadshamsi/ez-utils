@@ -60,7 +60,8 @@ func (db *Database) CreateTempFilterTables(sessionID string) error {
 	createCacheQuery := fmt.Sprintf(`
 		CREATE TEMP TABLE IF NOT EXISTS temp_person_cache_%s (
 			person_id TEXT PRIMARY KEY,
-			coords TEXT,
+			lng REAL,
+			lat REAL,
 			raw_xml TEXT
 		)
 	`, sessionID)
@@ -159,7 +160,7 @@ func (db *Database) AddPersonsToFilterSession(sessionID string, zoneID string, p
 	defer mappingStmt.Close()
 	
 	cacheStmt, err := tx.Prepare(fmt.Sprintf(
-		`INSERT OR IGNORE INTO temp_person_cache_%s (person_id, coords, raw_xml) VALUES (?, ?, ?)`,
+		`INSERT OR IGNORE INTO temp_person_cache_%s (person_id, lng, lat, raw_xml) VALUES (?, ?, ?, ?)`,
 		sessionID,
 	))
 	if err != nil {
@@ -175,7 +176,7 @@ func (db *Database) AddPersonsToFilterSession(sessionID string, zoneID string, p
 		}
 		
 		// Add to cache table
-		if _, err := cacheStmt.Exec(person.ID, person.Coords, person.RawXML); err != nil {
+		if _, err := cacheStmt.Exec(person.ID, person.Lng, person.Lat, person.RawXML); err != nil {
 			return fmt.Errorf("failed to insert to cache: %w", err)
 		}
 	}
@@ -276,7 +277,8 @@ func (db *Database) GetFilteredPopulationData(sessionID string, page int, pageSi
 	query := fmt.Sprintf(`
 		SELECT 
 			p.person_id,
-			p.coords,
+			p.lng,
+			p.lat,
 			p.raw_xml,
 			GROUP_CONCAT(z.zone_id) as zones
 		FROM temp_person_cache_%s p
@@ -297,7 +299,7 @@ func (db *Database) GetFilteredPopulationData(sessionID string, page int, pageSi
 		var p Person
 		var zones sql.NullString
 		
-		if err := rows.Scan(&p.ID, &p.Coords, &p.RawXML, &zones); err != nil {
+		if err := rows.Scan(&p.ID, &p.Lng, &p.Lat, &p.RawXML, &zones); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 		
@@ -340,9 +342,9 @@ func (db *Database) DropTempFilterTables(sessionID string) error {
 func (db *Database) GetPersonsInPolygon(tableName string, polygon []Point, bbox BoundingBox) ([]Person, error) {
 	// First, get persons within bounding box
 	query := fmt.Sprintf(`
-		SELECT id, coords, raw_xml 
+		SELECT id, lng, lat, raw_xml 
 		FROM %s 
-		WHERE coords IS NOT NULL AND coords != ''
+		WHERE lng IS NOT NULL AND lat IS NOT NULL
 	`, tableName)
 	
 	rows, err := db.conn.Query(query)
@@ -354,23 +356,17 @@ func (db *Database) GetPersonsInPolygon(tableName string, polygon []Point, bbox 
 	var persons []Person
 	for rows.Next() {
 		var p Person
-		if err := rows.Scan(&p.ID, &p.Coords, &p.RawXML); err != nil {
-			continue
-		}
-		
-		// Parse coordinates
-		x, y, err := ParseCoordinates(p.Coords)
-		if err != nil {
+		if err := rows.Scan(&p.ID, &p.Lng, &p.Lat, &p.RawXML); err != nil {
 			continue
 		}
 		
 		// Quick bbox check first
-		if x < bbox.West || x > bbox.East || y < bbox.South || y > bbox.North {
+		if p.Lng < bbox.West || p.Lng > bbox.East || p.Lat < bbox.South || p.Lat > bbox.North {
 			continue
 		}
 		
 		// Detailed point-in-polygon check
-		point := Point{X: x, Y: y}
+		point := Point{X: p.Lng, Y: p.Lat}
 		if IsPointInPolygon(point, polygon) {
 			persons = append(persons, p)
 		}

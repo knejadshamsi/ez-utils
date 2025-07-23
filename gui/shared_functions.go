@@ -2,9 +2,6 @@ package gui
 
 import (
 	"encoding/xml"
-	"fmt"
-	"strconv"
-	"strings"
 )
 
 // No shared constants currently - each workflow defines its own constants
@@ -40,26 +37,6 @@ func extractAttribute(attrs []xml.Attr, name string) string {
 	return ""
 }
 
-// ParseCoordinates parses a coordinate string "x,y" into float64 values
-// Used by: population workflow, zone filtering
-func ParseCoordinates(coords string) (x, y float64, err error) {
-	parts := strings.Split(coords, ",")
-	if len(parts) != 2 {
-		return 0, 0, fmt.Errorf("invalid coordinate format: %s", coords)
-	}
-	
-	x, err = strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid x coordinate: %s", parts[0])
-	}
-	
-	y, err = strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
-	if err != nil {
-		return 0, 0, fmt.Errorf("invalid y coordinate: %s", parts[1])
-	}
-	
-	return x, y, nil
-}
 
 // IsPointInPolygon checks if a point is inside a polygon using ray casting algorithm
 // Used by: population filtering with zones

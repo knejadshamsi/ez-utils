@@ -11,7 +11,7 @@
     type ActivityType,
     type TravelMode
   } from '$lib/stores/population.svelte';
-  import { appState } from '$lib/stores/app.svelte.ts';
+  import { appState } from '$lib/stores/app.svelte';
   import { GetPerson } from '@wailsjs/go/gui/App';
   import { trackActivityChange } from '$lib/utils/populationChangeTracking';
   import { parsePersonXML } from '$lib/utils/populationXmlParser';

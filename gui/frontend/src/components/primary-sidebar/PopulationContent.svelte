@@ -9,7 +9,7 @@
     getPersonsInSelectedZones,
     type Person
   } from '$lib/stores/population.svelte';
-  import { appState } from '$lib/stores/app.svelte.ts';
+  import { appState } from '$lib/stores/app.svelte';
   import { trackPersonChange } from '$lib/utils/populationChangeTracking';
   import { loadPopulationPage, handlePageChange, handleZoneFilterChange, initializeFilterSession, addZoneToFilter, removeZoneFromFilter } from '$lib/services/populationPagination';
   import { syncChanges } from '$lib/syncManager';
@@ -22,8 +22,8 @@
   let editingZoneId = $state<string | null>(null);
 
     $effect(() => {
-    if (appState.processId && appState.processId !== 0) {
-            loadPopulationData();
+    if (appState.processId && appState.processId !== 0 && appState.display === 'LOADING') {
+      loadPopulationData();
     }
   });
   

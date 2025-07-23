@@ -52,9 +52,9 @@ func (db *Database) GetPopulationByZonesDynamic(tableName string, zoneIDs []stri
 	
 	// Query persons within the bounding box
 	bboxQuery := fmt.Sprintf(`
-		SELECT id, coords, raw_xml 
+		SELECT id, lng, lat, raw_xml 
 		FROM %s 
-		WHERE coords IS NOT NULL AND coords != ''
+		WHERE lng IS NOT NULL AND lat IS NOT NULL
 		ORDER BY id
 	`, tableName)
 	
@@ -68,15 +68,12 @@ func (db *Database) GetPopulationByZonesDynamic(tableName string, zoneIDs []stri
 	var filteredPersons []Person
 	for rows.Next() {
 		var p Person
-		if err := rows.Scan(&p.ID, &p.Coords, &p.RawXML); err != nil {
+		var lng, lat float64
+		if err := rows.Scan(&p.ID, &lng, &lat, &p.RawXML); err != nil {
 			continue
 		}
 		
-		// Parse coordinates
-		x, y, err := ParseCoordinates(p.Coords)
-		if err != nil {
-			continue
-		}
+		x, y := lng, lat
 		
 		// Quick bounding box check
 		if x < minX || x > maxX || y < minY || y > maxY {
@@ -125,9 +122,9 @@ func (db *Database) GetPopulationByZonesDynamic(tableName string, zoneIDs []stri
 func (db *Database) GetPopulationByBoundingBox(tableName string, minX, minY, maxX, maxY float64, page, pageSize int) (*PaginatedResponse, error) {
 	// For SQLite without spatial extensions, we need to parse coordinates in application
 	query := fmt.Sprintf(`
-		SELECT id, coords, raw_xml 
+		SELECT id, lng, lat, raw_xml 
 		FROM %s 
-		WHERE coords IS NOT NULL AND coords != ''
+		WHERE lng IS NOT NULL AND lat IS NOT NULL
 		ORDER BY id
 	`, tableName)
 	
@@ -141,15 +138,12 @@ func (db *Database) GetPopulationByBoundingBox(tableName string, minX, minY, max
 	var filteredPersons []Person
 	for rows.Next() {
 		var p Person
-		if err := rows.Scan(&p.ID, &p.Coords, &p.RawXML); err != nil {
+		var lng, lat float64
+		if err := rows.Scan(&p.ID, &lng, &lat, &p.RawXML); err != nil {
 			continue
 		}
 		
-		// Parse coordinates
-		x, y, err := ParseCoordinates(p.Coords)
-		if err != nil {
-			continue
-		}
+		x, y := lng, lat
 		
 		// Check if within bounding box
 		if x >= minX && x <= maxX && y >= minY && y <= maxY {

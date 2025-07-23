@@ -67,7 +67,7 @@ const (
 	
 	// Select persons by zone
 	selectPersonsByZoneQuery = `
-		SELECT id, coords, raw_xml 
+		SELECT id, lng, lat, raw_xml 
 		FROM %s 
 		WHERE zone_id IN (%s) 
 		ORDER BY id 
@@ -350,7 +350,7 @@ func (db *Database) GetPersonsByZones(tableName string, zoneIDs []string, page, 
 	var persons []Person
 	for rows.Next() {
 		var p Person
-		if err := rows.Scan(&p.ID, &p.Coords, &p.RawXML); err != nil {
+		if err := rows.Scan(&p.ID, &p.Lng, &p.Lat, &p.RawXML); err != nil {
 			return nil, fmt.Errorf("failed to scan person: %w", err)
 		}
 		persons = append(persons, p)
@@ -409,7 +409,7 @@ func (db *Database) AssignAllPersonsToZones(tableName string) error {
 	
 	for {
 		// Get batch of persons
-		query := fmt.Sprintf("SELECT id, coords FROM %s LIMIT ? OFFSET ?", tableName)
+		query := fmt.Sprintf("SELECT id, lng, lat FROM %s LIMIT ? OFFSET ?", tableName)
 		rows, err := db.queryRows(query, "failed to query persons", batchSize, offset)
 		if err != nil {
 			return err
@@ -421,17 +421,14 @@ func (db *Database) AssignAllPersonsToZones(tableName string) error {
 		}
 		
 		for rows.Next() {
-			var personID, coords string
-			if err := rows.Scan(&personID, &coords); err != nil {
+			var personID string
+			var lng, lat float64
+			if err := rows.Scan(&personID, &lng, &lat); err != nil {
 				rows.Close()
 				return fmt.Errorf("failed to scan person: %w", err)
 			}
 			
-			// Parse coordinates
-			x, y, err := ParseCoordinates(coords)
-			if err != nil {
-				continue // Skip invalid coordinates
-			}
+			x, y := lng, lat
 			
 			// Find containing zone
 			for _, zone := range zones {
