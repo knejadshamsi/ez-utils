@@ -1,5 +1,5 @@
 import { changeTracker } from '$lib/changeTracker.svelte';
-import { appState } from '$lib/stores/app.svelte.ts';
+import { appState } from '$lib/stores/app.svelte';
 import type { NetworkNode, NetworkLink } from '$lib/stores/network.svelte';
 
 // Track node changes

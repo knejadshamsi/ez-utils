@@ -152,7 +152,7 @@ func (a *App) GetPopulationSimple(tableName string, page int, pageSize int) (*Pa
 
 	// Query page of persons
 	query := fmt.Sprintf(`
-		SELECT id, coords, raw_xml 
+		SELECT id, lng, lat, raw_xml 
 		FROM %s 
 		ORDER BY id 
 		LIMIT ? OFFSET ?
@@ -167,7 +167,7 @@ func (a *App) GetPopulationSimple(tableName string, page int, pageSize int) (*Pa
 	var persons []Person
 	for rows.Next() {
 		var p Person
-		if err := rows.Scan(&p.ID, &p.Coords, &p.RawXML); err != nil {
+		if err := rows.Scan(&p.ID, &p.Lng, &p.Lat, &p.RawXML); err != nil {
 			return nil, fmt.Errorf("failed to scan person: %w", err)
 		}
 		persons = append(persons, p)
@@ -195,10 +195,11 @@ func (a *App) addPerson(tableName string, person map[string]any) (map[string]any
 	if !ok || id == "" {
 		return nil, fmt.Errorf("person ID is required")
 	}
-	coords, _ := person["coords"].(string)
+	lng, _ := person["lng"].(float64)
+	lat, _ := person["lat"].(float64)
 	rawXML, _ := person["raw_xml"].(string)
 
-	if err := a.db.AddPerson(tableName, id, coords, rawXML); err != nil {
+	if err := a.db.AddPerson(tableName, id, lng, lat, rawXML); err != nil {
 		return nil, err
 	}
 	return person, nil
@@ -223,25 +224,27 @@ func (a *App) updatePersonPlan(tableName string, personId string, planXML string
 	activityPattern := regexp.MustCompile(`<activity[^>]*\sx="([^"]+)"[^>]*\sy="([^"]+)"[^>]*(?:/>|>)`)
 	matches := activityPattern.FindStringSubmatch(planXML)
 
-	var coords string
+	var lng, lat float64
 	if len(matches) >= 3 {
-		coords = fmt.Sprintf("%s,%s", matches[1], matches[2])
+		lng, _ = strconv.ParseFloat(matches[1], 64)
+		lat, _ = strconv.ParseFloat(matches[2], 64)
 	} else {
 		// Try reverse order (y before x)
 		activityPatternReverse := regexp.MustCompile(`<activity[^>]*\sy="([^"]+)"[^>]*\sx="([^"]+)"[^>]*(?:/>|>)`)
 		matches = activityPatternReverse.FindStringSubmatch(planXML)
 
 		if len(matches) >= 3 {
-			coords = fmt.Sprintf("%s,%s", matches[2], matches[1])
+			lng, _ = strconv.ParseFloat(matches[2], 64)
+			lat, _ = strconv.ParseFloat(matches[1], 64)
 		}
 	}
-	log.Printf("Extracted coordinates for person %s: %s", personId, coords)
+	log.Printf("Extracted coordinates for person %s: lng=%f, lat=%f", personId, lng, lat)
 
-	if coords != "" {
-		if err := a.db.UpdatePersonCoords(tableName, personId, coords); err != nil {
+	if lng != 0 || lat != 0 {
+		if err := a.db.UpdatePersonCoords(tableName, personId, lng, lat); err != nil {
 			return nil, fmt.Errorf("failed to update person coordinates: %w", err)
 		}
-		log.Printf("Successfully updated coordinates for person %s to %s", personId, coords)
+		log.Printf("Successfully updated coordinates for person %s to lng=%f, lat=%f", personId, lng, lat)
 	} else {
 		log.Printf("No coordinates found in XML for person %s", personId)
 	}
@@ -267,9 +270,14 @@ func (a *App) batchUpdatePersons(tableName string, updates []map[string]any) err
 			return fmt.Errorf("missing or invalid id in update")
 		}
 
-		coords, ok := update["coords"].(string)
+		lng, ok := update["lng"].(float64)
 		if !ok {
-			return fmt.Errorf("missing or invalid coords in update for person %s", id)
+			return fmt.Errorf("missing or invalid lng in update for person %s", id)
+		}
+
+		lat, ok := update["lat"].(float64)
+		if !ok {
+			return fmt.Errorf("missing or invalid lat in update for person %s", id)
 		}
 
 		rawXML, ok := update["raw_xml"].(string)
@@ -279,7 +287,8 @@ func (a *App) batchUpdatePersons(tableName string, updates []map[string]any) err
 
 		personUpdates = append(personUpdates, PersonUpdate{
 			ID:     id,
-			Coords: coords,
+			Lng:    lng,
+			Lat:    lat,
 			RawXML: rawXML,
 		})
 	}

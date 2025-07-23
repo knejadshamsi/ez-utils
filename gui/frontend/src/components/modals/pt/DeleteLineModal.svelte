@@ -3,7 +3,7 @@
   import { ptState, type LineWithRoutes } from '$lib/stores/pt.svelte';
   import { changeTracker } from '$lib/changeTracker.svelte';
   import { getCurrentProcessId } from '$lib/utils/processId';
-  import { appState } from '$lib/stores/app.svelte.ts';
+  import { appState } from '$lib/stores/app.svelte';
 
   let { open = $bindable(), line }: { open: boolean; line: LineWithRoutes } = $props();
 

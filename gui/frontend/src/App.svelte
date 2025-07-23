@@ -11,7 +11,7 @@
   import AttributesModal from "./components/modals/AttributesModal.svelte";
   import ConfirmationModal from "./components/modals/ConfirmationModal.svelte";
   import ToastContainer from "./components/ToastContainer.svelte";
-  import { appState, commandArgs, mapComponent } from "$lib/stores/app.svelte.ts";
+  import { appState, commandArgs, mapComponent } from "$lib/stores/app.svelte";
   import { confirmationState } from "$lib/stores/confirmationModal.svelte";
   import { PTService } from "$lib/api/pt";
   import NetworkController from "./components/network/NetworkController.svelte";

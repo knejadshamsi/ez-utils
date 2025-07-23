@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Button, Label, Input, Select, Hr, Heading, P, Helper } from 'flowbite-svelte';
   import { CloseOutline, TrashBinOutline, ExclamationCircleOutline } from 'flowbite-svelte-icons';
-  import { appState } from '$lib/stores/app.svelte.ts';
+  import { appState } from '$lib/stores/app.svelte';
   import { networkState, getNodeById, getLinkById, canDeleteNode, clearSelection } from '$lib/stores/network.svelte';
   import { updateNode, updateLink, deleteNode, deleteLink } from '$lib/api/network';
   

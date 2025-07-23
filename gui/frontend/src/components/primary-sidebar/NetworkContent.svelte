@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Button, Label, ButtonGroup, Hr, Heading, P } from 'flowbite-svelte';
   import { PlusOutline } from 'flowbite-svelte-icons';
-  import { appState } from '$lib/stores/app.svelte.ts';
+  import { appState } from '$lib/stores/app.svelte';
   import { networkState, selectNode as selectNetworkNode, selectLink as selectNetworkLink } from '$lib/stores/network.svelte';
   import { mapState, createNetworkNodeIcon } from '../../map/mapState.svelte';
   import { startPolygonDrawing, stopPolygonDrawing, clearAllZones } from '../../map/polygonDrawing';

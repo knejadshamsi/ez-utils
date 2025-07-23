@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Label, Helper, P, Button, Spinner } from "flowbite-svelte";
   import { InfoCircleOutline, ExclamationCircleOutline, CheckCircleOutline } from "flowbite-svelte-icons";
-  import { commandArgs } from "$lib/stores/app.svelte.ts";
+  import { commandArgs } from "$lib/stores/app.svelte";
   import { ValidatePopulationXML, ValidateNetworkXML, ValidatePTXML, SelectFile } from "@wailsjs/go/gui/App";
   
   async function handleSelectFile() {

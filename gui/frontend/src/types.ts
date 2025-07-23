@@ -2,7 +2,8 @@
 
 export interface Person {
   id: string;
-  coords: string;
+  lng: number;
+  lat: number;
   raw_xml: string;
 }
 

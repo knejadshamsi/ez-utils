@@ -1,6 +1,6 @@
 import { GetPTLines, GetPTRoutes, GetPTStops, GetPTRouteStops, GetPTDepartures, GetPTLineSummaries, GetPTLine } from '@wailsjs/go/gui/App';
 import { ptState } from '$lib/stores/pt.svelte';
-import { appState } from '$lib/stores/app.svelte.ts';
+import { appState } from '$lib/stores/app.svelte';
 import type { gui } from '@wailsjs/go/models';
 
 export class PTService {

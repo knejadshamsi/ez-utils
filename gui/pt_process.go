@@ -139,10 +139,6 @@ func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64)
 	// Open file and create counting reader BEFORE starting telemetry
 	file, err := os.Open(filePath)
 	if err != nil {
-		wailsruntime.EventsEmit(a.ctx, "pt-processing-error", map[string]interface{}{
-			"processID": processID,
-			"error":     err.Error(),
-		})
 		a.db.execQuery(
 			"UPDATE processes SET status = ? WHERE process_id = ?",
 			"",
@@ -170,10 +166,6 @@ func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64)
 	status := "PROCESSING_SUCCESS"
 	if err != nil {
 		status = "PROCESSING_FAILED"
-		wailsruntime.EventsEmit(a.ctx, "pt-processing-error", map[string]interface{}{
-			"processID": processID,
-			"error":     err.Error(),
-		})
 	}
 
 	if _, updateErr := a.db.execQuery(
@@ -185,12 +177,6 @@ func (a *App) processPTFileAsync(processID int, filePath string, fileSize int64)
 	
 	wailsruntime.EventsEmit(a.ctx, "process:status", map[string]interface{}{
 		"processId": processID,
-		"status":    status,
-	})
-
-	// Emit completion event
-	wailsruntime.EventsEmit(a.ctx, "pt-processing-complete", map[string]interface{}{
-		"processID": processID,
 		"status":    status,
 	})
 }
