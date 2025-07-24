@@ -13,6 +13,8 @@ export function ClearAllZones():Promise<void>;
 
 export function CloseFilterSession(arg1:string):Promise<void>;
 
+export function CountPersonsInPolygon(arg1:string,arg2:Array<gui.Point>):Promise<number>;
+
 export function CreateDemoZones():Promise<void>;
 
 export function CreateFilterSession(arg1:string):Promise<string>;
@@ -138,3 +140,5 @@ export function ValidateNetworkXML(arg1:string):Promise<gui.ValidationResult>;
 export function ValidatePTXML(arg1:string):Promise<gui.ValidationResult>;
 
 export function ValidatePopulationXML(arg1:string):Promise<gui.ValidationResult>;
+
+export function ValidateZoneBeforeAdd(arg1:string,arg2:Array<gui.Point>,arg3:number):Promise<Record<string, any>>;

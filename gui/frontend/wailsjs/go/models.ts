@@ -72,6 +72,7 @@ export namespace gui {
 	    viewport: ViewportBounds;
 	    randomFactor: number;
 	    maxElements: number;
+	    minThreshold: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new LoadingParams(source);
@@ -84,6 +85,7 @@ export namespace gui {
 	        this.viewport = this.convertValues(source["viewport"], ViewportBounds);
 	        this.randomFactor = source["randomFactor"];
 	        this.maxElements = source["maxElements"];
+	        this.minThreshold = source["minThreshold"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

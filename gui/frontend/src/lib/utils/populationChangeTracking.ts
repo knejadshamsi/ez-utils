@@ -2,6 +2,7 @@ import { changeTracker } from '$lib/changeTracker.svelte';
 import type { Person, PersonAttribute, Plan, Activity } from '$lib/stores/population.svelte';
 import type { SyncAction } from '$lib/changeTracker.svelte';
 import { appState } from '$lib/stores/app.svelte';
+import { addToUnsavedCache } from '$lib/services/populationPagination';
 
 function convertPersonToXML(person: Person): string {
   // Convert person data to XML format - compact for storage
@@ -19,7 +20,7 @@ function convertPersonToXML(person: Person): string {
   
   // Add plans
   person.plans.forEach(plan => {
-    xml += `<plan selected="yes">`;
+    xml += `<plan>`;
     
     plan.activities.forEach((activity, index) => {
       // Build activity attributes
@@ -72,6 +73,14 @@ export function trackPersonChange(person: Person, action: 'create' | 'update' | 
   if (!appState.processId) return;
   
   const tableName = `population_data_${appState.processId}`;
+  
+  // Handle unsaved cache based on action
+  if (action === 'create' || action === 'update') {
+    addToUnsavedCache(person.id, person);
+  } else if (action === 'delete') {
+    // Remove from cache if deleting
+    addToUnsavedCache(person.id, null);
+  }
   
   // Check if there's already a pending "add" action for this person
   const existingAddAction = changeTracker.pendingChanges.find(

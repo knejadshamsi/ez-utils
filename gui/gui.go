@@ -495,15 +495,33 @@ func (a *App) LoadProcessData(params LoadingParams) (map[string]any, error) {
 	
 	switch params.FileEditMode {
 	case "POPULATION":
-		persons, err := a.db.GetPopulationInBounds(
-			params.ProcessId, 
-			filteredViewport,
-			params.RandomFactor,
-			params.MaxElements,
-		)
+		// Count total population first
+		count, err := a.db.CountPopulationInTable(params.ProcessId)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load population data: %v", err)
+			return nil, fmt.Errorf("failed to count population: %v", err)
 		}
+		
+		var persons []PersonData
+		
+		// If count is below min threshold, load all persons
+		if params.MinThreshold > 0 && count <= params.MinThreshold {
+			persons, err = a.db.GetAllPopulation(params.ProcessId)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load all population data: %v", err)
+			}
+		} else {
+			// Otherwise use viewport filtering with randomization
+			persons, err = a.db.GetPopulationInBounds(
+				params.ProcessId, 
+				filteredViewport,
+				params.RandomFactor,
+				params.MaxElements,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load population data: %v", err)
+			}
+		}
+		
 		return map[string]any{
 			"data": persons,
 			"type": "population",

@@ -22,6 +22,10 @@ export function CloseFilterSession(arg1) {
   return window['go']['gui']['App']['CloseFilterSession'](arg1);
 }
 
+export function CountPersonsInPolygon(arg1, arg2) {
+  return window['go']['gui']['App']['CountPersonsInPolygon'](arg1, arg2);
+}
+
 export function CreateDemoZones() {
   return window['go']['gui']['App']['CreateDemoZones']();
 }
@@ -272,4 +276,8 @@ export function ValidatePTXML(arg1) {
 
 export function ValidatePopulationXML(arg1) {
   return window['go']['gui']['App']['ValidatePopulationXML'](arg1);
+}
+
+export function ValidateZoneBeforeAdd(arg1, arg2, arg3) {
+  return window['go']['gui']['App']['ValidateZoneBeforeAdd'](arg1, arg2, arg3);
 }

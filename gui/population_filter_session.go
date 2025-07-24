@@ -84,6 +84,40 @@ func (db *Database) CreateTempFilterTables(sessionID string) error {
 	return tx.Commit()
 }
 
+// CountPersonsInPolygon counts persons within a polygon
+func (a *App) CountPersonsInPolygon(tableName string, polygon []Point) (int, error) {
+	// Calculate bounding box from polygon
+	bbox := calculateBoundingBox(polygon)
+	
+	// Count persons within the zone
+	count, err := a.db.CountPersonsInPolygon(tableName, polygon, bbox)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count persons in polygon: %w", err)
+	}
+	
+	return count, nil
+}
+
+// ValidateZoneBeforeAdd validates if a zone can be added based on person count
+func (a *App) ValidateZoneBeforeAdd(tableName string, polygon []Point, maxThreshold int) (map[string]interface{}, error) {
+	count, err := a.CountPersonsInPolygon(tableName, polygon)
+	if err != nil {
+		return nil, err
+	}
+	
+	result := map[string]interface{}{
+		"count": count,
+		"valid": true,
+	}
+	
+	if maxThreshold > 0 && count > maxThreshold {
+		result["valid"] = false
+		result["error"] = fmt.Sprintf("Too many persons in selected area (%d). Please select a smaller area (max: %d)", count, maxThreshold)
+	}
+	
+	return result, nil
+}
+
 // AddZoneToSession adds a zone's population to the filter session
 func (a *App) AddZoneToSession(sessionID string, zoneID string, polygon []Point) error {
 	session, exists := filterSessions[sessionID]
@@ -336,6 +370,42 @@ func (db *Database) DropTempFilterTables(sessionID string) error {
 	}
 	
 	return nil
+}
+
+// CountPersonsInPolygon counts persons within a polygon (with bbox pre-filter)
+func (db *Database) CountPersonsInPolygon(tableName string, polygon []Point, bbox BoundingBox) (int, error) {
+	// First, get persons within bounding box
+	query := fmt.Sprintf(`
+		SELECT lng, lat 
+		FROM %s 
+		WHERE lng IS NOT NULL AND lat IS NOT NULL
+	`, tableName)
+	
+	rows, err := db.conn.Query(query)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	
+	count := 0
+	for rows.Next() {
+		var lng, lat float64
+		if err := rows.Scan(&lng, &lat); err != nil {
+			continue
+		}
+		
+		// Quick bbox check first
+		if lng < bbox.West || lng > bbox.East || lat < bbox.South || lat > bbox.North {
+			continue
+		}
+		
+		// Then precise point-in-polygon check
+		if pointInPolygon(lng, lat, polygon) {
+			count++
+		}
+	}
+	
+	return count, nil
 }
 
 // GetPersonsInPolygon finds persons within a polygon (with bbox pre-filter)

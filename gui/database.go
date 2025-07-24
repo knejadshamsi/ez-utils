@@ -324,6 +324,46 @@ func (db *Database) DropPTTables(processID int) error {
 
 // Spatial query functions
 
+// CountPopulationInTable counts total persons in a population table
+func (db *Database) CountPopulationInTable(processId int) (int, error) {
+	tableName := fmt.Sprintf("population_data_%d", processId)
+	
+	var count int
+	err := db.queryRow(
+		fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName),
+		"failed to count population",
+	).Scan(&count)
+	
+	return count, err
+}
+
+// GetAllPopulation retrieves all population data without limits
+func (db *Database) GetAllPopulation(processId int) ([]PersonData, error) {
+	tableName := fmt.Sprintf("population_data_%d", processId)
+	
+	query := fmt.Sprintf(`
+		SELECT id, lng, lat, raw_xml 
+		FROM %s 
+		ORDER BY id`, tableName)
+	
+	rows, err := db.queryRows(query, "failed to query all population")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var persons []PersonData
+	for rows.Next() {
+		var p PersonData
+		if err := rows.Scan(&p.ID, &p.Lng, &p.Lat, &p.RawXML); err != nil {
+			return nil, err
+		}
+		persons = append(persons, p)
+	}
+	
+	return persons, nil
+}
+
 // GetPopulationInBounds retrieves population data within viewport bounds with randomization
 func (db *Database) GetPopulationInBounds(processId int, viewport ViewportBounds, randomFactor float64, maxElements int) ([]PersonData, error) {
 	tableName := fmt.Sprintf("population_data_%d", processId)
