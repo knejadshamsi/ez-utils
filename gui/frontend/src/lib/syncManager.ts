@@ -1,6 +1,7 @@
 import { SyncChanges } from '@wailsjs/go/gui/App';
 import { changeTracker } from './changeTracker.svelte';
 import { showSuccess, showError } from './toast.svelte';
+import { clearUnsavedCache } from './services/populationPagination';
 
 /**
  * Sync all pending changes to the backend
@@ -25,6 +26,9 @@ export async function syncChanges(): Promise<boolean> {
     
     // Clear pending changes after successful sync
     changeTracker.pendingChanges = [];
+    
+    // Clear unsaved persons cache
+    clearUnsavedCache();
     
     // Show success notification
     showSuccess(`Successfully saved ${changeCount} change${changeCount > 1 ? 's' : ''}`);

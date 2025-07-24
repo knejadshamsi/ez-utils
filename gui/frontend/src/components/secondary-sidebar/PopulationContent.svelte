@@ -37,29 +37,33 @@
   });
   
   async function loadPersonDetails(personId: string) {
+    const person = populationState.persons.get(personId);
+    if (!person) return;
+    
+    if (person.plans && person.plans.length > 0) {
+      return;
+    }
+    
     try {
       const tableName = `population_data_${appState.processId}`;
       const personData = await GetPerson(tableName, personId);
       
       const parsedData = parsePersonXML(personData.raw_xml);
-      const person = populationState.persons.get(personId);
       
-      if (person) {
-        const updatedPerson = {
-          ...person,
-          plans: parsedData.plans || []
-        };
-        
-        if (updatedPerson.plans.length === 0) {
-          updatedPerson.plans.push({
-            id: 1,
-            activities: [],
-            legs: []
-          });
-        }
-        
-        populationState.persons.set(personId, updatedPerson);
+      const updatedPerson = {
+        ...person,
+        plans: parsedData.plans || []
+      };
+      
+      if (updatedPerson.plans.length === 0) {
+        updatedPerson.plans.push({
+          id: 1,
+          activities: [],
+          legs: []
+        });
       }
+      
+      populationState.persons.set(personId, updatedPerson);
     } catch (error) {
       console.error('Failed to load person details:', error);
     }

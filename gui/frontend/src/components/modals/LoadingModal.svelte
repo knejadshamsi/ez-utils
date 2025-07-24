@@ -3,12 +3,13 @@
   import { CheckCircleOutline, ExclamationCircleOutline } from "flowbite-svelte-icons";
   import { appState, commandArgs } from "$lib/stores/app.svelte";
   import { welcomeModalState } from "./welcome-modal/welcome.svelte";
-  import { populationState } from "$lib/stores/population.svelte";
+  import { populationState, type Person } from "$lib/stores/population.svelte";
   import { networkState } from "$lib/stores/network.svelte";
   import { ptState } from "$lib/stores/pt.svelte";
   import { LoadProcessData, GetPTStops, GetPTRoutes, GetPTRouteStops, GetPTDepartures } from "@wailsjs/go/gui/App";
   import { gui } from "@wailsjs/go/models";
   import { getCurrentViewportBounds } from "$lib/map/mapUtils";
+  import { parsePersonXML } from "$lib/utils/populationXmlParser";
 
   $effect(() => {
     if (appState.display === 'LOADING') {
@@ -17,9 +18,9 @@
           const viewport = getCurrentViewportBounds();
           
           const config = {
-            POPULATION: { randomFactor: 0.3, maxElements: 500 },
-            NETWORK: { randomFactor: 0.8, maxElements: 2000 },
-            PT: { randomFactor: 1.0, maxElements: 100 }
+            POPULATION: { randomFactor: 0.3, maxElements: 500, minThreshold: 200 },
+            NETWORK: { randomFactor: 0.8, maxElements: 2000, minThreshold: 0 },
+            PT: { randomFactor: 1.0, maxElements: 100, minThreshold: 0 }
           };
           
           const params = new gui.LoadingParams({
@@ -27,7 +28,8 @@
             fileEditMode: commandArgs.fileEditMode,
             viewport: viewport,
             randomFactor: config[commandArgs.fileEditMode].randomFactor,
-            maxElements: config[commandArgs.fileEditMode].maxElements
+            maxElements: config[commandArgs.fileEditMode].maxElements,
+            minThreshold: config[commandArgs.fileEditMode].minThreshold
           });
           
           const result = await LoadProcessData(params);
@@ -36,7 +38,14 @@
             populationState.persons.clear();
             if (result.data && Array.isArray(result.data)) {
               result.data.forEach((person: any) => {
-                populationState.persons.set(person.id, person);
+                const parsedData = parsePersonXML(person.raw_xml);
+                const processedPerson: Person = {
+                  id: person.id,
+                  zoneId: '',
+                  attributes: parsedData.attributes || [],
+                  plans: parsedData.plans || []
+                };
+                populationState.persons.set(person.id, processedPerson);
               });
             }
           } else if (commandArgs.fileEditMode === 'NETWORK') {

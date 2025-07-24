@@ -10,6 +10,18 @@ import { parsePersonXML } from '$lib/utils/populationXmlParser';
 import { changeTracker } from '$lib/changeTracker.svelte';
 import type { Person } from '$lib/stores/population.svelte';
 
+// Cache for unsaved persons to maintain during zone filtering
+const unsavedPersonsCache = new Map<string, Person>();
+
+// Add person to unsaved cache (or remove if person is null)
+export function addToUnsavedCache(personId: string, person: Person | null) {
+  if (person === null) {
+    unsavedPersonsCache.delete(personId);
+  } else {
+    unsavedPersonsCache.set(personId, person);
+  }
+}
+
 // Store the current filter session ID
 let currentSessionId: string | null = null;
 
@@ -70,7 +82,7 @@ function loadPersonsIntoState(persons: Person[]) {
   // Clear current persons
   populationState.persons.clear();
   
-  // Add new persons
+  // Add new persons from backend
   persons.forEach(person => {
     populationState.persons.set(person.id, person);
     
@@ -79,6 +91,17 @@ function loadPersonsIntoState(persons: Person[]) {
       populationState.visiblePersons.add(person.id);
     }
   });
+  
+  // Re-add ALL unsaved persons from cache (regardless of zone)
+  unsavedPersonsCache.forEach((person, id) => {
+    populationState.persons.set(id, person);
+    populationState.visiblePersons.add(id);
+  });
+}
+
+// Clear unsaved cache after successful sync
+export function clearUnsavedCache() {
+  unsavedPersonsCache.clear();
 }
 
 // Initialize filter session for the table
@@ -194,7 +217,7 @@ export async function handlePageChange(
 export async function handleZoneFilterChange(tableName: string) {
   // Reset to first page and reload
   populationState.currentPage = 1;
-  await loadPopulationPage(tableName, 1, true);
+  await loadPopulationPage(tableName, 1);
 }
 
 // Handle page size change
@@ -203,5 +226,5 @@ export async function handlePageSizeChange(newSize: number, tableName: string) {
   
   // Reset to first page and reload
   populationState.currentPage = 1;
-  await loadPopulationPage(tableName, 1, true);
+  await loadPopulationPage(tableName, 1);
 }

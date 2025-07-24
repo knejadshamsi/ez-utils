@@ -6,7 +6,6 @@
     toggleZone, 
     toggleVisibility, 
     selectPerson,
-    getPersonsInSelectedZones,
     type Person
   } from '$lib/stores/population.svelte';
   import { appState } from '$lib/stores/app.svelte';
@@ -16,7 +15,8 @@
   import { mapState } from '../../map/mapState.svelte';
   import { startPolygonDrawing, stopPolygonDrawing, enableZoneEditing, disableZoneEditing, deleteZone as deleteMapZone } from '../../map/polygonDrawing';
   import { updateConnectedDots } from '../../map/updateConnectedDots';
-  import { GetPersonsInPolygon } from '@wailsjs/go/gui/App';
+  import { ValidateZoneBeforeAdd } from '@wailsjs/go/gui/App';
+  import { changeTracker } from '$lib/changeTracker.svelte';
   import type * as L from 'leaflet';
   
   let editingZoneId = $state<string | null>(null);
@@ -175,6 +175,20 @@
           y: coord[1] 
         }));
         
+        const tableName = `population_data_${appState.processId}`;
+        
+        // Validate zone before adding (max 1000 persons per zone)
+        const maxThreshold = 1000;
+        const validation = await ValidateZoneBeforeAdd(tableName, polygonPoints, maxThreshold);
+        
+        if (!validation.valid) {
+          populationState.mode = 'NORMAL';
+          // Remove the drawn polygon
+          deleteMapZone(zoneId);
+          alert(validation.error || 'Zone validation failed');
+          return;
+        }
+        
         const zone = {
           id: zoneId,
           name: `Zone ${populationState.zones.length + 1}`,
@@ -182,9 +196,7 @@
           boundingBox: null // Will be calculated by backend
         };
         
-        
         // Initialize filter session if this is the first zone
-        const tableName = `population_data_${appState.processId}`;
         if (populationState.zones.length === 0) {
           await initializeFilterSession(tableName);
         }
@@ -197,11 +209,11 @@
         );
         
         // Add zone to frontend state (local only)
-        const newZone = {
+        const newZone: Zone = {
           id: zoneId,
           name: zone.name,
-          polygon: coordinates,
-          color: '#' + Math.floor(Math.random()*16777215).toString(16) // Random color
+          personCount: validation.count || 0,
+          geometry: coordinates
         };
         
         populationState.zones.push(newZone);
@@ -227,6 +239,45 @@
     populationState.mode = 'NORMAL';
   }
   
+  async function handleZoneUpdate(zoneId: string, newCoordinates: [number, number][]) {
+    if (!appState.processId) return;
+    
+    const zone = populationState.zones.find(z => z.id === zoneId);
+    if (!zone) return;
+    
+    const tableName = `population_data_${appState.processId}`;
+    
+    try {
+      // Validate the new zone boundaries
+      const polygonPoints = newCoordinates.slice(0, -1).map(coord => ({ 
+        x: coord[0], 
+        y: coord[1] 
+      }));
+      
+      const validation = await ValidateZoneBeforeAdd(tableName, polygonPoints, 1000);
+      
+      if (!validation.valid) {
+        alert(validation.error || 'Zone validation failed');
+        // TODO: Revert polygon to original shape
+        return;
+      }
+      
+      // Remove the old zone from filter
+      await removeZoneFromFilter(zoneId, tableName);
+      
+      // Add it back with new coordinates
+      await addZoneToFilter(zoneId, newCoordinates, tableName);
+      
+      // Update local zone data
+      zone.geometry = newCoordinates;
+      zone.personCount = validation.count || 0;
+      
+    } catch (error) {
+      console.error('Failed to update zone:', error);
+      alert('Failed to update zone. Please try again.');
+    }
+  }
+  
   function handleEditZone(zoneId: string) {
     if (editingZoneId === zoneId) {
       // Stop editing
@@ -238,7 +289,7 @@
         disableZoneEditing(editingZoneId);
       }
       // Start editing this zone
-      enableZoneEditing(zoneId);
+      enableZoneEditing(zoneId, handleZoneUpdate);
       editingZoneId = zoneId;
     }
   }
@@ -251,8 +302,27 @@
     }
   }
 
-  // Get persons to display based on selected zones
-  const displayPersons = $derived(getPersonsInSelectedZones());
+  // Get persons to display - backend handles all filtering
+  const displayPersons = $derived(Array.from(populationState.persons.values()));
+  
+  // Check if a person has unsaved changes
+  function isPersonUnsaved(personId: string): boolean {
+    return changeTracker.pendingChanges.some(change => 
+      change.type === 'population' && 
+      change.elementType === 'person' &&
+      ((change.action === 'add' && 'data' in change && change.data.id === personId) ||
+       (change.action === 'update' && 'personId' in change && change.personId === personId))
+    );
+  }
+  
+  // Count unsaved new persons
+  const unsavedNewPersonsCount = $derived(
+    changeTracker.pendingChanges.filter(change => 
+      change.type === 'population' && 
+      change.elementType === 'person' &&
+      change.action === 'add'
+    ).length
+  );
   
   // Handle zone toggle with pagination refresh
   async function handleToggleZone(zoneId: string) {
@@ -267,7 +337,7 @@
     } else {
       // Add zone
       populationState.selectedZones.add(zoneId);
-      await addZoneToFilter(zoneId, zone.polygon, tableName);
+      await addZoneToFilter(zoneId, zone.geometry, tableName);
     }
   }
   
@@ -383,6 +453,9 @@
       </h3>
       <span class="text-xs text-gray-400">
         {populationState.totalPersons} total
+        {#if unsavedNewPersonsCount > 0}
+          <span class="text-yellow-500">({unsavedNewPersonsCount} unsaved)</span>
+        {/if}
       </span>
     </div>
     
@@ -390,18 +463,22 @@
       <div class="space-y-1">
         {#each displayPersons as person}
             <div class="group flex items-center gap-2 rounded p-1 hover:bg-gray-700
-                        {populationState.selectedPersonId === person.id ? 'bg-blue-900 hover:bg-blue-900' : ''}">
+                        {populationState.selectedPersonId === person.id ? 'bg-blue-900 hover:bg-blue-900' : ''}
+                        {isPersonUnsaved(person.id) ? 'border-l-2 border-yellow-500' : ''}">
               <Checkbox 
                 checked={populationState.visiblePersons.has(person.id)}
                 onchange={() => togglePersonVisibility(person.id)}
                 onclick={(e: Event) => e.stopPropagation()}
               />
               <button
-                class="flex-1 text-left px-2 py-1 text-sm
+                class="flex-1 text-left px-2 py-1 text-sm flex items-center gap-2
                        {populationState.selectedPersonId === person.id ? 'text-blue-200' : 'text-white'}"
                 onclick={() => handlePersonClick(person.id)}
               >
                 {person.id}
+                {#if isPersonUnsaved(person.id)}
+                  <span class="text-xs text-yellow-500" title="Unsaved changes">⚠️</span>
+                {/if}
               </button>
               <Button 
                 size="xs" 
@@ -417,36 +494,38 @@
     </div>
     
     <!-- Pagination Controls -->
-    <div class="mt-4 pt-4 border-t border-gray-600">
-      <div class="flex items-center justify-between mb-2">
-        <Button 
-          size="xs" 
-          color="alternative"
-          disabled={populationState.currentPage === 1}
-          onclick={() => handlePageNavigation(populationState.currentPage - 1)}
-        >
-          Previous
-        </Button>
+    {#if populationState.totalPersons && populationState.totalPersons > populationState.pageSize}
+      <div class="mt-4 pt-4 border-t border-gray-600">
+        <div class="flex items-center justify-between mb-2">
+          <Button 
+            size="xs" 
+            color="alternative"
+            disabled={populationState.currentPage === 1}
+            onclick={() => handlePageNavigation(populationState.currentPage - 1)}
+          >
+            Previous
+          </Button>
+          
+          <span class="text-sm text-gray-300">
+            Page {populationState.currentPage} of {populationState.totalPages}
+          </span>
+          
+          <Button 
+            size="xs" 
+            color="alternative"
+            disabled={populationState.currentPage === populationState.totalPages}
+            onclick={() => handlePageNavigation(populationState.currentPage + 1)}
+          >
+            Next
+          </Button>
+        </div>
         
-        <span class="text-sm text-gray-300">
-          Page {populationState.currentPage} of {populationState.totalPages}
-        </span>
-        
-        <Button 
-          size="xs" 
-          color="alternative"
-          disabled={populationState.currentPage === populationState.totalPages}
-          onclick={() => handlePageNavigation(populationState.currentPage + 1)}
-        >
-          Next
-        </Button>
+        <div class="text-center">
+          <span class="text-xs text-gray-400">
+            Showing {displayPersons.length} of {populationState.totalPersons + unsavedNewPersonsCount} persons
+          </span>
+        </div>
       </div>
-      
-      <div class="text-center">
-        <span class="text-xs text-gray-400">
-          Showing {displayPersons.length} of {populationState.totalPersons} persons
-        </span>
-      </div>
-    </div>
+    {/if}
   </section>
 </div>

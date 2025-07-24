@@ -98,15 +98,6 @@ export function toggleVisibility(type: 'persons' | 'plans') {
   populationState.visibility[type] = !populationState.visibility[type];
 }
 
-export function getPersonsInSelectedZones(): Person[] {
-  if (populationState.selectedZones.size === 0) {
-    return Array.from(populationState.persons.values());
-  }
-  
-  return Array.from(populationState.persons.values()).filter(
-    person => populationState.selectedZones.has(person.zoneId)
-  );
-}
 export function setCurrentPage(page: number) {
   populationState.currentPage = page;
 }

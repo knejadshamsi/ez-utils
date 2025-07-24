@@ -200,6 +200,7 @@ type LoadingParams struct {
 	Viewport     ViewportBounds `json:"viewport"`
 	RandomFactor float64        `json:"randomFactor"`
 	MaxElements  int            `json:"maxElements"`
+	MinThreshold int            `json:"minThreshold"`
 }
 
 // PT data structures for processing

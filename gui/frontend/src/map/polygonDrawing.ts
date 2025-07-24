@@ -94,7 +94,7 @@ function handlePolygonCreated(e: any) {
   }
 }
 
-export function enableZoneEditing(zoneId: string) {
+export function enableZoneEditing(zoneId: string, onZoneUpdated?: (zoneId: string, coordinates: [number, number][]) => void) {
   const zone = drawnZones.get(zoneId);
   if (!zone) return;
   
@@ -136,7 +136,10 @@ export function enableZoneEditing(zoneId: string) {
     ]);
     coordinates.push(coordinates[0]);
     
-    console.log(`Zone ${zoneId} updated:`, coordinates);
+    // Call the update callback if provided
+    if (onZoneUpdated) {
+      onZoneUpdated(zoneId, coordinates);
+    }
   });
 }
 
