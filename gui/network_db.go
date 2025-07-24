@@ -55,7 +55,7 @@ const (
 
 // GetNodesInBBox retrieves nodes within a bounding box.
 func (db *Database) GetNodesInBBox(processID int, bbox BoundingBox) ([]NodeResult, error) {
-	tableName := fmt.Sprintf("network_nodes_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_nodes", processID)
 	query := fmt.Sprintf(selectNodesByBboxQuery, tableName)
 	rows, err := db.queryRows(query, fmt.Sprintf(selectNodesByBboxError, tableName), bbox.West, bbox.East, bbox.South, bbox.North)
 	if err != nil {
@@ -79,7 +79,7 @@ func (db *Database) GetLinksInBBox(processID int, nodeIDs []string) ([]LinkResul
 	if len(nodeIDs) == 0 {
 		return []LinkResult{}, nil
 	}
-	tableName := fmt.Sprintf("network_links_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_links", processID)
 	placeholders := make([]string, len(nodeIDs))
 	args := make([]interface{}, len(nodeIDs)*2)
 	for i, id := range nodeIDs {
@@ -107,7 +107,7 @@ func (db *Database) GetLinksInBBox(processID int, nodeIDs []string) ([]LinkResul
 
 // UpdateNetworkNode updates a node's data.
 func (db *Database) UpdateNetworkNode(processID int, nodeID string, lng, lat float64, rawXML string) error {
-	tableName := fmt.Sprintf("network_nodes_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_nodes", processID)
 	query := fmt.Sprintf(updateNodeQuery, tableName)
 	result, err := db.execQuery(query, fmt.Sprintf(updateNodeError, tableName), lng, lat, rawXML, nodeID)
 	if err != nil {
@@ -122,7 +122,7 @@ func (db *Database) UpdateNetworkNode(processID int, nodeID string, lng, lat flo
 
 // UpdateNetworkLink updates a link's raw XML.
 func (db *Database) UpdateNetworkLink(processID int, linkID string, rawXML string) error {
-	tableName := fmt.Sprintf("network_links_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_links", processID)
 	query := fmt.Sprintf(updateLinkQuery, tableName)
 	result, err := db.execQuery(query, fmt.Sprintf(updateLinkError, tableName), rawXML, linkID)
 	if err != nil {
@@ -137,7 +137,7 @@ func (db *Database) UpdateNetworkLink(processID int, linkID string, rawXML strin
 
 // CreateNetworkLink inserts a new link.
 func (db *Database) CreateNetworkLink(processID int, linkID, fromNode, toNode, rawXML string) error {
-	tableName := fmt.Sprintf("network_links_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_links", processID)
 	query := fmt.Sprintf(insertLinkQuery, tableName)
 	_, err := db.execQuery(query, fmt.Sprintf(insertLinkError, tableName), linkID, fromNode, toNode, rawXML)
 	return err
@@ -145,7 +145,7 @@ func (db *Database) CreateNetworkLink(processID int, linkID, fromNode, toNode, r
 
 // InsertNodeBatch inserts a batch of nodes using transaction.
 func (db *Database) InsertNodeBatch(processID int, nodes []NodeData) error {
-	tableName := fmt.Sprintf("network_nodes_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_nodes", processID)
 	return db.WithTransaction(func(tx *sql.Tx) error {
 		if len(nodes) == 0 {
 			return nil
@@ -165,7 +165,7 @@ func (db *Database) InsertNodeBatch(processID int, nodes []NodeData) error {
 
 // InsertLinkBatch inserts a batch of links using transaction.
 func (db *Database) InsertLinkBatch(processID int, links []LinkData) error {
-	tableName := fmt.Sprintf("network_links_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_links", processID)
 	return db.WithTransaction(func(tx *sql.Tx) error {
 		if len(links) == 0 {
 			return nil
@@ -212,7 +212,7 @@ func (db *Database) UpdateNetworkTelemetry(processID int, bytesRead, nodesRead, 
 
 // DeleteLinksByNode deletes all links connected to a specific node
 func (db *Database) DeleteLinksByNode(processID int, nodeID string) error {
-	tableName := fmt.Sprintf("network_links_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_links", processID)
 	query := fmt.Sprintf("DELETE FROM %s WHERE from_node = ? OR to_node = ?", tableName)
 	_, err := db.execQuery(query, fmt.Sprintf("failed to delete links connected to node from %s", tableName), nodeID, nodeID)
 	return err
@@ -220,7 +220,7 @@ func (db *Database) DeleteLinksByNode(processID int, nodeID string) error {
 
 // InsertNetworkNode inserts a new node into the network
 func (db *Database) InsertNetworkNode(processID int, nodeID string, lng, lat float64, rawXML string) error {
-	tableName := fmt.Sprintf("network_nodes_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_nodes", processID)
 	query := fmt.Sprintf("INSERT INTO %s (id, lng, lat, raw_xml) VALUES (?, ?, ?, ?)", tableName)
 	_, err := db.execQuery(query, fmt.Sprintf("failed to insert node into %s", tableName), nodeID, lng, lat, rawXML)
 	return err
@@ -228,7 +228,7 @@ func (db *Database) InsertNetworkNode(processID int, nodeID string, lng, lat flo
 
 // InsertNetworkLink inserts a new link into the network
 func (db *Database) InsertNetworkLink(processID int, linkID string, fromNode, toNode string, rawXML string) error {
-	tableName := fmt.Sprintf("network_links_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_links", processID)
 	query := fmt.Sprintf("INSERT INTO %s (id, from_node, to_node, raw_xml) VALUES (?, ?, ?, ?)", tableName)
 	_, err := db.execQuery(query, fmt.Sprintf("failed to insert link into %s", tableName), linkID, fromNode, toNode, rawXML)
 	return err
@@ -240,7 +240,7 @@ func (db *Database) UpdateNode(processID int, nodeID string, lng, lat float64) e
 	rawXML := fmt.Sprintf(`<node id="%s" x="%.6f" y="%.6f"/>`, nodeID, lng, lat)
 	
 	// Build the table name
-	tableName := fmt.Sprintf("network_nodes_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_nodes", processID)
 	query := fmt.Sprintf(updateNodeQuery, tableName)
 	
 	// Execute the update using the consistent execQuery pattern
@@ -264,7 +264,7 @@ func (db *Database) UpdateNode(processID int, nodeID string, lng, lat float64) e
 
 // GetNode retrieves a single node by ID
 func (db *Database) GetNode(processID int, nodeID string) (*NodeResult, error) {
-	tableName := fmt.Sprintf("network_nodes_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_nodes", processID)
 	query := fmt.Sprintf("SELECT id, lng, lat, raw_xml FROM %s WHERE id = ?", tableName)
 	
 	var node NodeResult
@@ -281,7 +281,7 @@ func (db *Database) GetNode(processID int, nodeID string) (*NodeResult, error) {
 
 // GetLink retrieves a single link by ID
 func (db *Database) GetLink(processID int, linkID string) (*LinkResult, error) {
-	tableName := fmt.Sprintf("network_links_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_links", processID)
 	query := fmt.Sprintf("SELECT id, from_node, to_node, raw_xml FROM %s WHERE id = ?", tableName)
 	
 	var link LinkResult
@@ -298,7 +298,7 @@ func (db *Database) GetLink(processID int, linkID string) (*LinkResult, error) {
 
 // GetAllNodes retrieves all nodes for a process
 func (db *Database) GetAllNodes(processID int) ([]NodeResult, error) {
-	tableName := fmt.Sprintf("network_nodes_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_nodes", processID)
 	query := fmt.Sprintf(selectAllNodesQuery, tableName)
 	
 	rows, err := db.queryRows(query, fmt.Sprintf(selectAllNodesError, tableName))
@@ -321,7 +321,7 @@ func (db *Database) GetAllNodes(processID int) ([]NodeResult, error) {
 
 // GetAllLinks retrieves all links for a process
 func (db *Database) GetAllLinks(processID int) ([]LinkResult, error) {
-	tableName := fmt.Sprintf("network_links_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_links", processID)
 	query := fmt.Sprintf(selectAllLinksQuery, tableName)
 	
 	rows, err := db.queryRows(query, fmt.Sprintf(selectAllLinksError, tableName))
@@ -344,7 +344,7 @@ func (db *Database) GetAllLinks(processID int) ([]LinkResult, error) {
 
 // GetLinksForNode retrieves all links connected to a specific node
 func (db *Database) GetLinksForNode(processID int, nodeID string) ([]LinkResult, error) {
-	tableName := fmt.Sprintf("network_links_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_links", processID)
 	query := fmt.Sprintf("SELECT id, from_node, to_node, raw_xml FROM %s WHERE from_node = ? OR to_node = ?", tableName)
 	
 	rows, err := db.queryRows(query, "failed to query links for node", nodeID, nodeID)
@@ -370,7 +370,7 @@ func (db *Database) DeleteNode(processID int, nodeID string, deleteConnectedLink
 	return db.WithTransaction(func(tx *sql.Tx) error {
 		// Delete connected links first if requested
 		if deleteConnectedLinks {
-			linksTable := fmt.Sprintf("network_links_%d", processID)
+			linksTable := fmt.Sprintf("NETWORK_%d_links", processID)
 			query := fmt.Sprintf("DELETE FROM %s WHERE from_node = ? OR to_node = ?", linksTable)
 			if _, err := tx.Exec(query, nodeID, nodeID); err != nil {
 				return fmt.Errorf("failed to delete connected links: %w", err)
@@ -378,7 +378,7 @@ func (db *Database) DeleteNode(processID int, nodeID string, deleteConnectedLink
 		}
 		
 		// Delete the node
-		nodesTable := fmt.Sprintf("network_nodes_%d", processID)
+		nodesTable := fmt.Sprintf("NETWORK_%d_nodes", processID)
 		query := fmt.Sprintf("DELETE FROM %s WHERE id = ?", nodesTable)
 		result, err := tx.Exec(query, nodeID)
 		if err != nil {
@@ -400,7 +400,7 @@ func (db *Database) DeleteNode(processID int, nodeID string, deleteConnectedLink
 
 // DeleteLink deletes a link
 func (db *Database) DeleteLink(processID int, linkID string) error {
-	tableName := fmt.Sprintf("network_links_%d", processID)
+	tableName := fmt.Sprintf("NETWORK_%d_links", processID)
 	query := fmt.Sprintf("DELETE FROM %s WHERE id = ?", tableName)
 	
 	result, err := db.execQuery(query, "failed to delete link", linkID)
@@ -423,7 +423,7 @@ func (db *Database) DeleteLink(processID int, linkID string) error {
 // BatchUpdateNodes updates multiple nodes in a transaction
 func (db *Database) BatchUpdateNodes(processID int, updates map[string]NodeData) error {
 	return db.WithTransaction(func(tx *sql.Tx) error {
-		tableName := fmt.Sprintf("network_nodes_%d", processID)
+		tableName := fmt.Sprintf("NETWORK_%d_nodes", processID)
 		stmt, err := tx.Prepare(fmt.Sprintf(updateNodeQuery, tableName))
 		if err != nil {
 			return fmt.Errorf("failed to prepare update statement: %w", err)
@@ -449,7 +449,7 @@ func (db *Database) BatchDeleteNodes(processID int, nodeIDs []string, deleteConn
 	return db.WithTransaction(func(tx *sql.Tx) error {
 		// Delete connected links first if requested
 		if deleteConnectedLinks {
-			linksTable := fmt.Sprintf("network_links_%d", processID)
+			linksTable := fmt.Sprintf("NETWORK_%d_links", processID)
 			placeholders := make([]string, len(nodeIDs))
 			args := make([]interface{}, len(nodeIDs)*2)
 			for i, id := range nodeIDs {
@@ -465,7 +465,7 @@ func (db *Database) BatchDeleteNodes(processID int, nodeIDs []string, deleteConn
 		}
 		
 		// Delete nodes
-		nodesTable := fmt.Sprintf("network_nodes_%d", processID)
+		nodesTable := fmt.Sprintf("NETWORK_%d_nodes", processID)
 		stmt, err := tx.Prepare(fmt.Sprintf("DELETE FROM %s WHERE id = ?", nodesTable))
 		if err != nil {
 			return fmt.Errorf("failed to prepare delete statement: %w", err)
@@ -487,7 +487,7 @@ func (db *Database) GetNetworkStatistics(processID int) (map[string]interface{},
 	stats := make(map[string]interface{})
 	
 	// Count nodes
-	nodesTable := fmt.Sprintf("network_nodes_%d", processID)
+	nodesTable := fmt.Sprintf("NETWORK_%d_nodes", processID)
 	query := fmt.Sprintf("SELECT COUNT(*) FROM %s", nodesTable)
 	var nodeCount int
 	if err := db.queryRow(query, "").Scan(&nodeCount); err != nil {
@@ -496,7 +496,7 @@ func (db *Database) GetNetworkStatistics(processID int) (map[string]interface{},
 	stats["node_count"] = nodeCount
 	
 	// Count links
-	linksTable := fmt.Sprintf("network_links_%d", processID)
+	linksTable := fmt.Sprintf("NETWORK_%d_links", processID)
 	query = fmt.Sprintf("SELECT COUNT(*) FROM %s", linksTable)
 	var linkCount int
 	if err := db.queryRow(query, "").Scan(&linkCount); err != nil {

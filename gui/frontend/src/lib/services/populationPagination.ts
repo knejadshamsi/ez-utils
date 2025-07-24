@@ -5,7 +5,7 @@ import {
   RemoveZoneFromSession,
   CloseFilterSession
 } from '@wailsjs/go/gui/App';
-import { populationState, updatePageCache, isPageCached, clearPageCache } from '$lib/stores/population.svelte';
+import { populationState } from '$lib/stores/population.svelte';
 import { parsePersonXML } from '$lib/utils/populationXmlParser';
 import { changeTracker } from '$lib/changeTracker.svelte';
 import type { Person } from '$lib/stores/population.svelte';
@@ -14,24 +14,13 @@ import type { Person } from '$lib/stores/population.svelte';
 let currentSessionId: string | null = null;
 
 // Load a specific page of population data
-export async function loadPopulationPage(tableName: string, page: number, forceReload = false) {
+export async function loadPopulationPage(tableName: string, page: number) {
   if (!tableName) {
     console.error('No table name provided');
     return;
   }
 
-  // Check cache first unless force reload
-  if (!forceReload && isPageCached(page)) {
-    const cachedPersons = populationState.pageCache.get(page);
-    if (cachedPersons) {
-      console.log(`Loading page ${page} from cache`);
-      loadPersonsIntoState(cachedPersons);
-      populationState.currentPage = page;
-      return;
-    }
-  }
 
-  populationState.isLoadingPage = true;
   
   try {
     // Fetch paginated data - pass sessionId if we have one (from zones)
@@ -67,16 +56,12 @@ export async function loadPopulationPage(tableName: string, page: number, forceR
     });
     }
     
-    // Update cache
-    updatePageCache(page, processedPersons);
     
     // Load into state
     loadPersonsIntoState(processedPersons);
     
   } catch (error) {
     console.error('Failed to load population page:', error);
-  } finally {
-    populationState.isLoadingPage = false;
   }
 }
 
@@ -139,9 +124,8 @@ export async function addZoneToFilter(
       polygon.map(p => ({ x: p[0], y: p[1] }))
     );
     
-    // Clear cache and reload
-    clearPageCache();
-    await loadPopulationPage(tableName, 1, true);
+    // Reload
+    await loadPopulationPage(tableName, 1);
     
   } catch (error) {
     console.error('Failed to add zone to filter:', error);
@@ -158,9 +142,8 @@ export async function removeZoneFromFilter(zoneId: string, tableName: string) {
   try {
     await RemoveZoneFromSession(currentSessionId, zoneId);
     
-    // Clear cache and reload
-    clearPageCache();
-    await loadPopulationPage(tableName, 1, true);
+    // Reload
+    await loadPopulationPage(tableName, 1);
     
   } catch (error) {
     console.error('Failed to remove zone from filter:', error);
@@ -209,9 +192,6 @@ export async function handlePageChange(
 
 // Handle zone filter changes
 export async function handleZoneFilterChange(tableName: string) {
-  // Clear cache as filtering changes data
-  clearPageCache();
-  
   // Reset to first page and reload
   populationState.currentPage = 1;
   await loadPopulationPage(tableName, 1, true);
@@ -220,9 +200,6 @@ export async function handleZoneFilterChange(tableName: string) {
 // Handle page size change
 export async function handlePageSizeChange(newSize: number, tableName: string) {
   populationState.pageSize = newSize;
-  
-  // Clear cache as page boundaries change
-  clearPageCache();
   
   // Reset to first page and reload
   populationState.currentPage = 1;

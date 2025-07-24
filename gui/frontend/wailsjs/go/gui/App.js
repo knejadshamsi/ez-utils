@@ -78,8 +78,8 @@ export function ExportPopulationFile(arg1, arg2) {
   return window['go']['gui']['App']['ExportPopulationFile'](arg1, arg2);
 }
 
-export function FindZoneForCoordinates(arg1) {
-  return window['go']['gui']['App']['FindZoneForCoordinates'](arg1);
+export function FindZoneForCoordinates(arg1, arg2) {
+  return window['go']['gui']['App']['FindZoneForCoordinates'](arg1, arg2);
 }
 
 export function GetAllZones() {

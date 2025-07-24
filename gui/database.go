@@ -366,7 +366,7 @@ func (db *Database) GetPopulationInBounds(processId int, viewport ViewportBounds
 
 // GetNodesInBounds retrieves network nodes within viewport bounds
 func (db *Database) GetNodesInBounds(processId int, viewport ViewportBounds, randomFactor float64, maxElements int) ([]NodeData, error) {
-	tableName := fmt.Sprintf("nodes_data_%d", processId)
+	tableName := fmt.Sprintf("NETWORK_%d_nodes", processId)
 	
 	query := fmt.Sprintf(`
 		SELECT id, lng, lat, raw_xml 
@@ -405,8 +405,8 @@ func (db *Database) GetNodesInBounds(processId int, viewport ViewportBounds, ran
 
 // GetLinksForNodesInBounds retrieves network links where at least one node is in bounds
 func (db *Database) GetLinksForNodesInBounds(processId int, viewport ViewportBounds, randomFactor float64, maxElements int) ([]LinkData, error) {
-	linksTable := fmt.Sprintf("links_data_%d", processId)
-	nodesTable := fmt.Sprintf("nodes_data_%d", processId)
+	linksTable := fmt.Sprintf("NETWORK_%d_links", processId)
+	nodesTable := fmt.Sprintf("NETWORK_%d_nodes", processId)
 	
 	// Get links where at least one node is in bounds
 	query := fmt.Sprintf(`
@@ -498,19 +498,19 @@ func (db *Database) estimateRowsInBounds(tableName string, viewport ViewportBoun
 // CreateNetworkTables creates network tables for a given process
 func (db *Database) CreateNetworkTables(processID int) error {
 	// Create nodes table
-	nodesTable := fmt.Sprintf("nodes_data_%d", processID)
+	nodesTable := fmt.Sprintf("NETWORK_%d_nodes", processID)
 	if err := db.execTableQuery(fmt.Sprintf(createNetworkNodesTableQuery, nodesTable)); err != nil {
 		return fmt.Errorf("failed to create network nodes table: %w", err)
 	}
 	
 	// Create spatial index for nodes
-	indexName := fmt.Sprintf("nodes_%d", processID)
+	indexName := fmt.Sprintf("NETWORK_%d_nodes", processID)
 	if err := db.execTableQuery(fmt.Sprintf(createNodesSpatialIndex, indexName, nodesTable)); err != nil {
 		return fmt.Errorf("failed to create nodes spatial index: %w", err)
 	}
 	
 	// Create links table
-	linksTable := fmt.Sprintf("links_data_%d", processID)
+	linksTable := fmt.Sprintf("NETWORK_%d_links", processID)
 	if err := db.execTableQuery(fmt.Sprintf(createNetworkLinksTableQuery, linksTable)); err != nil {
 		return fmt.Errorf("failed to create network links table: %w", err)
 	}

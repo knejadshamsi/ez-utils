@@ -74,7 +74,8 @@
   function addActivity() {
     if (!selectedPerson || !currentPlan || !mapState.map) return;
     
-    populationState.isAddingActivity = true;
+    populationState.mode = 'VIEWING_SIDEBAR';
+    populationState.sidebarInteraction = 'CLICKING_MAP_FOR_ACTIVITY';
     
     const clickHandler = (e: L.LeafletMouseEvent) => {
       const coords: [number, number] = [e.latlng.lng, e.latlng.lat];
@@ -112,7 +113,7 @@
   function stopAddingActivities() {
     if (!mapState.map) return;
     
-    populationState.isAddingActivity = false;
+    populationState.sidebarInteraction = 'NORMAL';
     
     const handler = (window as any).__addActivityHandler;
     if (handler) {
@@ -347,51 +348,7 @@
     populationState.currentPlanIndex = Math.max(0, populationState.currentPlanIndex - 1);
   }
   
-  function selectActivityLocation(activityId: string) {
-    if (!mapState.map || !selectedPerson || !currentPlan) return;
-    
-    if (populationState.selectingActivityId === activityId) {
-      populationState.isSelectingActivityLocation = false;
-      populationState.selectingActivityId = null;
-      return;
-    }
-    
-    populationState.isSelectingActivityLocation = true;
-    populationState.selectingActivityId = activityId;
-    
-    const clickHandler = (e: L.LeafletMouseEvent) => {
-      const coords: [number, number] = [e.latlng.lng, e.latlng.lat];
-      
-      const updatedPerson = {
-        ...selectedPerson,
-        plans: selectedPerson.plans.map((plan, index) => 
-          index === populationState.currentPlanIndex 
-            ? {
-                ...plan,
-                activities: plan.activities.map(a => 
-                  a.id === activityId 
-                    ? { ...a, location: coords }
-                    : a
-                )
-              }
-            : plan
-        )
-      };
-      
-      populationState.persons.set(selectedPerson.id, updatedPerson);
-      
-      populationState.isSelectingActivityLocation = false;
-      populationState.selectingActivityId = null;
-      
-      trackActivityChange(selectedPerson.id, updatedPerson);
-      
-      updateConnectedDots();
-      
-      mapState.map.off('click', clickHandler);
-    };
-    
-    mapState.map.on('click', clickHandler);
-  }
+
   
   function formatLocation(location: [number, number]): string {
     if (location[0] === 0 && location[1] === 0) {
@@ -401,7 +358,7 @@
   }
   
   function toggleActivityDragging() {
-    populationState.isDraggingActivity = !populationState.isDraggingActivity;
+    populationState.sidebarInteraction = populationState.sidebarInteraction === 'DRAGGING_ACTIVITIES' ? 'NORMAL' : 'DRAGGING_ACTIVITIES';
     updateConnectedDots();
   }
   
@@ -426,7 +383,7 @@
           size="xs"
           class="!p-1.5"
           color="alternative"
-          onclick={() => populationState.showAttributesModal = true}
+          onclick={() => populationState.sidebarInteraction = 'EDITING_ATTRIBUTES'}
           title="Edit Attributes"
         >
           <CogOutline class="w-4 h-4" />
@@ -496,15 +453,6 @@
               <div class="flex items-center gap-2 mt-2">
                 <span class="text-sm text-gray-300">Location:</span>
                 <span class="text-xs text-gray-400 flex-1">{formatLocation(activity.location)}</span>
-                <Button 
-                  size="xs" 
-                  color={populationState.selectingActivityId === activity.id ? "yellow" : "alternative"}
-                  onclick={() => selectActivityLocation(activity.id)} 
-                  class="h-6 px-2"
-                >
-                  <MapPinOutline class="w-3 h-3 mr-1" />
-                  {populationState.selectingActivityId === activity.id ? 'Click map' : 'Set'}
-                </Button>
               </div>
             </div>
             
@@ -545,21 +493,21 @@
     
     <div class="p-4 border-t border-gray-600 space-y-2">
       <Button 
-        color={populationState.isDraggingActivity ? "yellow" : "alternative"} 
+        color={populationState.sidebarInteraction === 'DRAGGING_ACTIVITIES' ? "yellow" : "alternative"} 
         size="sm" 
         class="w-full" 
         onclick={toggleActivityDragging}
       >
         <MapPinOutline class="w-4 h-4 mr-2" />
-        {populationState.isDraggingActivity ? 'Done Editing Locations' : 'Edit Locations'}
+        {populationState.sidebarInteraction === 'DRAGGING_ACTIVITIES' ? 'Done Editing Locations' : 'Edit Locations'}
       </Button>
       <Button 
-        color={populationState.isAddingActivity ? "yellow" : "primary"} 
+        color={populationState.sidebarInteraction === 'CLICKING_MAP_FOR_ACTIVITY' ? "yellow" : "primary"} 
         size="sm" 
         class="w-full" 
-        onclick={populationState.isAddingActivity ? stopAddingActivities : addActivity}
+        onclick={populationState.sidebarInteraction === 'CLICKING_MAP_FOR_ACTIVITY' ? stopAddingActivities : addActivity}
       >
-        {#if populationState.isAddingActivity}
+        {#if populationState.sidebarInteraction === 'CLICKING_MAP_FOR_ACTIVITY'}
           Done Adding Activities
         {:else}
           <PlusOutline class="w-4 h-4 mr-2" />

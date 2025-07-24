@@ -9,6 +9,7 @@
   import { showSuccess, showError, showInfo, showWarning } from "../../lib/toast.svelte";
   import { exportProgress } from "$lib/stores/exportProgress.svelte";
   import SettingsModal from "../modals/SettingsModal.svelte";
+  import { welcomeModalState } from "../modals/welcome-modal/welcome.svelte";
   
   let showExitConfirmation = $state(false);
   let showSettingsModal = $state(false);
@@ -23,10 +24,9 @@
   
   function handleGoBackToWelcome() {
     showExitConfirmation = false;
-    // Reset app state to show welcome screen
     appState.display = 'WELCOME';
-    // Clear any pending changes
     changeTracker.pendingChanges = [];
+    welcomeModalState.showTable = false;
   }
   
   async function handleExport() {
@@ -60,7 +60,6 @@
         // Continue with export regardless of choice
       }
       
-      // Open save file dialog
       const defaultFileName = exportInfo.defaultFileName || 'export';
       const fileType = exportInfo.exportTypes?.[0] || 'xml';
       const outputPath = await SaveFile(defaultFileName, fileType);
@@ -70,40 +69,33 @@
         return;
       }
       
-      // Set up event listeners for export progress
       exportProgress.isExporting = true;
       exportProgress.current = 0;
       exportProgress.total = 0;
       
-      // Listen for progress updates
       EventsOn("export:progress", (data) => {
         exportProgress.current = data.current;
         exportProgress.total = data.total;
       });
       
-      // Listen for completion
       EventsOn("export:complete", (data) => {
         exportProgress.isExporting = false;
         showSuccess(`Successfully exported ${data.total.toLocaleString()} elements`);
         
-        // Clean up listeners
         EventsOff("export:progress");
         EventsOff("export:complete");
         EventsOff("export:error");
       });
       
-      // Listen for errors
       EventsOn("export:error", (data) => {
         exportProgress.isExporting = false;
         showError(`Export failed: ${data.error}`);
         
-        // Clean up listeners
         EventsOff("export:progress");
         EventsOff("export:complete");
         EventsOff("export:error");
       });
       
-      // Export based on file type
       switch (commandArgs.fileEditMode) {
         case 'POPULATION':
           if (!appState.processId) {
@@ -127,7 +119,6 @@
             EventsOff("export:error");
             return;
           }
-          // Export entire network (empty bounding box array means all data)
           await ExportNetworkFile(appState.processId, outputPath, []);
           break;
           
@@ -246,7 +237,6 @@
   {/if}
 </div>
 
-<!-- Exit confirmation modal -->
 <Modal bind:open={showExitConfirmation} size="xs" autoclose={false} transition={slide}>
   <div class="text-center">
     <ExclamationCircleOutline class="mx-auto mb-4 h-12 w-12 text-gray-400 dark:text-gray-200" />
