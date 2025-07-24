@@ -41,7 +41,7 @@ export function ExportPTSubset(arg1:number,arg2:gui.BoundingBox,arg3:string):Pro
 
 export function ExportPopulationFile(arg1:string,arg2:string):Promise<void>;
 
-export function FindZoneForCoordinates(arg1:string):Promise<gui.Zone>;
+export function FindZoneForCoordinates(arg1:number,arg2:number):Promise<gui.Zone>;
 
 export function GetAllZones():Promise<Array<gui.Zone>>;
 

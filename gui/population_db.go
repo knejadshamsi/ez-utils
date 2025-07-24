@@ -3,7 +3,6 @@ package gui
 import (
 	"database/sql"
 	"fmt"
-	"strconv"
 	"strings"
 )
 

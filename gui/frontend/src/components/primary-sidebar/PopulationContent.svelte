@@ -40,11 +40,11 @@
   async function handleAddNewPerson() {
     if (!mapState.map) return;
     
-        populationState.isSelectingActivityLocation = true;
+        populationState.mode = 'ADDING_PERSON';
     appState.secondarySidebar = 'HIDDEN';
     
         const clickHandler = (e: L.LeafletMouseEvent) => {
-            populationState.isSelectingActivityLocation = false;
+            populationState.mode = 'NORMAL';
       
             const timestamp = Date.now();
       const newId = `person_${timestamp}`;
@@ -165,7 +165,7 @@
   async function handleAddNewZone() {
     if (!mapState.map || !appState.processId) return;
     
-    populationState.isDrawingZone = true;
+    populationState.mode = 'DRAWING_ZONE';
     
     startPolygonDrawing(mapState.map, async (zoneId: string, coordinates: [number, number][]) => {
       try {
@@ -209,10 +209,10 @@
         // Select the new zone
         populationState.selectedZones.add(zoneId);
         
-        populationState.isDrawingZone = false;
+        populationState.mode = 'NORMAL';
       } catch (error) {
         console.error('Failed to create zone:', error);
-        populationState.isDrawingZone = false;
+        populationState.mode = 'NORMAL';
         // Remove the drawn polygon
         deleteMapZone(zoneId);
         alert('Failed to create zone. Please try again.');
@@ -224,7 +224,7 @@
     if (mapState.map) {
       stopPolygonDrawing();
     }
-    populationState.isDrawingZone = false;
+    populationState.mode = 'NORMAL';
   }
   
   function handleEditZone(zoneId: string) {
@@ -295,10 +295,10 @@
       size="sm" 
       class="w-full mb-3"
       onclick={handleAddNewPerson}
-      disabled={populationState.isSelectingActivityLocation}
+      disabled={populationState.mode === 'ADDING_PERSON'}
     >
       <PlusOutline class="w-4 h-4 mr-2" />
-      {populationState.isSelectingActivityLocation ? 'Click map to place person...' : 'Add New Person'}
+      {populationState.mode === 'ADDING_PERSON' ? 'Click map to place person...' : 'Add New Person'}
     </Button>
     
     <div class="flex items-center gap-4 text-sm">
@@ -323,9 +323,9 @@
   <section class="p-4 border-b border-gray-600">
     <div class="flex items-center justify-between mb-3">
       <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
-        Zones {populationState.isDrawingZone ? '(Drawing...)' : ''}
+        Zones {populationState.mode === 'DRAWING_ZONE' ? '(Drawing...)' : ''}
       </h3>
-      {#if populationState.isDrawingZone}
+      {#if populationState.mode === 'DRAWING_ZONE'}
         <Button 
           size="xs" 
           color="red" 
@@ -388,12 +388,7 @@
     
     <div class="flex-1 overflow-y-auto pr-2">
       <div class="space-y-1">
-        {#if populationState.isLoadingPage}
-          <div class="flex justify-center py-4">
-            <div class="text-gray-400">Loading...</div>
-          </div>
-        {:else}
-          {#each displayPersons as person}
+        {#each displayPersons as person}
             <div class="group flex items-center gap-2 rounded p-1 hover:bg-gray-700
                         {populationState.selectedPersonId === person.id ? 'bg-blue-900 hover:bg-blue-900' : ''}">
               <Checkbox 
@@ -417,8 +412,7 @@
                 <TrashBinOutline class="w-3 h-3" />
               </Button>
             </div>
-          {/each}
-        {/if}
+        {/each}
       </div>
     </div>
     
@@ -428,7 +422,7 @@
         <Button 
           size="xs" 
           color="alternative"
-          disabled={populationState.currentPage === 1 || populationState.isLoadingPage}
+          disabled={populationState.currentPage === 1}
           onclick={() => handlePageNavigation(populationState.currentPage - 1)}
         >
           Previous
@@ -441,7 +435,7 @@
         <Button 
           size="xs" 
           color="alternative"
-          disabled={populationState.currentPage === populationState.totalPages || populationState.isLoadingPage}
+          disabled={populationState.currentPage === populationState.totalPages}
           onclick={() => handlePageNavigation(populationState.currentPage + 1)}
         >
           Next

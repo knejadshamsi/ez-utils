@@ -234,7 +234,7 @@ function updateConnectedLines(pointId: string, newPosition: L.LatLng) {
 
 // Update dragging state based on current mode
 function updateDraggingState() {
-  const isDraggingMode = populationState.isDraggingActivity || false;
+  const isDraggingMode = populationState.sidebarInteraction === 'DRAGGING_ACTIVITIES';
   
   mapState.connectedDots.points.forEach(point => {
     if (isDraggingMode) {

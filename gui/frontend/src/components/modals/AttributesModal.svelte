@@ -6,8 +6,8 @@
   import CompactSelect from '../CompactSelect.svelte';
   
   const selectedPerson = $derived(
-    populationState.selectedPersonId 
-      ? populationState.persons.get(populationState.selectedPersonId)
+    populationState.sidebarInteraction === 'EDITING_ATTRIBUTES' 
+      ? populationState.persons.get(populationState.selectedPersonId!)! 
       : null
   );
   
@@ -16,8 +16,8 @@
   let customAttributeError = $state<string>('');
   
   $effect(() => {
-    if (populationState.showAttributesModal && selectedPerson) {
-      editingAttributes = selectedPerson.attributes.map((attr: PersonAttribute) => ({
+    if (populationState.sidebarInteraction === 'EDITING_ATTRIBUTES') {
+      editingAttributes = selectedPerson!.attributes.map((attr: PersonAttribute) => ({
         ...attr
       }));
     }
@@ -56,10 +56,8 @@
   }
   
   function saveAttributeChanges() {
-    if (!selectedPerson) return;
-    
     const updatedPerson = {
-      ...selectedPerson,
+      ...selectedPerson!,
       attributes: editingAttributes
     };
     
@@ -70,7 +68,7 @@
   }
   
   function handleCancel() {
-    populationState.showAttributesModal = false;
+    populationState.sidebarInteraction = 'NORMAL';
   }
   
   const commonAttributes = [
@@ -129,7 +127,7 @@
   }
   
   function confirmCustomAttribute() {
-    if (!tempCustomAttribute || !tempCustomAttribute.name.trim()) {
+    if (!tempCustomAttribute!.name.trim()) {
       customAttributeError = 'Please enter an attribute name';
       return;
     }
@@ -179,7 +177,6 @@
   }
   
   function updateTempCustomValue(value: string) {
-    if (!tempCustomAttribute) return;
     
     let parsedValue: string | number | boolean = value;
     
@@ -199,7 +196,7 @@
 
 <Modal
   title="Person Attributes - {selectedPerson?.id || ''}"
-  open={populationState.showAttributesModal}
+  open={populationState.sidebarInteraction === 'EDITING_ATTRIBUTES'}
   onclose={handleCancel}
   class="min-w-[600px]"
 >
@@ -256,7 +253,7 @@
         </div>
       {/each}
       
-      {#if editingAttributes.length === 0 && !tempCustomAttribute}
+      {#if editingAttributes.length === 0}
         <p class="text-gray-500 text-center py-4">No attributes defined</p>
       {/if}
       
@@ -357,7 +354,7 @@
           size="sm"
           color="primary"
           onclick={startAddingCustomAttribute}
-          disabled={tempCustomAttribute !== null}
+          disabled={!!tempCustomAttribute}
           class="border-dashed {tempCustomAttribute !== null ? 'opacity-50 cursor-not-allowed' : ''}"
         >
           <PlusOutline class="w-4 h-4 mr-2" />

@@ -6,19 +6,19 @@ export interface Activity {
   id: string;
   type: ActivityType;
   location: [number, number];
-  startTime: string; // "HH:MM"
-  endTime: string;   // "HH:MM"
+  startTime: string;
+  endTime: string;
 }
 
 export interface Leg {
   fromActivityId: string;
   toActivityId: string;
   mode: TravelMode;
-  duration: number; // minutes
+  duration: number;
 }
 
 export interface Plan {
-  id: number; // Plan 1, Plan 2, etc.
+  id: number;
   activities: Activity[];
   legs: Leg[];
 }
@@ -27,13 +27,13 @@ export interface PersonAttribute {
   name: string;
   type: 'java.lang.Integer' | 'java.lang.Boolean' | 'java.lang.String' | 'java.lang.Double';
   value: string | number | boolean;
-  included: boolean; // whether to include in XML export
+  included: boolean;
 }
 
 export interface Person {
   id: string;
   zoneId: string;
-  attributes: PersonAttribute[]; // May be empty but always present
+  attributes: PersonAttribute[];
   plans: Plan[];
 }
 
@@ -41,68 +41,48 @@ export interface Zone {
   id: string;
   name: string;
   personCount: number;
-  geometry?: any; // GeoJSON geometry
+  geometry?: any;
 }
+export type PopulationMode = 'NORMAL' | 'DRAWING_ZONE' | 'ADDING_PERSON' | 'VIEWING_SIDEBAR';
+export type SidebarInteractionMode = 'NORMAL' | 'DRAGGING_ACTIVITIES' | 'EDITING_ATTRIBUTES';
 
 export interface PopulationState {
+  mode: PopulationMode;
+  sidebarInteraction: SidebarInteractionMode;
   zones: Zone[];
   persons: SvelteMap<string, Person>;
   selectedPersonId: string | null;
   selectedZones: SvelteSet<string>;
   visiblePersons: SvelteSet<string>;
-  pendingChanges: SvelteMap<string, any>;
   visibility: {
     persons: boolean;
     plans: boolean;
   };
-  isDrawingZone: boolean;
-  showAttributesModal: boolean;
-  isSelectingActivityLocation: boolean;
-  selectingActivityId: string | null;
-  isDraggingActivity: boolean;
-  isAddingActivity: boolean;
   currentPlanIndex: number;
-  // Pagination state
   currentPage: number;
   pageSize: number;
   totalPages: number;
-  totalPersons: number;
-  isLoadingPage: boolean;
-  pageCache: Map<number, Person[]>;
-  cacheTimestamps: Map<number, number>;
+  totalPersons: number | null;
 }
-
-// Create the reactive population state
 export const populationState = $state<PopulationState>({
+  mode: 'NORMAL',
+  sidebarInteraction: 'NORMAL',
   zones: [],
   persons: new SvelteMap(),
   selectedPersonId: null,
   selectedZones: new SvelteSet(),
   visiblePersons: new SvelteSet(),
-  pendingChanges: new SvelteMap(),
   visibility: {
     persons: true,
     plans: true
   },
-  isDrawingZone: false,
-  showAttributesModal: false,
-  isSelectingActivityLocation: false,
-  selectingActivityId: null,
-  isDraggingActivity: false,
-  isAddingActivity: false,
   currentPlanIndex: 0,
-  // Pagination state
   currentPage: 1,
   pageSize: 50,
   totalPages: 1,
-  totalPersons: 0,
-  isLoadingPage: false,
-  pageCache: new Map(),
-  cacheTimestamps: new Map()
+  totalPersons: null
 });
-
-// Helper functions
-export function selectPerson(personId: string | null) {
+export function selectPerson(personId: string) {
   populationState.selectedPersonId = personId;
 }
 
@@ -127,56 +107,11 @@ export function getPersonsInSelectedZones(): Person[] {
     person => populationState.selectedZones.has(person.zoneId)
   );
 }
-
-// Pagination helpers
 export function setCurrentPage(page: number) {
   populationState.currentPage = page;
 }
 
-export function setPageSize(size: number) {
-  populationState.pageSize = size;
-  populationState.currentPage = 1; // Reset to first page when changing page size
-}
 
-export function clearPageCache() {
-  populationState.pageCache.clear();
-  populationState.cacheTimestamps.clear();
-}
-
-// Check if a page is cached and fresh (less than 30 seconds old)
-export function isPageCached(page: number): boolean {
-  const timestamp = populationState.cacheTimestamps.get(page);
-  if (!timestamp) return false;
-  
-  const age = Date.now() - timestamp;
-  return age < 30000; // 30 seconds
-}
-
-// LRU cache management - keep only 5 most recent pages
-export function updatePageCache(page: number, persons: Person[]) {
-  populationState.pageCache.set(page, persons);
-  populationState.cacheTimestamps.set(page, Date.now());
-  
-  // If cache exceeds 5 pages, remove oldest
-  if (populationState.pageCache.size > 5) {
-    let oldestPage = -1;
-    let oldestTime = Date.now();
-    
-    populationState.cacheTimestamps.forEach((time, pageNum) => {
-      if (time < oldestTime && pageNum !== page) {
-        oldestTime = time;
-        oldestPage = pageNum;
-      }
-    });
-    
-    if (oldestPage !== -1) {
-      populationState.pageCache.delete(oldestPage);
-      populationState.cacheTimestamps.delete(oldestPage);
-    }
-  }
-}
-
-// Activity type metadata
 export const activityTypeConfig = {
   home: { icon: '🏠', label: 'Home', color: '#10b981' },
   work: { icon: '🏢', label: 'Work', color: '#3b82f6' },
@@ -186,8 +121,6 @@ export const activityTypeConfig = {
   recreation: { icon: '🏃', label: 'Recreation', color: '#ec4899' },
   other: { icon: '🚗', label: 'Other', color: '#6b7280' }
 };
-
-// Travel mode metadata
 export const travelModeConfig = {
   "person's choice": { icon: '🧭', label: "Person's Choice" },
   car: { icon: '🚗', label: 'Car' },
