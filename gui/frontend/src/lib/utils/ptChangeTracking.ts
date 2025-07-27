@@ -1,9 +1,9 @@
 import { changeTracker } from '$lib/changeTracker.svelte';
 import type { SyncAction } from '$lib/changeTracker.svelte';
 import { getCurrentProcessId } from '$lib/utils/processId';
-import type { PTStop, PTLine, PTRoute, PTRouteStop } from '$lib/stores/pt.svelte';
+import type { Line, Stop, Departure } from '$lib/stores/pt.svelte';
 
-export function trackStopChange(stop: PTStop, action: 'add' | 'update' | 'delete') {
+export function trackStopChange(stop: Stop, action: 'add' | 'update' | 'delete') {
   const processId = getCurrentProcessId();
   if (!processId) return;
   
@@ -11,8 +11,8 @@ export function trackStopChange(stop: PTStop, action: 'add' | 'update' | 'delete
   changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
     (change) => {
       if (change.type === 'pt' && change.elementType === 'stop') {
-        if ('stopId' in change && change.stopId === stop.id) return false;
-        if ('stop' in change && change.stop.id === stop.id) return false;
+        if ('stopId' in change && change.stopId === stop.stopId) return false;
+        if ('stop' in change && change.stop.stopId === stop.stopId) return false;
       }
       return true;
     }
@@ -33,7 +33,7 @@ export function trackStopChange(stop: PTStop, action: 'add' | 'update' | 'delete
       elementType: 'stop',
       action: 'update',
       processId,
-      stopId: stop.id,
+      stopId: stop.stopId,
       update: stop
     };
     changeTracker.pendingChanges = [...changeTracker.pendingChanges, updateAction];
@@ -43,13 +43,13 @@ export function trackStopChange(stop: PTStop, action: 'add' | 'update' | 'delete
       elementType: 'stop',
       action: 'delete',
       processId,
-      stopId: stop.id
+      stopId: stop.stopId
     };
     changeTracker.pendingChanges = [...changeTracker.pendingChanges, deleteAction];
   }
 }
 
-export function trackLineChange(line: PTLine, action: 'add' | 'update' | 'delete') {
+export function trackLineChange(line: Line, action: 'add' | 'update' | 'delete') {
   const processId = getCurrentProcessId();
   if (!processId) return;
   
@@ -95,7 +95,8 @@ export function trackLineChange(line: PTLine, action: 'add' | 'update' | 'delete
   }
 }
 
-export function trackRouteChange(route: PTRoute, action: 'add' | 'update' | 'delete') {
+// Route is now embedded in Line, so we need lineId too
+export function trackRouteChange(route: {id: string, name: string, lineId: string}, action: 'add' | 'update' | 'delete') {
   const processId = getCurrentProcessId();
   if (!processId) return;
   
@@ -141,7 +142,8 @@ export function trackRouteChange(route: PTRoute, action: 'add' | 'update' | 'del
   }
 }
 
-export function trackRouteStopChange(routeStop: PTRouteStop, action: 'add' | 'update' | 'delete') {
+// RouteStop doesn't exist anymore - just use Stop
+export function trackRouteStopChange(routeStop: Stop, action: 'add' | 'update' | 'delete') {
   const processId = getCurrentProcessId();
   if (!processId) return;
   
@@ -191,7 +193,7 @@ export function trackRouteStopChange(routeStop: PTRouteStop, action: 'add' | 'up
   }
 }
 
-export function trackBatchStopUpdates(updates: Record<string, PTStop>) {
+export function trackBatchStopUpdates(updates: Record<string, Stop>) {
   const processId = getCurrentProcessId();
   if (!processId) return;
   
@@ -201,7 +203,7 @@ export function trackBatchStopUpdates(updates: Record<string, PTStop>) {
     (change) => {
       if (change.type === 'pt' && change.elementType === 'stop') {
         if ('stopId' in change && stopIds.includes(change.stopId)) return false;
-        if ('stop' in change && stopIds.includes(change.stop.id)) return false;
+        if ('stop' in change && stopIds.includes(change.stop.stopId)) return false;
       }
       return true;
     }
@@ -246,4 +248,50 @@ export function removePTChanges(elementType: 'stop' | 'line' | 'route' | 'routeS
       return true;
     }
   );
+}
+
+export function trackDepartureChange(departure: Departure, action: 'add' | 'update' | 'delete') {
+  const processId = getCurrentProcessId();
+  if (!processId) return;
+  
+  // Remove any existing changes for this departure
+  changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
+    (change) => {
+      if (change.type === 'pt' && change.elementType === 'departure') {
+        if ('departureId' in change && change.departureId === departure.id) return false;
+        if ('departure' in change && change.departure.id === departure.id) return false;
+      }
+      return true;
+    }
+  );
+  
+  if (action === 'add') {
+    const addAction: SyncAction = {
+      type: 'pt',
+      elementType: 'departure',
+      action: 'add',
+      processId,
+      departure
+    };
+    changeTracker.pendingChanges = [...changeTracker.pendingChanges, addAction];
+  } else if (action === 'update') {
+    const updateAction: SyncAction = {
+      type: 'pt',
+      elementType: 'departure',
+      action: 'update',
+      processId,
+      departureId: departure.id,
+      update: departure
+    };
+    changeTracker.pendingChanges = [...changeTracker.pendingChanges, updateAction];
+  } else if (action === 'delete') {
+    const deleteAction: SyncAction = {
+      type: 'pt',
+      elementType: 'departure',
+      action: 'delete',
+      processId,
+      departureId: departure.id
+    };
+    changeTracker.pendingChanges = [...changeTracker.pendingChanges, deleteAction];
+  }
 }

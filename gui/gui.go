@@ -557,23 +557,21 @@ func (a *App) LoadProcessData(params LoadingParams) (map[string]any, error) {
 		}, nil
 		
 	case "PT":
-		// Get lines that have stops within viewport bounds
-		lines, err := a.db.GetPTLinesInBounds(
-			params.ProcessId,
-			filteredViewport,
-			"BUS", // Default mode - will load all modes later
-			params.RandomFactor,
-			params.MaxElements,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load PT lines: %v", err)
+		// PT loads all line summaries for the selected mode - no viewport filtering needed
+		// Cities rarely have more than a few hundred lines total
+		mode := params.Mode
+		if mode == "" {
+			mode = "BUS" // Default mode
 		}
 		
-		// For now, return the lines data
-		// Frontend will need to handle loading routes/stops for these lines
+		summaries, err := a.db.GetPTLineSummaries(params.ProcessId, mode)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load PT line summaries: %v", err)
+		}
+		
 		return map[string]any{
 			"data": map[string]any{
-				"lines": lines,
+				"summaries": summaries,
 			},
 			"type": "pt",
 		}, nil

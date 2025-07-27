@@ -13,20 +13,8 @@
   import ToastContainer from "./components/ToastContainer.svelte";
   import { appState, commandArgs, mapComponent } from "$lib/stores/app.svelte";
   import { confirmationState } from "$lib/stores/confirmationModal.svelte";
-  import { PTService } from "$lib/api/pt";
   import NetworkController from "./components/network/NetworkController.svelte";
   import { networkState } from "$lib/stores/network.svelte";
-  
-  import { onMount } from 'svelte';
-  
-  onMount(async () => {
-    if (appState.display === 'EDITING' && commandArgs.fileEditMode === 'PT') {
-      try {
-        await PTService.loadPTData('BUS');
-      } catch (error) {
-      }
-    }
-  });
 </script>
 
 <Header />

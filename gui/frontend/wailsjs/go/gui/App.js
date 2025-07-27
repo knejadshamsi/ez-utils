@@ -118,10 +118,6 @@ export function GetPTLine(arg1, arg2) {
   return window['go']['gui']['App']['GetPTLine'](arg1, arg2);
 }
 
-export function GetPTLineSummaries(arg1, arg2) {
-  return window['go']['gui']['App']['GetPTLineSummaries'](arg1, arg2);
-}
-
 export function GetPTLines(arg1) {
   return window['go']['gui']['App']['GetPTLines'](arg1);
 }
@@ -142,12 +138,12 @@ export function GetPTStatistics(arg1) {
   return window['go']['gui']['App']['GetPTStatistics'](arg1);
 }
 
-export function GetPTStop(arg1, arg2) {
-  return window['go']['gui']['App']['GetPTStop'](arg1, arg2);
-}
-
 export function GetPTStops(arg1) {
   return window['go']['gui']['App']['GetPTStops'](arg1);
+}
+
+export function GetPTStopsForRoute(arg1, arg2) {
+  return window['go']['gui']['App']['GetPTStopsForRoute'](arg1, arg2);
 }
 
 export function GetPTTelemetry(arg1) {

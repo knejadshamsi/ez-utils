@@ -232,6 +232,23 @@ interface DeleteRouteStopAction {
   stopOrder: number;
 }
 
+interface AddDepartureAction {
+  type: 'pt';
+  elementType: 'departure';
+  action: 'add';
+  processId: number;
+  departure: any; // Departure type
+}
+
+interface UpdateDepartureAction {
+  type: 'pt';
+  elementType: 'departure';
+  action: 'update';
+  processId: number;
+  departureId: string;
+  update: any; // Departure update type
+}
+
 interface DeleteDepartureAction {
   type: 'pt';
   elementType: 'departure';
@@ -251,7 +268,7 @@ interface DeleteProcessAction {
 // ===== UNION TYPES =====
 type PopulationAction = AddPersonAction | UpdatePersonAction | DeletePersonAction | BatchUpdatePersonsAction;
 type NetworkAction = CreateNodeAction | UpdateNodeAction | DeleteNodeAction | BatchUpdateNodesAction | BatchDeleteNodesAction | CreateLinkAction | UpdateLinkAction | DeleteLinkAction;
-type PTAction = AddStopAction | UpdateStopAction | DeleteStopAction | BatchUpdateStopsAction | AddLineAction | UpdateLineAction | DeleteLineAction | AddRouteAction | UpdateRouteAction | DeleteRouteAction | AddRouteStopAction | UpdateRouteStopAction | DeleteRouteStopAction | DeleteDepartureAction;
+type PTAction = AddStopAction | UpdateStopAction | DeleteStopAction | BatchUpdateStopsAction | AddLineAction | UpdateLineAction | DeleteLineAction | AddRouteAction | UpdateRouteAction | DeleteRouteAction | AddRouteStopAction | UpdateRouteStopAction | DeleteRouteStopAction | AddDepartureAction | UpdateDepartureAction | DeleteDepartureAction;
 type ProcessAction = DeleteProcessAction;
 export type SyncAction = PopulationAction | NetworkAction | PTAction | ProcessAction;
 

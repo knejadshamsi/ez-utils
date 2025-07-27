@@ -1,80 +1,46 @@
 <script lang="ts">
-  import { Modal, Button, Label, Input, Select, Helper } from 'flowbite-svelte';
-  import { ptState, type LineWithRoutes, type RouteWithTiming, type StopTime } from '$lib/stores/pt.svelte';
-  import { changeTracker } from '$lib/changeTracker.svelte';
-  import { getCurrentProcessId } from '$lib/utils/processId';
-  import { generateId } from '$lib/utils/generateId';
+  import { Modal, Button, Label, Input, Helper } from 'flowbite-svelte';
+  import { ptState } from '$lib/stores/pt.svelte';
 
-  let { open = $bindable(), line, route, routeIndex }: { open: boolean; line: LineWithRoutes; route: RouteWithTiming; routeIndex: number } = $props();
+  let { open = $bindable(), routeId }: { open: boolean; routeId: string } = $props();
   let stopName = $state('');
-  let existingStopId = $state('');
-  let arrival = $state('');
-  let dwellMinutes = $state('2');
+  let stopId = $state('');
+  let arrivalOffset = $state('00:00');
+  let departureOffset = $state('00:02');
+  let lat = $state(0);
+  let lng = $state(0);
   let error = $state('');
-  let useExisting = $state(false);
-
-  const availableStops = $derived(
-    Array.from(ptState.stops.values())
-      .filter(stop => !route.stopSequence.some(s => s.stopId === stop.id))
-      .map(stop => ({ value: stop.id, name: stop.name }))
-  );
-
-  const suggestedArrival = $derived(() => {
-    if (route.stopSequence.length === 0) {
-      return route.firstDeparture || '06:00';
-    }
-    
-    const lastStop = route.stopSequence[route.stopSequence.length - 1];
-    const lastDepartureMinutes = ptState.timeToMinutes(lastStop.arrival) + lastStop.dwellMinutes;
-    return ptState.minutesToTime(lastDepartureMinutes + 5);
-  });
-
-  $effect(() => {
-    if (open) {
-      arrival = suggestedArrival();
-    }
-  });
 
   function resetForm() {
     stopName = '';
-    existingStopId = '';
-    arrival = '';
-    dwellMinutes = '2';
+    stopId = `stop_${Date.now()}`;
+    arrivalOffset = '00:00';
+    departureOffset = '00:02';
+    lat = 0;
+    lng = 0;
     error = '';
-    useExisting = false;
   }
 
+  $effect(() => {
+    if (open) {
+      resetForm();
+    }
+  });
+
   function validateForm(): boolean {
-    if (!useExisting && !stopName.trim()) {
+    if (!stopName.trim()) {
       error = 'Stop name is required';
       return false;
     }
 
-    if (useExisting && !existingStopId) {
-      error = 'Please select an existing stop';
+    if (!arrivalOffset.match(/^\d{2}:\d{2}$/)) {
+      error = 'Invalid arrival time format. Use HH:MM';
       return false;
     }
 
-    if (!arrival.match(/^\d{2}:\d{2}$/)) {
-      error = 'Invalid time format. Use HH:MM';
+    if (!departureOffset.match(/^\d{2}:\d{2}$/)) {
+      error = 'Invalid departure time format. Use HH:MM';
       return false;
-    }
-
-    const dwell = parseInt(dwellMinutes);
-    if (isNaN(dwell) || dwell < 0 || dwell > 60) {
-      error = 'Dwell time must be between 0 and 60 mins';
-      return false;
-    }
-
-    if (route.stopSequence.length > 0) {
-      const lastStop = route.stopSequence[route.stopSequence.length - 1];
-      const lastDepartureMinutes = ptState.timeToMinutes(lastStop.arrival) + lastStop.dwellMinutes;
-      const newArrivalMinutes = ptState.timeToMinutes(arrival);
-      
-      if (newArrivalMinutes < lastDepartureMinutes) {
-        error = 'Arrival time must be after the previous stop\'s departure';
-        return false;
-      }
     }
 
     return true;
@@ -87,65 +53,17 @@
       return;
     }
 
-    let stopId: string;
-    
-    if (useExisting) {
-      stopId = existingStopId;
-    } else {
-      stopId = generateId();
-      const newStop = {
-        id: stopId,
-        name: stopName.trim(),
-        location: [0, 0] as [number, number],
-        x: 0,
-        y: 0,
-        telemetryId: '',
-        raw_xml: ''
-      };
-      
-      changeTracker.pendingChanges.push({
-        type: 'pt',
-        elementType: 'stop',
-        action: 'add',
-        processId: getCurrentProcessId(),
-        stop: newStop
-      });
-      
-      ptState.stops.set(stopId, newStop);
-    }
-
-    const newStopTime: StopTime = {
+    ptState.createStop({
+      routeId: routeId,
       stopId: stopId,
-      arrival: arrival,
-      dwellMinutes: parseInt(dwellMinutes),
-      sequence: route.stopSequence.length + 1
-    };
-
-    const arrivalOffset = ptState.timeToMinutes(arrival) - ptState.timeToMinutes(route.firstDeparture);
-    const departureOffset = arrivalOffset + parseInt(dwellMinutes);
-
-    const routeStop = {
-      id: generateId(),
-      route_id: route.id,
-      stop_ref_id: stopId,
-      stop_order: route.stopSequence.length + 1,
-      arrival_offset: `PT${arrivalOffset}M`,
-      departure_offset: `PT${departureOffset}M`,
-      raw_xml: ''
-    };
-
-    changeTracker.pendingChanges.push({
-      type: 'pt',
-      elementType: 'routeStop',
-      action: 'add',
-      processId: getCurrentProcessId(),
-      routeStop: routeStop
+      arrivalOffset: arrivalOffset,
+      departureOffset: departureOffset,
+      stopName: stopName.trim(),
+      lat: lat,
+      lng: lng
     });
-
-    route.stopSequence.push(newStopTime);
     
     open = false;
-    resetForm();
   }
 
   function handleCancel() {
@@ -158,61 +76,58 @@
   <form onsubmit={(e) => { e.preventDefault(); handleCreate(); }}>
     <div class="space-y-4">
       <div>
-        <Label class="mb-2">
-          <input
-            type="checkbox"
-            bind:checked={useExisting}
-            class="mr-2"
-          />
-          Use existing stop
-        </Label>
+        <Label for="stopName" class="mb-2">Stop Name *</Label>
+        <Input
+          id="stopName"
+          bind:value={stopName}
+          placeholder="Enter stop name"
+          required
+        />
       </div>
 
-      {#if useExisting}
-        <div>
-          <Label for="existingStop" class="mb-2">Select Stop *</Label>
-          <Select
-            id="existingStop"
-            bind:value={existingStopId}
-            items={availableStops}
-            placeholder="Choose a stop"
-            required
-          />
-        </div>
-      {:else}
-        <div>
-          <Label for="stopName" class="mb-2">Stop Name *</Label>
-          <Input
-            id="stopName"
-            bind:value={stopName}
-            placeholder="Enter stop name"
-            required
-          />
-        </div>
-      {/if}
-
       <div>
-        <Label for="arrival" class="mb-2">Arrival Time *</Label>
+        <Label for="arrival" class="mb-2">Arrival Offset (HH:MM) *</Label>
         <Input
           id="arrival"
-          bind:value={arrival}
-          placeholder="HH:MM"
+          bind:value={arrivalOffset}
+          placeholder="00:00"
           pattern="^\d{2}:\d{2}$"
           required
         />
-        <Helper class="mt-1">Suggested: {suggestedArrival}</Helper>
       </div>
 
       <div>
-        <Label for="dwell" class="mb-2">Dwell Time (mins) *</Label>
+        <Label for="departure" class="mb-2">Departure Offset (HH:MM) *</Label>
         <Input
-          id="dwell"
-          type="number"
-          bind:value={dwellMinutes}
-          min="0"
-          max="60"
+          id="departure"
+          bind:value={departureOffset}
+          placeholder="00:02"
+          pattern="^\d{2}:\d{2}$"
           required
         />
+      </div>
+
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <Label for="lat" class="mb-2">Latitude</Label>
+          <Input
+            id="lat"
+            type="number"
+            bind:value={lat}
+            step="0.000001"
+            placeholder="0.0"
+          />
+        </div>
+        <div>
+          <Label for="lng" class="mb-2">Longitude</Label>
+          <Input
+            id="lng"
+            type="number"
+            bind:value={lng}
+            step="0.000001"
+            placeholder="0.0"
+          />
+        </div>
       </div>
 
       {#if error}

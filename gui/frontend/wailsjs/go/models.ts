@@ -30,6 +30,76 @@ export namespace gui {
 	
 	    }
 	}
+	export class Departure {
+	    id: string;
+	    routeId: string;
+	    departureTime: string;
+	    vehicleRefId?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Departure(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.routeId = source["routeId"];
+	        this.departureTime = source["departureTime"];
+	        this.vehicleRefId = source["vehicleRefId"];
+	    }
+	}
+	export class Route {
+	    id: string;
+	    name: string;
+	    stops: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Route(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.stops = source["stops"];
+	    }
+	}
+	export class Line {
+	    id: string;
+	    name: string;
+	    type: string;
+	    routes: Route[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Line(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.routes = this.convertValues(source["routes"], Route);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LinkResult {
 	    id: string;
 	    from_node: string;
@@ -73,6 +143,7 @@ export namespace gui {
 	    randomFactor: number;
 	    maxElements: number;
 	    minThreshold: number;
+	    mode: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new LoadingParams(source);
@@ -86,6 +157,7 @@ export namespace gui {
 	        this.randomFactor = source["randomFactor"];
 	        this.maxElements = source["maxElements"];
 	        this.minThreshold = source["minThreshold"];
+	        this.mode = source["mode"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -121,114 +193,6 @@ export namespace gui {
 	        this.id = source["id"];
 	        this.lng = source["lng"];
 	        this.lat = source["lat"];
-	        this.raw_xml = source["raw_xml"];
-	    }
-	}
-	export class PTDeparture {
-	    id: string;
-	    route_id: string;
-	    departure_time: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PTDeparture(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.route_id = source["route_id"];
-	        this.departure_time = source["departure_time"];
-	    }
-	}
-	export class PTLine {
-	    id: string;
-	    mode: string;
-	    raw_xml: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PTLine(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.mode = source["mode"];
-	        this.raw_xml = source["raw_xml"];
-	    }
-	}
-	export class PTLineSummary {
-	    id: string;
-	    name: string;
-	    mode: string;
-	    route_count: number;
-	    departure_count: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new PTLineSummary(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.mode = source["mode"];
-	        this.route_count = source["route_count"];
-	        this.departure_count = source["departure_count"];
-	    }
-	}
-	export class PTRoute {
-	    id: string;
-	    line_id: string;
-	    raw_xml: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PTRoute(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.line_id = source["line_id"];
-	        this.raw_xml = source["raw_xml"];
-	    }
-	}
-	export class PTRouteStop {
-	    route_id: string;
-	    stop_ref_id: string;
-	    stop_order: number;
-	    arrival_offset: string;
-	    departure_offset: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PTRouteStop(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.route_id = source["route_id"];
-	        this.stop_ref_id = source["stop_ref_id"];
-	        this.stop_order = source["stop_order"];
-	        this.arrival_offset = source["arrival_offset"];
-	        this.departure_offset = source["departure_offset"];
-	    }
-	}
-	export class PTStop {
-	    id: string;
-	    lng: number;
-	    lat: number;
-	    name: string;
-	    raw_xml: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PTStop(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.lng = source["lng"];
-	        this.lat = source["lat"];
-	        this.name = source["name"];
 	        this.raw_xml = source["raw_xml"];
 	    }
 	}
@@ -424,6 +388,35 @@ export namespace gui {
 		    }
 		    return a;
 		}
+	}
+	
+	export class Stop {
+	    routeId: string;
+	    stopId: string;
+	    arrivalOffset: string;
+	    departureOffset: string;
+	    stopName: string;
+	    lat: number;
+	    lng: number;
+	    sequence: number;
+	    attributes?: Record<string, any>;
+	
+	    static createFrom(source: any = {}) {
+	        return new Stop(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.routeId = source["routeId"];
+	        this.stopId = source["stopId"];
+	        this.arrivalOffset = source["arrivalOffset"];
+	        this.departureOffset = source["departureOffset"];
+	        this.stopName = source["stopName"];
+	        this.lat = source["lat"];
+	        this.lng = source["lng"];
+	        this.sequence = source["sequence"];
+	        this.attributes = source["attributes"];
+	    }
 	}
 	export class ValidationResult {
 	    isValid: boolean;

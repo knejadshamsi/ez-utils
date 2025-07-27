@@ -2,6 +2,7 @@ package gui
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -58,40 +59,26 @@ const (
 	dropTableQuery = "DROP TABLE IF EXISTS %s"
 
 	// PT table creation queries
-	createPTStopsTableQuery = `
-		CREATE TABLE IF NOT EXISTS %s (
-			id TEXT PRIMARY KEY,
-			lng REAL NOT NULL,
-			lat REAL NOT NULL,
-			name TEXT,
-			raw_xml TEXT
-		)`
-
 	createPTLinesTableQuery = `
 		CREATE TABLE IF NOT EXISTS %s (
 			id TEXT PRIMARY KEY,
-			mode TEXT,
-			raw_xml TEXT
+			name TEXT NOT NULL,
+			type TEXT NOT NULL,
+			routes JSON NOT NULL
 		)`
 
-	createPTRoutesTableQuery = `
-		CREATE TABLE IF NOT EXISTS %s (
-			id TEXT PRIMARY KEY,
-			line_id TEXT NOT NULL,
-			raw_xml TEXT,
-			FOREIGN KEY (line_id) REFERENCES %s(id) ON DELETE CASCADE
-		)`
-
-	createPTRouteStopsTableQuery = `
+	createPTStopsTableQuery = `
 		CREATE TABLE IF NOT EXISTS %s (
 			route_id TEXT NOT NULL,
-			stop_ref_id TEXT NOT NULL,
-			stop_order INTEGER NOT NULL,
+			stop_id TEXT NOT NULL,
 			arrival_offset TEXT,
 			departure_offset TEXT,
-			PRIMARY KEY (route_id, stop_order),
-			FOREIGN KEY (route_id) REFERENCES %s(id) ON DELETE CASCADE,
-			FOREIGN KEY (stop_ref_id) REFERENCES %s(id)
+			stop_name TEXT NOT NULL,
+			lat REAL NOT NULL,
+			lng REAL NOT NULL,
+			sequence INTEGER NOT NULL,
+			attributes JSON,
+			PRIMARY KEY (route_id, stop_id, sequence)
 		)`
 
 	createPTDeparturesTableQuery = `
@@ -99,7 +86,7 @@ const (
 			id TEXT PRIMARY KEY,
 			route_id TEXT NOT NULL,
 			departure_time TEXT NOT NULL,
-			FOREIGN KEY (route_id) REFERENCES %s(id) ON DELETE CASCADE
+			vehicle_ref_id TEXT
 		)`
 
 	// Spatial indexes for performance
@@ -260,36 +247,21 @@ func (db *Database) CreatePTTables(processID int) error {
 	}
 	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
 	
-	// Create stops table
-	stopsTable := fmt.Sprintf("%s_stops", tablePrefix)
-	if err := db.execTableQuery(fmt.Sprintf(createPTStopsTableQuery, stopsTable)); err != nil {
-		return fmt.Errorf("failed to create PT stops table: %w", err)
-	}
-	
 	// Create lines table
 	linesTable := fmt.Sprintf("%s_lines", tablePrefix)
 	if err := db.execTableQuery(fmt.Sprintf(createPTLinesTableQuery, linesTable)); err != nil {
 		return fmt.Errorf("failed to create PT lines table: %w", err)
 	}
 	
-	// Create routes table
-	routesTable := fmt.Sprintf("%s_routes", tablePrefix)
-	query := fmt.Sprintf(createPTRoutesTableQuery, routesTable, linesTable)
-	if err := db.execTableQuery(query); err != nil {
-		return fmt.Errorf("failed to create PT routes table: %w", err)
-	}
-	
-	// Create route stops table
-	routeStopsTable := fmt.Sprintf("%s_route_stops", tablePrefix)
-	query = fmt.Sprintf(createPTRouteStopsTableQuery, routeStopsTable, routesTable, stopsTable)
-	if err := db.execTableQuery(query); err != nil {
-		return fmt.Errorf("failed to create PT route stops table: %w", err)
+	// Create stops table
+	stopsTable := fmt.Sprintf("%s_stops", tablePrefix)
+	if err := db.execTableQuery(fmt.Sprintf(createPTStopsTableQuery, stopsTable)); err != nil {
+		return fmt.Errorf("failed to create PT stops table: %w", err)
 	}
 	
 	// Create departures table
 	departuresTable := fmt.Sprintf("%s_departures", tablePrefix)
-	query = fmt.Sprintf(createPTDeparturesTableQuery, departuresTable, routesTable)
-	if err := db.execTableQuery(query); err != nil {
+	if err := db.execTableQuery(fmt.Sprintf(createPTDeparturesTableQuery, departuresTable)); err != nil {
 		return fmt.Errorf("failed to create PT departures table: %w", err)
 	}
 	
@@ -307,10 +279,8 @@ func (db *Database) DropPTTables(processID int) error {
 	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
 	tables := []string{
 		fmt.Sprintf("%s_departures", tablePrefix),
-		fmt.Sprintf("%s_route_stops", tablePrefix),
-		fmt.Sprintf("%s_routes", tablePrefix),
-		fmt.Sprintf("%s_lines", tablePrefix),
 		fmt.Sprintf("%s_stops", tablePrefix),
+		fmt.Sprintf("%s_lines", tablePrefix),
 	}
 	
 	for _, table := range tables {
@@ -482,28 +452,26 @@ func (db *Database) GetLinksForNodesInBounds(processId int, viewport ViewportBou
 }
 
 // GetPTLinesInBounds retrieves PT lines that have stops within viewport bounds
-func (db *Database) GetPTLinesInBounds(processId int, viewport ViewportBounds, mode string, randomFactor float64, maxElements int) ([]PTLineData, error) {
+func (db *Database) GetPTLinesInBounds(processId int, viewport ViewportBounds, mode string, randomFactor float64, maxElements int) ([]Line, error) {
 	linesTable := fmt.Sprintf("pt_data_%d_lines", processId)
 	stopsTable := fmt.Sprintf("pt_data_%d_stops", processId)
-	routesTable := fmt.Sprintf("pt_data_%d_routes", processId)
-	routeStopsTable := fmt.Sprintf("pt_data_%d_route_stops", processId)
 	
 	// Get lines that have stops in the viewport bounds
+	// Routes are now embedded in lines as JSON, and stops reference routes directly
 	query := fmt.Sprintf(`
-		SELECT DISTINCT l.id, l.mode, l.raw_xml
+		SELECT DISTINCT l.id, l.name, l.type, l.routes
 		FROM %s l
-		WHERE l.mode = ? AND l.id IN (
-			SELECT r.line_id FROM %s r
-			WHERE r.id IN (
-				SELECT rs.route_id FROM %s rs
-				WHERE rs.stop_ref_id IN (
-					SELECT s.id FROM %s s
-					WHERE s.lat BETWEEN ? AND ? AND s.lng BETWEEN ? AND ?
-				)
+		WHERE l.type = ? AND EXISTS (
+			SELECT 1 FROM %s s
+			WHERE s.route_id IN (
+				SELECT json_extract(value, '$.id') 
+				FROM json_each(l.routes)
 			)
+			AND s.lat BETWEEN ? AND ? 
+			AND s.lng BETWEEN ? AND ?
 		)
 		ORDER BY RANDOM()
-		LIMIT ?`, linesTable, routesTable, routeStopsTable, stopsTable)
+		LIMIT ?`, linesTable, stopsTable)
 	
 	rows, err := db.queryRows(query, "failed to query PT lines in bounds",
 		mode, viewport.MinLat, viewport.MaxLat, viewport.MinLng, viewport.MaxLng, maxElements)
@@ -512,12 +480,19 @@ func (db *Database) GetPTLinesInBounds(processId int, viewport ViewportBounds, m
 	}
 	defer rows.Close()
 
-	var lines []PTLineData
+	var lines []Line
 	for rows.Next() {
-		var l PTLineData
-		if err := rows.Scan(&l.ID, &l.Mode, &l.RawXML); err != nil {
+		var l Line
+		var routesJSON string
+		if err := rows.Scan(&l.ID, &l.Name, &l.Type, &routesJSON); err != nil {
 			return nil, err
 		}
+		
+		// Parse routes JSON
+		if err := json.Unmarshal([]byte(routesJSON), &l.Routes); err != nil {
+			return nil, fmt.Errorf("failed to parse routes JSON: %w", err)
+		}
+		
 		lines = append(lines, l)
 	}
 	

@@ -6,7 +6,7 @@
   import { populationState, type Person } from "$lib/stores/population.svelte";
   import { networkState } from "$lib/stores/network.svelte";
   import { ptState } from "$lib/stores/pt.svelte";
-  import { LoadProcessData, GetPTStops, GetPTRoutes, GetPTRouteStops, GetPTDepartures } from "@wailsjs/go/gui/App";
+  import { LoadProcessData } from "@wailsjs/go/gui/App";
   import { gui } from "@wailsjs/go/models";
   import { getCurrentViewportBounds } from "$lib/map/mapUtils";
   import { parsePersonXML } from "$lib/utils/populationXmlParser";
@@ -29,7 +29,8 @@
             viewport: viewport,
             randomFactor: config[commandArgs.fileEditMode].randomFactor,
             maxElements: config[commandArgs.fileEditMode].maxElements,
-            minThreshold: config[commandArgs.fileEditMode].minThreshold
+            minThreshold: config[commandArgs.fileEditMode].minThreshold,
+            mode: commandArgs.fileEditMode === 'PT' ? ptState.selected.mode : ''
           });
           
           const result = await LoadProcessData(params);
@@ -52,53 +53,27 @@
             networkState.nodes = result.data.nodes || [];
             networkState.links = result.data.links || [];
           } else if (commandArgs.fileEditMode === 'PT') {
-            if (result.data && result.data.lines && result.data.lines.length > 0) {
-              // Get all line IDs from the viewport-filtered data
-              const lineIds = result.data.lines.map((line: any) => line.id);
+            if (result.data) {
+              // Create PTData for the current mode
+              const ptData = {
+                mode: ptState.selected.mode,
+                lines: result.data.lines || [],
+                stops: result.data.stops || [],
+                departures: result.data.departures || []
+              };
               
-              // Load full PT data for these lines
-              const [stops, routes, routeStops, departures] = await Promise.all([
-                GetPTStops(appState.processId),
-                Promise.all(lineIds.map((lineId: string) => GetPTRoutes(appState.processId, lineId))).then(r => r.flat()),
-                Promise.all(lineIds.map((lineId: string) => 
-                  GetPTRoutes(appState.processId, lineId).then((routes: any) => 
-                    Promise.all(routes.map((route: any) => GetPTRouteStops(appState.processId, route.id)))
-                  )
-                )).then(r => r.flat().flat()),
-                Promise.all(lineIds.map((lineId: string) => 
-                  GetPTRoutes(appState.processId, lineId).then((routes: any) => 
-                    Promise.all(routes.map((route: any) => GetPTDepartures(appState.processId, route.id)))
-                  )
-                )).then(r => r.flat().flat())
-              ]);
+              // Find or create PTData in array
+              const existingIndex = ptState.ptData.findIndex(pd => pd.mode === ptState.selected.mode);
+              if (existingIndex >= 0) {
+                ptState.ptData[existingIndex] = ptData;
+              } else {
+                ptState.ptData.push(ptData);
+              }
               
-              // Load complete PT data
-              ptState.loadPTData(
-                result.data.lines,
-                stops as any[],
-                routes as any[],
-                routeStops as any[],
-                departures as any[],
-                false
-              );
-              
-              // Mark lines as loaded
-              lineIds.forEach((lineId: string) => ptState.loadedLines.add(lineId));
-              ptState.stopsLoaded = true;
-              
-              // Generate summaries from loaded data
-              const summaries = result.data.lines.map((line: any) => {
-                const lineData = ptState.lines.get(line.id);
-                return {
-                  id: line.id,
-                  name: line.id.replace(/_/g, ' '),
-                  mode: line.mode,
-                  route_count: lineData?.routes.length || 0,
-                  departure_count: lineData?.routes.reduce((sum, route) => sum + (route.departures?.length || 0), 0) || 0
-                };
-              });
-              
-              ptState.loadLineSummaries(summaries);
+              // Update primary sidebar info if lines exist
+              if (ptData.lines.length > 0) {
+                ptState.primarySidebarInfo = [...ptData.lines];
+              }
             }
           }
           

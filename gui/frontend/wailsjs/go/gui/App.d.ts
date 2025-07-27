@@ -57,25 +57,23 @@ export function GetLinksInBBox(arg1:number,arg2:Array<string>):Promise<Array<gui
 
 export function GetNodesInBBox(arg1:number,arg2:gui.BoundingBox):Promise<Array<gui.NodeResult>>;
 
-export function GetPTDepartures(arg1:number,arg2:string):Promise<Array<gui.PTDeparture>>;
+export function GetPTDepartures(arg1:number,arg2:string):Promise<Array<gui.Departure>>;
 
-export function GetPTLine(arg1:number,arg2:string):Promise<gui.PTLine>;
+export function GetPTLine(arg1:number,arg2:string):Promise<gui.Line>;
 
-export function GetPTLineSummaries(arg1:number,arg2:string):Promise<Array<gui.PTLineSummary>>;
+export function GetPTLines(arg1:number):Promise<Array<gui.Line>>;
 
-export function GetPTLines(arg1:number):Promise<Array<gui.PTLine>>;
+export function GetPTLinesByMode(arg1:number,arg2:string):Promise<Array<gui.Line>>;
 
-export function GetPTLinesByMode(arg1:number,arg2:string):Promise<Array<gui.PTLine>>;
+export function GetPTRouteStops(arg1:number,arg2:string):Promise<Array<gui.Stop>>;
 
-export function GetPTRouteStops(arg1:number,arg2:string):Promise<Array<gui.PTRouteStop>>;
-
-export function GetPTRoutes(arg1:number,arg2:string):Promise<Array<gui.PTRoute>>;
+export function GetPTRoutes(arg1:number,arg2:string):Promise<Array<gui.Route>>;
 
 export function GetPTStatistics(arg1:number):Promise<Record<string, any>>;
 
-export function GetPTStop(arg1:number,arg2:string):Promise<gui.PTStop>;
+export function GetPTStops(arg1:number):Promise<Array<gui.Stop>>;
 
-export function GetPTStops(arg1:number):Promise<Array<gui.PTStop>>;
+export function GetPTStopsForRoute(arg1:number,arg2:string):Promise<Array<gui.Stop>>;
 
 export function GetPTTelemetry(arg1:number):Promise<gui.PTTelemetry>;
 

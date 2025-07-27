@@ -1,21 +1,13 @@
 <script lang="ts">
-  import { Modal, Button, Label, Input, Select, Helper } from 'flowbite-svelte';
-  import { ptState, TransportMode, type LineWithRoutes } from '$lib/stores/pt.svelte';
-  import { changeTracker } from '$lib/changeTracker.svelte';
-  import { getCurrentProcessId } from '$lib/utils/processId';
-  import { generateId } from '$lib/utils/generateId';
-  import { trackLineChange } from '$lib/utils/ptChangeTracking';
+  import { Modal, Button, Label, Input, Helper } from 'flowbite-svelte';
+  import { ptState } from '$lib/stores/pt.svelte';
 
   let { open = $bindable() }: { open: boolean } = $props();
   let name = $state('');
-  let number = $state('');
-  let mode = $state<TransportMode>(TransportMode.Bus);
   let error = $state('');
 
   function resetForm() {
     name = '';
-    number = '';
-    mode = TransportMode.Bus;
     error = '';
   }
 
@@ -25,13 +17,16 @@
       return false;
     }
 
-    const existingLine = Array.from(ptState.lines.values()).find(
-      line => line.name.toLowerCase() === name.trim().toLowerCase() && line.mode === mode
-    );
-    
-    if (existingLine) {
-      error = 'A line with this name already exists for this mode';
-      return false;
+    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
+    if (ptData) {
+      const existingLine = ptData.lines.find(
+        line => line.name.toLowerCase() === name.trim().toLowerCase()
+      );
+      
+      if (existingLine) {
+        error = 'A line with this name already exists for this mode';
+        return false;
+      }
     }
 
     return true;
@@ -44,23 +39,7 @@
       return;
     }
 
-    const newLine: LineWithRoutes = {
-      id: generateId(),
-      name: name.trim(),
-      number: number.trim(),
-      mode: mode,
-      agencyId: '',
-      telemetryId: '',
-      raw_xml: '',
-      routes: []
-    };
-
-    const newLines = new Map(ptState.lines);
-    newLines.set(newLine.id, newLine);
-    ptState.lines = newLines;
-    
-    trackLineChange(newLine, 'add');
-    ptState.setSelectedLine(newLine.id);
+    ptState.createLine(name.trim());
     
     open = false;
     resetForm();
@@ -71,11 +50,6 @@
     resetForm();
   }
 
-  const modeOptions = [
-    { value: TransportMode.Bus, name: '🚌 Bus' },
-    { value: TransportMode.Metro, name: '🚇 Metro' },
-    { value: TransportMode.Tram, name: '🚊 Tram' }
-  ];
 </script>
 
 <Modal bind:open title="New Line" size="sm">
@@ -88,24 +62,6 @@
           bind:value={name}
           placeholder="Enter line name"
           required
-        />
-      </div>
-
-      <div>
-        <Label for="number" class="mb-2">Number</Label>
-        <Input
-          id="number"
-          bind:value={number}
-          placeholder="Optional line number"
-        />
-      </div>
-
-      <div>
-        <Label for="mode" class="mb-2">Mode *</Label>
-        <Select
-          id="mode"
-          bind:value={mode}
-          items={modeOptions}
         />
       </div>
 
