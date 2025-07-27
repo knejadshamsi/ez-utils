@@ -214,8 +214,8 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 	// ===== PT ACTIONS =====
 	case "pt.stop.add":
 		var act struct {
-			ProcessID int    `json:"processId"`
-			Stop      PTStop `json:"stop"`
+			ProcessID int  `json:"processId"`
+			Stop      Stop `json:"stop"`
 		}
 		if err := json.Unmarshal(actionJSON, &act); err != nil {
 			return fmt.Errorf("failed to unmarshal add stop action: %w", err)

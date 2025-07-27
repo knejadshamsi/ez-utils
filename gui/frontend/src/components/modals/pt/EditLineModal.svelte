@@ -1,9 +1,7 @@
 <script lang="ts">
-  import { Modal, Button, Label, Input, Select, Helper } from 'flowbite-svelte';
+  import { Modal, Button, Label, Input, Helper } from 'flowbite-svelte';
   import { TrashBinOutline } from 'flowbite-svelte-icons';
-  import { ptState, TransportMode } from '$lib/stores/pt.svelte';
-  import { changeTracker } from '$lib/changeTracker.svelte';
-  import { getCurrentProcessId } from '$lib/utils/processId';
+  import { ptState } from '$lib/stores/pt.svelte';
 
   let { open = $bindable(), line, onclose }: { 
     open: boolean, 
@@ -12,15 +10,11 @@
   } = $props();
   
   let name = $state('');
-  let number = $state('');
-  let mode = $state<TransportMode>(TransportMode.Bus);
   let error = $state('');
 
   $effect(() => {
     if (line) {
       name = line.name || '';
-      number = line.number || '';
-      mode = line.mode || TransportMode.Bus;
       error = '';
     }
   });
@@ -31,13 +25,16 @@
       return false;
     }
 
-    const existingLine = Array.from(ptState.lines.values()).find(
-      l => l.id !== line.id && l.name.toLowerCase() === name.trim().toLowerCase() && l.mode === mode
-    );
-    
-    if (existingLine) {
-      error = 'A line with this name already exists for this mode';
-      return false;
+    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
+    if (ptData) {
+      const existingLine = ptData.lines.find(
+        l => l.id !== line.id && l.name.toLowerCase() === name.trim().toLowerCase()
+      );
+      
+      if (existingLine) {
+        error = 'A line with this name already exists';
+        return false;
+      }
     }
 
     return true;
@@ -50,51 +47,18 @@
       return;
     }
 
-    line.name = name.trim();
-    line.number = number.trim();
-    line.mode = mode;
-
-    changeTracker.pendingChanges.push({
-      type: 'pt',
-      elementType: 'line',
-      action: 'update',
-      processId: getCurrentProcessId(),
-      lineId: line.id,
-      update: {
-        name: line.name,
-        number: line.number,
-        mode: line.mode
-      }
-    });
-
-    const newLines = new Map(ptState.lines);
-    newLines.set(line.id, { ...line });
-    ptState.lines = newLines;
+    ptState.updateLine(line.id, { name: name.trim() });
     
     open = false;
     onclose();
   }
 
   function handleDelete() {
-    if (!confirm(`Are you sure you want to delete line "${line.name}"? This will also delete all its routes.`)) {
+    if (!confirm(`Are you sure you want to delete line "${line.name}"? This will also delete all its routes, stops, and departures.`)) {
       return;
     }
 
-    changeTracker.pendingChanges.push({
-      type: 'pt',
-      elementType: 'line',
-      action: 'delete',
-      processId: getCurrentProcessId(),
-      lineId: line.id
-    });
-
-    const newLines = new Map(ptState.lines);
-    newLines.delete(line.id);
-    ptState.lines = newLines;
-
-    if (ptState.selectedLineId === line.id) {
-      ptState.setSelectedLine(null);
-    }
+    ptState.deleteLine(line.id);
     
     open = false;
     onclose();
@@ -105,11 +69,6 @@
     onclose();
   }
 
-  const modeOptions = [
-    { value: TransportMode.Bus, name: '🚌 Bus' },
-    { value: TransportMode.Metro, name: '🚇 Metro' },
-    { value: TransportMode.Tram, name: '🚊 Tram' }
-  ];
 </script>
 
 <Modal bind:open title="Edit Line" size="sm">
@@ -122,24 +81,6 @@
           bind:value={name}
           placeholder="Enter line name"
           required
-        />
-      </div>
-
-      <div>
-        <Label for="number" class="mb-2">Number</Label>
-        <Input
-          id="number"
-          bind:value={number}
-          placeholder="Optional line number"
-        />
-      </div>
-
-      <div>
-        <Label for="mode" class="mb-2">Mode *</Label>
-        <Select
-          id="mode"
-          bind:value={mode}
-          items={modeOptions}
         />
       </div>
 

@@ -3,8 +3,18 @@ package gui
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
+// escapeXML escapes special characters for XML attributes
+func escapeXML(s string) string {
+	s = strings.ReplaceAll(s, "&", "&amp;")
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, "\"", "&quot;")
+	s = strings.ReplaceAll(s, "'", "&apos;")
+	return s
+}
 
 // NewPTExporter creates a new PT exporter
 func NewPTExporter(app *App, processID int) *PTExporter {
@@ -89,24 +99,17 @@ func (e *PTExporter) exportTransitStops(file *os.File) error {
 
 	// Write each stop
 	for _, stop := range stops {
-		// Use raw XML if available, otherwise construct it
-		if stop.RawXML != "" {
-			if _, err := file.WriteString("\t\t" + stop.RawXML + "\n"); err != nil {
-				return err
-			}
-		} else {
-			// Construct XML manually
-			stopXML := fmt.Sprintf(`<stopFacility id="%s" x="%.6f" y="%.6f"`,
-				escapeXML(stop.ID), stop.Lng, stop.Lat)
-			
-			if stop.Name != "" {
-				stopXML += fmt.Sprintf(` name="%s"`, escapeXML(stop.Name))
-			}
-			stopXML += "/>"
-			
-			if _, err := file.WriteString("\t\t" + stopXML + "\n"); err != nil {
-				return err
-			}
+		// Construct XML manually
+		stopXML := fmt.Sprintf(`<stopFacility id="%s" x="%.6f" y="%.6f"`,
+			escapeXML(stop.StopID), stop.Lng, stop.Lat)
+		
+		if stop.StopName != "" {
+			stopXML += fmt.Sprintf(` name="%s"`, escapeXML(stop.StopName))
+		}
+		stopXML += "/>"
+		
+		if _, err := file.WriteString("\t\t" + stopXML + "\n"); err != nil {
+			return err
 		}
 	}
 
@@ -145,7 +148,7 @@ func (e *PTExporter) exportTransitLines(file *os.File) error {
 	return nil
 }
 
-func (e *PTExporter) exportTransitLine(file *os.File, line *PTLine) error {
+func (e *PTExporter) exportTransitLine(file *os.File, line *Line) error {
 	// Write line opening tag
 	if _, err := file.WriteString(fmt.Sprintf("\t\t<transitLine id=\"%s\">\n", escapeXML(line.ID))); err != nil {
 		return err
@@ -172,7 +175,7 @@ func (e *PTExporter) exportTransitLine(file *os.File, line *PTLine) error {
 	return nil
 }
 
-func (e *PTExporter) exportTransitRoute(file *os.File, route *PTRoute) error {
+func (e *PTExporter) exportTransitRoute(file *os.File, route *Route) error {
 	// Write route opening tag
 	if _, err := file.WriteString(fmt.Sprintf("\t\t\t<transitRoute id=\"%s\">\n", escapeXML(route.ID))); err != nil {
 		return err
@@ -219,7 +222,7 @@ func (e *PTExporter) exportRouteProfile(file *os.File, routeID string) error {
 
 	// Write each stop
 	for _, rs := range routeStops {
-		stopXML := fmt.Sprintf(`<stop refId="%s"`, escapeXML(rs.StopRefID))
+		stopXML := fmt.Sprintf(`<stop refId="%s"`, escapeXML(rs.StopID))
 		
 		if rs.ArrivalOffset != "" {
 			stopXML += fmt.Sprintf(` arrivalOffset="%s"`, rs.ArrivalOffset)
@@ -299,7 +302,7 @@ func (e *PTExporter) ExportSubset(bbox BoundingBox, outputPath string) error {
 	}
 	
 	// Filter stops by bounding box
-	var stops []PTStop
+	var stops []Stop
 	for _, stop := range allStops {
 		if stop.Lng >= bbox.West && stop.Lng <= bbox.East && stop.Lat >= bbox.South && stop.Lat <= bbox.North {
 			stops = append(stops, stop)
@@ -309,7 +312,7 @@ func (e *PTExporter) ExportSubset(bbox BoundingBox, outputPath string) error {
 	// Create a set of stop IDs for quick lookup
 	stopIDSet := make(map[string]bool)
 	for _, stop := range stops {
-		stopIDSet[stop.ID] = true
+		stopIDSet[stop.StopID] = true
 	}
 
 	// Find lines and routes that use these stops
@@ -337,7 +340,7 @@ func (e *PTExporter) ExportSubset(bbox BoundingBox, outputPath string) error {
 
 			// Check if any stop in the route is in our bbox
 			for _, rs := range routeStops {
-				if stopIDSet[rs.StopRefID] {
+				if stopIDSet[rs.StopID] {
 					relevantLines[line.ID] = true
 					relevantRoutes[route.ID] = true
 					break
@@ -379,9 +382,9 @@ func (e *PTExporter) ExportSubset(bbox BoundingBox, outputPath string) error {
 	}
 	for _, stop := range stops {
 		stopXML := fmt.Sprintf(`<stopFacility id="%s" x="%.6f" y="%.6f"`,
-			escapeXML(stop.ID), stop.Lng, stop.Lat)
-		if stop.Name != "" {
-			stopXML += fmt.Sprintf(` name="%s"`, escapeXML(stop.Name))
+			escapeXML(stop.StopID), stop.Lng, stop.Lat)
+		if stop.StopName != "" {
+			stopXML += fmt.Sprintf(` name="%s"`, escapeXML(stop.StopName))
 		}
 		stopXML += "/>"
 		if _, err := file.WriteString("\t\t" + stopXML + "\n"); err != nil {
@@ -418,7 +421,7 @@ func (e *PTExporter) ExportSubset(bbox BoundingBox, outputPath string) error {
 	return nil
 }
 
-func (e *PTExporter) exportTransitLineSubset(file *os.File, line *PTLine, 
+func (e *PTExporter) exportTransitLineSubset(file *os.File, line *Line, 
 	relevantRoutes map[string]bool, stopIDSet map[string]bool) error {
 	
 	// Write line opening tag

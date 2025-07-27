@@ -128,59 +128,51 @@ type ProcessResult struct {
 
 // PT-specific types
 
-// PTStop represents a transit stop with coordinates
-type PTStop struct {
+// Route represents a route within a line
+type Route struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Stops int    `json:"stops"`
+}
+
+// Line represents a transit line with embedded routes
+type Line struct {
 	ID     string  `json:"id"`
-	Lng    float64 `json:"lng"`
-	Lat    float64 `json:"lat"`
 	Name   string  `json:"name"`
-	RawXML string  `json:"raw_xml"`
+	Type   string  `json:"type"` // BUS, METRO, TRAM
+	Routes []Route `json:"routes"`
 }
 
-// PTLine represents a transit line
-type PTLine struct {
-	ID     string `json:"id"`
-	Mode   string `json:"mode"`
-	RawXML string `json:"raw_xml"`
+// Stop represents a stop with route-specific timing
+type Stop struct {
+	RouteID         string                 `json:"routeId"`
+	StopID          string                 `json:"stopId"`
+	ArrivalOffset   string                 `json:"arrivalOffset"`
+	DepartureOffset string                 `json:"departureOffset"`
+	StopName        string                 `json:"stopName"`
+	Lat             float64                `json:"lat"`
+	Lng             float64                `json:"lng"`
+	Sequence        int                    `json:"sequence"`
+	Attributes      map[string]interface{} `json:"attributes,omitempty"`
 }
 
-// PTLineSummary represents a summary of a transit line with counts
-type PTLineSummary struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Mode           string `json:"mode"`
-	RouteCount     int    `json:"route_count"`
-	DepartureCount int    `json:"departure_count"`
-}
-
-// PTRoute represents a transit route
-type PTRoute struct {
-	ID     string `json:"id"`
-	LineID string `json:"line_id"`
-	RawXML string `json:"raw_xml"`
-}
-
-// PTRouteStop represents a stop in a route
-type PTRouteStop struct {
-	RouteID         string `json:"route_id"`
-	StopRefID       string `json:"stop_ref_id"`
-	StopOrder       int    `json:"stop_order"`
-	ArrivalOffset   string `json:"arrival_offset"`
-	DepartureOffset string `json:"departure_offset"`
-}
-
-// PTDeparture represents a departure time
-type PTDeparture struct {
-	ID            string `json:"id"`
-	RouteID       string `json:"route_id"`
-	DepartureTime string `json:"departure_time"`
+// Departure represents a scheduled departure
+type Departure struct {
+	ID           string `json:"id"`
+	RouteID      string `json:"routeId"`
+	DepartureTime string `json:"departureTime"`
+	VehicleRefID string `json:"vehicleRefId,omitempty"`
 }
 
 // PTStopUpdate represents an update to a stop
 type PTStopUpdate struct {
-	Lng  float64
-	Lat  float64
-	Name string
+	StopName        *string                `json:"stopName,omitempty"`
+	Lat             *float64               `json:"lat,omitempty"`
+	Lng             *float64               `json:"lng,omitempty"`
+	ArrivalOffset   *string                `json:"arrivalOffset,omitempty"`
+	DepartureOffset *string                `json:"departureOffset,omitempty"`
+	Sequence        *int                   `json:"sequence,omitempty"`
+	Attributes      map[string]interface{} `json:"attributes,omitempty"`
 }
 
 // Spatial query types
@@ -201,48 +193,9 @@ type LoadingParams struct {
 	RandomFactor float64        `json:"randomFactor"`
 	MaxElements  int            `json:"maxElements"`
 	MinThreshold int            `json:"minThreshold"`
+	Mode         string         `json:"mode"` // PT transport mode (BUS, METRO, TRAM)
 }
 
-// PT data structures for processing
-
-// PTStopData represents stop data during processing
-type PTStopData struct {
-	ID     string  `json:"id"`
-	Lng    float64 `json:"lng"`
-	Lat    float64 `json:"lat"`
-	Name   string  `json:"name"`
-	RawXML string  `json:"raw_xml"`
-}
-
-// PTLineData represents line data during processing
-type PTLineData struct {
-	ID     string `json:"id"`
-	Mode   string `json:"mode"`
-	RawXML string `json:"raw_xml"`
-}
-
-// PTRouteData represents route data during processing
-type PTRouteData struct {
-	ID     string
-	LineID string
-	RawXML string
-}
-
-// PTRouteStopData represents route stop data during processing
-type PTRouteStopData struct {
-	RouteID         string
-	StopRefID       string
-	StopOrder       int
-	ArrivalOffset   string
-	DepartureOffset string
-}
-
-// PTDepartureData represents departure data during processing
-type PTDepartureData struct {
-	ID            string
-	RouteID       string
-	DepartureTime string
-}
 
 // PTTelemetry represents PT processing telemetry data
 type PTTelemetry struct {

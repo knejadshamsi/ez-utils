@@ -1,13 +1,10 @@
 <script lang="ts">
   import { ButtonGroup, Button } from 'flowbite-svelte';
-  import { ptState, TransportMode } from '$lib/stores/pt.svelte';
+  import { ptState, TRANSPORT_MODES } from '$lib/stores/pt.svelte';
+  import type { TransportMode } from '$lib/stores/pt.svelte';
   import { PTService } from '$lib/api/pt';
   
-  const modes = [
-    { value: TransportMode.Bus, label: 'Bus', icon: '🚌' },
-    { value: TransportMode.Metro, label: 'Metro', icon: '🚇' },
-    { value: TransportMode.Tram, label: 'Tram', icon: '🚊' }
-  ];
+  const modes = Object.values(TRANSPORT_MODES);
   
   async function handleModeChange(mode: TransportMode) {
     // Clear existing data and set new mode
