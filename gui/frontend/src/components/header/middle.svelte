@@ -4,7 +4,7 @@
   // export let isEditingEnabled = false;
   // export let onToggleEditing = () => {};
   
-  import { commandArgs } from '$lib/stores/app.svelte';
+  import { commandArgs, appState } from '$lib/stores/app.svelte';
   import PTModeSelector from './PTModeSelector.svelte';
 </script>
 
@@ -18,7 +18,7 @@
   </button> -->
   
   <!-- PT Mode Selector when editing PT files -->
-  {#if commandArgs.fileEditMode === 'PT'}
+  {#if commandArgs.fileEditMode === 'PT' && appState.display === 'EDITING'}
     <PTModeSelector />
   {/if}
   

@@ -20,13 +20,6 @@ export interface PTStopExtended extends gui.PTStop {
   telemetryId: string;
 }
 
-export interface PTRouteStopExtended extends gui.PTRouteStop {
-  routeId: string; // Map from route_id
-  stopId: string; // Map from stop_ref_id
-  sequence: number; // Map from stop_order
-  arrivalOffset: number; // Parse from arrival_offset string
-  dwellTime: number; // Calculate from arrival_offset and departure_offset
-}
 
 export interface PTDepartureExtended extends gui.PTDeparture {
   routeId: string; // Map from route_id
@@ -65,19 +58,6 @@ export function mapPTStop(stop: gui.PTStop): PTStopExtended {
   };
 }
 
-export function mapPTRouteStop(routeStop: gui.PTRouteStop): PTRouteStopExtended {
-  const arrivalMinutes = parseTimeOffset(routeStop.arrival_offset);
-  const departureMinutes = parseTimeOffset(routeStop.departure_offset);
-  
-  return {
-    ...routeStop,
-    routeId: routeStop.route_id,
-    stopId: routeStop.stop_ref_id,
-    sequence: routeStop.stop_order,
-    arrivalOffset: arrivalMinutes,
-    dwellTime: departureMinutes - arrivalMinutes
-  };
-}
 
 export function mapPTDeparture(departure: gui.PTDeparture): PTDepartureExtended {
   return {

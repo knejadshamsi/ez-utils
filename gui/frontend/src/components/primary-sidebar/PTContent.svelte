@@ -68,9 +68,37 @@
     deletingLineId = null;
   }
   
-  function handleRouteClick(routeId: string) {
+  async function handleRouteClick(lineId: string, routeId: string) {
+    // Toggle functionality - if clicking the same route, unselect it
+    if (ptState.selected.routeId === routeId) {
+      ptState.selected.routeId = null;
+      ptState.selected.stopId = null;
+      appState.secondarySidebar = 'HIDDEN';
+      updatePTVisualization();
+      return;
+    }
+    
+    // Otherwise select the new route
+    ptState.selected.lineId = lineId;
     ptState.selected.routeId = routeId;
     appState.secondarySidebar = 'EXPANDED';
+    
+    // Check if stops are already loaded for this route
+    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
+    const routeStopsExist = ptData?.stops.some(s => s.routeId === routeId);
+    
+    // Only load if not already cached
+    if (!routeStopsExist) {
+      try {
+        await Promise.all([
+          PTService.loadRouteStops(routeId),
+          PTService.loadRouteDepartures(routeId)
+        ]);
+      } catch (error) {
+        console.error('Failed to load route data:', error);
+      }
+    }
+    
     // Update visualization
     updatePTVisualization();
   }
@@ -136,7 +164,46 @@
 </script>
 
 <div class="h-full flex flex-col">
-  <div class="p-4">
+  <div class="p-4 space-y-3">
+    <!-- Add Line button at the top -->
+    <div>
+      {#if isAddingLine}
+        <div class="rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-3">
+          <div class="flex items-center gap-2">
+            <Input
+              type="text"
+              bind:value={newLineName}
+              placeholder="Line name (required)"
+              size="sm"
+              class="flex-1"
+              onkeydown={(e) => {
+                if (e.key === 'Enter' && newLineName.trim()) saveNewLine();
+                if (e.key === 'Escape') cancelAddingLine();
+              }}
+              autofocus
+            />
+            <Button size="xs" color="primary" onclick={saveNewLine} disabled={!newLineName.trim()}>
+              <CheckOutline size="xs" />
+            </Button>
+            <Button size="xs" color="alternative" onclick={cancelAddingLine}>
+              <CloseOutline size="xs" />
+            </Button>
+          </div>
+        </div>
+      {:else}
+        <Button
+          size="sm"
+          color="primary"
+          class="w-full"
+          onclick={startAddingLine}
+        >
+          <PlusOutline size="sm" class="mr-1" />
+          Add Line
+        </Button>
+      {/if}
+    </div>
+    
+    <!-- Visibility toggles -->
     <div class="flex gap-4">
       <Label class="flex items-center gap-2">
         <Checkbox
@@ -241,7 +308,11 @@
                                 role="link"
                                 tabindex="0"
                               >
-                                {truncateText(line.name)} <span class="text-xs font-normal text-gray-500 dark:text-gray-400">• {line.routes.length} route{line.routes.length !== 1 ? 's' : ''}</span>
+                                {truncateText(line.name)} 
+                                {#if line.local}
+                                  <span class="text-xs font-normal text-orange-500" title="Unsaved changes">●</span>
+                                {/if}
+                                <span class="text-xs font-normal text-gray-500 dark:text-gray-400">• {line.routes.length} route{line.routes.length !== 1 ? 's' : ''}</span>
                               </div>
                               <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
@@ -319,16 +390,11 @@
                               {#each line.routes as route (route.id)}
                                 <button
                                   class="w-full flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded border hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left {ptState.selected.routeId === route.id ? 'ring-2 ring-blue-500 border-blue-500' : ''}"
-                                  onclick={() => handleRouteClick(route.id)}
+                                  onclick={() => handleRouteClick(line.id, route.id)}
                                 >
-                                  <div class="flex items-center justify-between w-full">
-                                    <span class="text-sm font-medium text-gray-900 dark:text-white">
-                                      {truncateText(route.name || 'Route')}
-                                    </span>
-                                    <span class="text-xs text-gray-500 dark:text-gray-400">
-                                      {route.stops || 0} stops
-                                    </span>
-                                  </div>
+                                  <span class="text-sm font-medium text-gray-900 dark:text-white">
+                                    {truncateText(route.name || 'Route')}
+                                  </span>
                                 </button>
                               {/each}
                               
@@ -382,44 +448,6 @@
                   </div>
         {/each}
       {/if}
-      
-      <!-- Add Line inline creation -->
-      <div class="mx-3 mt-3 mb-3">
-        {#if isAddingLine}
-          <div class="rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-3">
-            <div class="flex items-center gap-2">
-              <Input
-                type="text"
-                bind:value={newLineName}
-                placeholder="Line name (required)"
-                size="sm"
-                class="flex-1"
-                onkeydown={(e) => {
-                  if (e.key === 'Enter' && newLineName.trim()) saveNewLine();
-                  if (e.key === 'Escape') cancelAddingLine();
-                }}
-                autofocus
-              />
-              <Button size="xs" color="primary" onclick={saveNewLine} disabled={!newLineName.trim()}>
-                <CheckOutline size="xs" />
-              </Button>
-              <Button size="xs" color="alternative" onclick={cancelAddingLine}>
-                <CloseOutline size="xs" />
-              </Button>
-            </div>
-          </div>
-        {:else}
-          <Button
-            size="sm"
-            color="primary"
-            class="w-full"
-            onclick={startAddingLine}
-          >
-            <PlusOutline size="sm" class="mr-1" />
-            Add Line
-          </Button>
-        {/if}
-      </div>
     </div>
   </div>
 </div>

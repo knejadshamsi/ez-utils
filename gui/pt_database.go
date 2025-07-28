@@ -459,15 +459,34 @@ func (db *Database) UpdatePTStop(processID int, stopID string, update PTStopUpda
 	return err
 }
 
-// DeletePTStop deletes a stop from the database
-func (db *Database) DeletePTStop(processID int, stopID string) error {
+// DeletePTStop deletes a stop from a specific route
+func (db *Database) DeletePTStop(processID int, routeID, stopID string) error {
 	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
 	stopsTable := fmt.Sprintf("%s_stops", tablePrefix)
 	
-	query := fmt.Sprintf(`DELETE FROM %s WHERE stop_id = ?`, stopsTable)
-	
-	_, err := db.execQuery(query, "failed to delete PT stop", stopID)
-	return err
+	return db.WithTransaction(func(tx *sql.Tx) error {
+		// Delete the specific route-stop association
+		deleteQuery := fmt.Sprintf(`DELETE FROM %s WHERE route_id = ? AND stop_id = ?`, stopsTable)
+		result, err := tx.Exec(deleteQuery, routeID, stopID)
+		if err != nil {
+			return fmt.Errorf("failed to delete stop from route: %w", err)
+		}
+		
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("failed to get rows affected: %w", err)
+		}
+		
+		if rowsAffected == 0 {
+			return fmt.Errorf("stop %s not found in route %s", stopID, routeID)
+		}
+		
+		// No need to check or clean up - the database naturally handles this
+		// If this was the last route using the stop, the stop data is gone
+		// If other routes still use this stop, their associations remain
+		
+		return nil
+	})
 }
 
 // BatchUpdatePTStops updates multiple stops in a single transaction
@@ -537,31 +556,161 @@ func (db *Database) BatchUpdatePTStops(processID int, updates map[string]PTStopU
 func (db *Database) DeletePTLine(processID int, lineID string) error {
 	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
 	linesTable := fmt.Sprintf("%s_lines", tablePrefix)
+	stopsTable := fmt.Sprintf("%s_stops", tablePrefix)
+	departuresTable := fmt.Sprintf("%s_departures", tablePrefix)
 	
-	query := fmt.Sprintf(`DELETE FROM %s WHERE id = ?`, linesTable)
-	
-	_, err := db.execQuery(query, "failed to delete PT line", lineID)
-	return err
+	return db.WithTransaction(func(tx *sql.Tx) error {
+		// Get the line to find all its routes
+		line, err := db.GetPTLine(processID, lineID)
+		if err != nil {
+			return fmt.Errorf("failed to get line: %w", err)
+		}
+		
+		// Collect all route IDs for this line
+		var routeIDs []string
+		for _, route := range line.Routes {
+			routeIDs = append(routeIDs, route.ID)
+		}
+		
+		// For each route, delete departures and collect stop IDs
+		var allStopIDs []string
+		for _, routeID := range routeIDs {
+			// Delete departures for this route
+			deleteDeparturesQuery := fmt.Sprintf(`DELETE FROM %s WHERE route_id = ?`, departuresTable)
+			if _, err := tx.Exec(deleteDeparturesQuery, routeID); err != nil {
+				return fmt.Errorf("failed to delete departures for route %s: %w", routeID, err)
+			}
+			
+			// Get all stops for this route
+			stopsQuery := fmt.Sprintf(`SELECT DISTINCT stop_id FROM %s WHERE route_id = ?`, stopsTable)
+			rows, err := tx.Query(stopsQuery, routeID)
+			if err != nil {
+				return fmt.Errorf("failed to query stops: %w", err)
+			}
+			
+			for rows.Next() {
+				var stopID string
+				if err := rows.Scan(&stopID); err != nil {
+					rows.Close()
+					return fmt.Errorf("failed to scan stop ID: %w", err)
+				}
+				allStopIDs = append(allStopIDs, stopID)
+			}
+			rows.Close()
+			
+			// Delete stops for this route
+			deleteStopsQuery := fmt.Sprintf(`DELETE FROM %s WHERE route_id = ?`, stopsTable)
+			if _, err := tx.Exec(deleteStopsQuery, routeID); err != nil {
+				return fmt.Errorf("failed to delete stops for route %s: %w", routeID, err)
+			}
+		}
+		
+		// No need to check for orphaned stops since we're deleting all routes
+		// All stops associated with this line's routes have been deleted above
+		
+		// Finally, delete the line itself
+		deleteLineQuery := fmt.Sprintf(`DELETE FROM %s WHERE id = ?`, linesTable)
+		if _, err := tx.Exec(deleteLineQuery, lineID); err != nil {
+			return fmt.Errorf("failed to delete line: %w", err)
+		}
+		
+		return nil
+	})
 }
 
 // DeletePTRoute deletes a route from a line
 func (db *Database) DeletePTRoute(processID int, routeID string) error {
-	// Routes are embedded in lines, so we need to update the line's routes JSON
-	// This would require fetching the line, removing the route from the JSON, and updating
-	// For now, return nil as routes are managed as part of lines
-	return nil
-}
-
-// DeletePTRouteStop deletes a stop from a route
-func (db *Database) DeletePTRouteStop(processID int, routeID string, stopOrder int) error {
 	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
 	stopsTable := fmt.Sprintf("%s_stops", tablePrefix)
+	departuresTable := fmt.Sprintf("%s_departures", tablePrefix)
+	linesTable := fmt.Sprintf("%s_lines", tablePrefix)
 	
-	query := fmt.Sprintf(`DELETE FROM %s WHERE route_id = ? AND sequence = ?`, stopsTable)
-	
-	_, err := db.execQuery(query, "failed to delete PT route stop", routeID, stopOrder)
-	return err
+	return db.WithTransaction(func(tx *sql.Tx) error {
+		// First, find the line containing this route
+		lines, err := db.GetPTLines(processID)
+		if err != nil {
+			return fmt.Errorf("failed to get lines: %w", err)
+		}
+		
+		var targetLine *Line
+		var routeIndex int = -1
+		for _, line := range lines {
+			for i, route := range line.Routes {
+				if route.ID == routeID {
+					targetLine = &line
+					routeIndex = i
+					break
+				}
+			}
+			if targetLine != nil {
+				break
+			}
+		}
+		
+		if targetLine == nil {
+			return fmt.Errorf("route not found: %s", routeID)
+		}
+		
+		// Remove the route from the line's routes array
+		targetLine.Routes = append(targetLine.Routes[:routeIndex], targetLine.Routes[routeIndex+1:]...)
+		
+		// Update the line with the modified routes array
+		routesJSON, err := json.Marshal(targetLine.Routes)
+		if err != nil {
+			return fmt.Errorf("failed to marshal routes: %w", err)
+		}
+		
+		updateQuery := fmt.Sprintf(`UPDATE %s SET routes = ? WHERE id = ?`, linesTable)
+		if _, err := tx.Exec(updateQuery, routesJSON, targetLine.ID); err != nil {
+			return fmt.Errorf("failed to update line: %w", err)
+		}
+		
+		// Delete all departures for this route
+		deleteDeparturesQuery := fmt.Sprintf(`DELETE FROM %s WHERE route_id = ?`, departuresTable)
+		if _, err := tx.Exec(deleteDeparturesQuery, routeID); err != nil {
+			return fmt.Errorf("failed to delete departures: %w", err)
+		}
+		
+		// Get all stops for this route
+		stopsQuery := fmt.Sprintf(`SELECT DISTINCT stop_id FROM %s WHERE route_id = ?`, stopsTable)
+		rows, err := tx.Query(stopsQuery, routeID)
+		if err != nil {
+			return fmt.Errorf("failed to query stops: %w", err)
+		}
+		defer rows.Close()
+		
+		var stopIDs []string
+		for rows.Next() {
+			var stopID string
+			if err := rows.Scan(&stopID); err != nil {
+				return fmt.Errorf("failed to scan stop ID: %w", err)
+			}
+			stopIDs = append(stopIDs, stopID)
+		}
+		
+		// Delete stops for this route
+		deleteStopsQuery := fmt.Sprintf(`DELETE FROM %s WHERE route_id = ?`, stopsTable)
+		if _, err := tx.Exec(deleteStopsQuery, routeID); err != nil {
+			return fmt.Errorf("failed to delete stops: %w", err)
+		}
+		
+		// Delete orphaned stops that are no longer used by any route
+		for _, stopID := range stopIDs {
+			checkQuery := fmt.Sprintf(`SELECT COUNT(*) FROM %s WHERE stop_id = ?`, stopsTable)
+			var count int
+			if err := tx.QueryRow(checkQuery, stopID).Scan(&count); err != nil {
+				return fmt.Errorf("failed to check stop usage: %w", err)
+			}
+			if count == 0 {
+				// Stop is no longer used by any route, delete it completely
+				// Note: This is already handled by the DELETE above, but we verify here
+			}
+		}
+		
+		return nil
+	})
 }
+
 
 // DeletePTDeparture deletes a departure
 func (db *Database) DeletePTDeparture(processID int, departureID string) error {
@@ -574,9 +723,135 @@ func (db *Database) DeletePTDeparture(processID int, departureID string) error {
 	return err
 }
 
+
 // GetPTLineSummaries retrieves line summaries for display (basically same as GetPTLinesByMode)
 func (db *Database) GetPTLineSummaries(processID int, mode string) ([]Line, error) {
 	return db.GetPTLinesByMode(processID, mode)
+}
+
+// AddPTLine adds a new PT line to the database
+func (db *Database) AddPTLine(processID int, lineID, lineType, name string) error {
+	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
+	linesTable := fmt.Sprintf("%s_lines", tablePrefix)
+	
+	// Initialize with empty routes array
+	routesJSON := "[]"
+	
+	query := fmt.Sprintf(`INSERT INTO %s (id, name, type, routes) VALUES (?, ?, ?, ?)`, linesTable)
+	
+	_, err := db.execQuery(query, "failed to add PT line", lineID, name, lineType, routesJSON)
+	return err
+}
+
+// UpdatePTLine updates an existing PT line's name
+func (db *Database) UpdatePTLine(processID int, lineID, name string) error {
+	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
+	linesTable := fmt.Sprintf("%s_lines", tablePrefix)
+	
+	query := fmt.Sprintf(`UPDATE %s SET name = ? WHERE id = ?`, linesTable)
+	
+	_, err := db.execQuery(query, "failed to update PT line", name, lineID)
+	return err
+}
+
+// AddPTRoute adds a new route to a line
+func (db *Database) AddPTRoute(processID int, routeID, routeName, lineID string) error {
+	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
+	linesTable := fmt.Sprintf("%s_lines", tablePrefix)
+	
+	// First, get the current line with its routes
+	line, err := db.GetPTLine(processID, lineID)
+	if err != nil {
+		return fmt.Errorf("failed to get line for route insertion: %w", err)
+	}
+	
+	// Add the new route
+	newRoute := Route{
+		ID:   routeID,
+		Name: routeName,
+		Stops: 0,
+	}
+	line.Routes = append(line.Routes, newRoute)
+	
+	// Convert updated routes to JSON
+	routesJSON, err := json.Marshal(line.Routes)
+	if err != nil {
+		return fmt.Errorf("failed to marshal routes: %w", err)
+	}
+	
+	// Update the line with new routes
+	query := fmt.Sprintf(`UPDATE %s SET routes = ? WHERE id = ?`, linesTable)
+	
+	_, err = db.execQuery(query, "failed to add route to line", routesJSON, lineID)
+	return err
+}
+
+// UpdatePTRoute updates a route's name within a line
+func (db *Database) UpdatePTRoute(processID int, routeID, routeName string) error {
+	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
+	linesTable := fmt.Sprintf("%s_lines", tablePrefix)
+	
+	// First, find the line containing this route
+	lines, err := db.GetPTLines(processID)
+	if err != nil {
+		return fmt.Errorf("failed to get lines: %w", err)
+	}
+	
+	var targetLine *Line
+	var routeIndex int
+	for _, line := range lines {
+		for i, route := range line.Routes {
+			if route.ID == routeID {
+				targetLine = &line
+				routeIndex = i
+				break
+			}
+		}
+		if targetLine != nil {
+			break
+		}
+	}
+	
+	if targetLine == nil {
+		return fmt.Errorf("route not found: %s", routeID)
+	}
+	
+	// Update the route name
+	targetLine.Routes[routeIndex].Name = routeName
+	
+	// Convert updated routes to JSON
+	routesJSON, err := json.Marshal(targetLine.Routes)
+	if err != nil {
+		return fmt.Errorf("failed to marshal routes: %w", err)
+	}
+	
+	// Update the line with updated routes
+	query := fmt.Sprintf(`UPDATE %s SET routes = ? WHERE id = ?`, linesTable)
+	
+	_, err = db.execQuery(query, "failed to update route", routesJSON, targetLine.ID)
+	return err
+}
+
+// AddPTDeparture adds a new departure to the database
+func (db *Database) AddPTDeparture(processID int, departureID, routeID, departureTime, vehicleRefID string) error {
+	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
+	departuresTable := fmt.Sprintf("%s_departures", tablePrefix)
+	
+	query := fmt.Sprintf(`INSERT INTO %s (id, route_id, departure_time, vehicle_ref_id) VALUES (?, ?, ?, ?)`, departuresTable)
+	
+	_, err := db.execQuery(query, "failed to add PT departure", departureID, routeID, departureTime, vehicleRefID)
+	return err
+}
+
+// UpdatePTDeparture updates an existing departure
+func (db *Database) UpdatePTDeparture(processID int, departureID, departureTime, vehicleRefID string) error {
+	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
+	departuresTable := fmt.Sprintf("%s_departures", tablePrefix)
+	
+	query := fmt.Sprintf(`UPDATE %s SET departure_time = ?, vehicle_ref_id = ? WHERE id = ?`, departuresTable)
+	
+	_, err := db.execQuery(query, "failed to update PT departure", departureTime, vehicleRefID, departureID)
+	return err
 }
 
 

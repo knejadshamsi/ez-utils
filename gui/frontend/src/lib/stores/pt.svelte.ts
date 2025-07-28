@@ -1,4 +1,5 @@
 import { trackLineChange, trackRouteChange, trackStopChange, trackDepartureChange } from '$lib/utils/ptChangeTracking';
+import { nanoid } from 'nanoid';
 
 export type TransportMode = 'BUS' | 'METRO' | 'TRAM';
 
@@ -7,7 +8,11 @@ export type Line = {
   type: TransportMode;
   name: string;
   routes: Array<{ id: string; name: string; stops: number }>;
+  local?: boolean;
 };
+
+export type StopType = 'REGULAR' | 'REQUEST' | 'BOARDING_ONLY' | 'ALIGHTING_ONLY';
+export type AccessibilityStatus = 'YES' | 'NO' | 'UNKNOWN';
 
 export type Stop = {
   routeId: string;
@@ -18,6 +23,9 @@ export type Stop = {
   lat: number;
   lng: number;
   sequence: number;
+  stopType?: StopType;
+  wheelchairAccessible?: AccessibilityStatus;
+  timingPoint?: boolean;
   attributes?: Record<string, string | number | boolean>;
 };
 
@@ -41,11 +49,10 @@ export const TRANSPORT_MODES = {
   TRAM: { value: 'TRAM', label: 'Tram', icon: '🚊', abbreviation: 'T' }
 }
 
-export type PTEditMode = 'NORMAL' | 'ADDING_STOP' | 'DRAGGING_STOP' | 'EDITING_STOP_ATTRIBUTES';
+export type PTEditMode = 'NORMAL' | 'ADDING_STOP' | 'DRAGGING_STOP' | 'EDITING_STOP_ATTRIBUTES' | 'EDITING_DEPARTURES';
 
 class PTState {
   ptData = $state<PTData[]>([]);
-  primarySidebarInfo = $state<Line[]>([]);
   
   selected = $state<{
     mode: TransportMode;
@@ -65,6 +72,12 @@ class PTState {
   });
   
   editMode = $state<PTEditMode>('NORMAL');
+  
+  // Map interaction states
+  isDraggingStop = $state<boolean>(false);
+  isAddingMultipleStops = $state<boolean>(false);
+  isSelectingStopLocation = $state<boolean>(false);
+  selectingStopId = $state<string | null>(null);
 
   // Helper to get or create PTData for current mode
   private getOrCreatePTData(): PTData {
@@ -85,15 +98,14 @@ class PTState {
   createLine(name: string): void {
     const ptData = this.getOrCreatePTData();
     const newLine: Line = {
-      id: `line_${Date.now()}`,
+      id: `line_${nanoid(10)}`,
       name,
       type: this.selected.mode,
-      routes: []
+      routes: [],
+      local: true
     };
     ptData.lines.push(newLine);
     
-    // Update primary sidebar info
-    this.primarySidebarInfo.push(newLine);
     
     // Track change
     trackLineChange(newLine, 'add');
@@ -104,12 +116,9 @@ class PTState {
     const lineIndex = ptData.lines.findIndex(l => l.id === lineId);
     if (lineIndex !== -1) {
       Object.assign(ptData.lines[lineIndex], updates);
+      // Mark as local when edited
+      ptData.lines[lineIndex].local = true;
       
-      // Update primary sidebar info
-      const sidebarIndex = this.primarySidebarInfo.findIndex(l => l.id === lineId);
-      if (sidebarIndex !== -1) {
-        Object.assign(this.primarySidebarInfo[sidebarIndex], updates);
-      }
       
       // Track change
       trackLineChange(ptData.lines[lineIndex], 'update');
@@ -133,8 +142,6 @@ class PTState {
       // Remove the line
       ptData.lines.splice(lineIndex, 1);
       
-      // Update primary sidebar info
-      this.primarySidebarInfo = this.primarySidebarInfo.filter(l => l.id !== lineId);
       
       // Clear selection if this line was selected
       if (this.selected.lineId === lineId) {
@@ -153,7 +160,7 @@ class PTState {
     const line = ptData.lines.find(l => l.id === lineId);
     if (line) {
       const newRoute = {
-        id: `route_${Date.now()}`,
+        id: `route_${nanoid(10)}`,
         name,
         stops: 0
       };
@@ -213,7 +220,10 @@ class PTState {
     
     const newStop: Stop = {
       ...stopData,
-      sequence: maxSequence + 1
+      sequence: maxSequence + 1,
+      stopType: stopData.stopType || 'REGULAR',
+      wheelchairAccessible: stopData.wheelchairAccessible || 'UNKNOWN',
+      timingPoint: stopData.timingPoint || false
     };
     
     ptData.stops.push(newStop);
@@ -262,25 +272,26 @@ class PTState {
     }
   }
 
-  reorderStops(routeId: string, stopIds: string[]): void {
-    const ptData = this.getOrCreatePTData();
-    const routeStops = ptData.stops.filter(s => s.routeId === routeId);
+  // COMMENTED OUT - Stop reordering not implemented yet
+  // reorderStops(routeId: string, stopIds: string[]): void {
+  //   const ptData = this.getOrCreatePTData();
+  //   const routeStops = ptData.stops.filter(s => s.routeId === routeId);
     
-    stopIds.forEach((stopId, index) => {
-      const stop = routeStops.find(s => s.stopId === stopId);
-      if (stop) {
-        stop.sequence = index + 1;
-        // Track change
-        trackStopChange(stop, 'update');
-      }
-    });
-  }
+  //   stopIds.forEach((stopId, index) => {
+  //     const stop = routeStops.find(s => s.stopId === stopId);
+  //     if (stop) {
+  //       stop.sequence = index + 1;
+  //       // Track change
+  //       trackStopChange(stop, 'update');
+  //     }
+  //   });
+  // }
 
   // DEPARTURE CRUD
   createDeparture(routeId: string, time: string, vehicleId?: string): void {
     const ptData = this.getOrCreatePTData();
     const newDeparture: Departure = {
-      id: `dep_${Date.now()}`,
+      id: `dep_${nanoid(10)}`,
       routeId,
       departureTime: time,
       vehicleRefId: vehicleId
@@ -348,10 +359,13 @@ class PTState {
     const stopCount = ptData.stops.filter(s => s.routeId === routeId).length;
     
     // Find the line containing this route and update stop count
-    for (const line of ptData.lines) {
-      const route = line.routes.find(r => r.id === routeId);
-      if (route) {
-        route.stops = stopCount;
+    for (let i = 0; i < ptData.lines.length; i++) {
+      const routeIndex = ptData.lines[i].routes.findIndex(r => r.id === routeId);
+      if (routeIndex !== -1) {
+        // Update the stop count
+        ptData.lines[i].routes[routeIndex].stops = stopCount;
+        // Force reactivity by reassigning the array
+        ptData.lines = [...ptData.lines];
         break;
       }
     }

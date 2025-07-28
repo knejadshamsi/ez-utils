@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Modal, Button, Label, Input, Helper } from 'flowbite-svelte';
   import { ptState } from '$lib/stores/pt.svelte';
+  import { nanoid } from 'nanoid';
 
   let { open = $bindable(), routeId }: { open: boolean; routeId: string } = $props();
   let stopName = $state('');
@@ -13,7 +14,7 @@
 
   function resetForm() {
     stopName = '';
-    stopId = `stop_${Date.now()}`;
+    stopId = `stop_${nanoid(10)}`;
     arrivalOffset = '00:00';
     departureOffset = '00:02';
     lat = 0;
