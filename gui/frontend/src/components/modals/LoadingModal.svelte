@@ -57,7 +57,7 @@
               // Create PTData for the current mode
               const ptData = {
                 mode: ptState.selected.mode,
-                lines: result.data.lines || [],
+                lines: result.data.summaries || result.data.lines || [],
                 stops: result.data.stops || [],
                 departures: result.data.departures || []
               };
@@ -65,15 +65,12 @@
               // Find or create PTData in array
               const existingIndex = ptState.ptData.findIndex(pd => pd.mode === ptState.selected.mode);
               if (existingIndex >= 0) {
-                ptState.ptData[existingIndex] = ptData;
+                // Reassign entire array for Svelte 5 reactivity
+                ptState.ptData = [...ptState.ptData.slice(0, existingIndex), ptData, ...ptState.ptData.slice(existingIndex + 1)];
               } else {
                 ptState.ptData.push(ptData);
               }
               
-              // Update primary sidebar info if lines exist
-              if (ptData.lines.length > 0) {
-                ptState.primarySidebarInfo = [...ptData.lines];
-              }
             }
           }
           

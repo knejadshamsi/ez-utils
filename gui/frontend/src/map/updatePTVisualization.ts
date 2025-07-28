@@ -21,28 +21,38 @@ export function updatePTVisualization() {
   if (!ptState.visibility.stops && !ptState.visibility.routes) return;
   
   // Get selected route data
-  const selectedRouteData = ptState.selectedRoute();
-  if (!selectedRouteData) return;
+  if (!ptState.selected.routeId) return;
   
-  const { line, route } = selectedRouteData;
-  const color = modeColors[line.mode] || '#666666';
+  const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
+  if (!ptData) return;
   
-  if (ptState.visibility.stops && route.stopSequence.length > 0) {
+  const line = ptData.lines.find(l => l.id === ptState.selected.lineId);
+  if (!line) return;
+  
+  const route = line.routes.find(r => r.id === ptState.selected.routeId);
+  if (!route) return;
+  
+  const color = modeColors[ptState.selected.mode.toLowerCase()] || '#666666';
+  
+  // Get stops for this route from ptData
+  const routeStops = ptData.stops.filter(s => s.routeId === ptState.selected.routeId)
+    .sort((a, b) => a.sequence - b.sequence);
+  
+  if (ptState.visibility.stops && routeStops.length > 0) {
     // Create dots for each stop in the route
-    route.stopSequence.forEach((stopTime, index) => {
-      const stop = ptState.stops.get(stopTime.stopId);
+    routeStops.forEach((stop, index) => {
       if (!stop || (stop.lng === 0 && stop.lat === 0)) return;
       
       // Create point
       const point: ConnectedPoint = {
-        id: `pt_${line.id}_stop_${stop.id}`,
+        id: `pt_${line.id}_stop_${stop.stopId}`,
         marker: null as any,
         position: L.latLng(stop.lat || 0, stop.lng || 0),
         color: color
       };
       
       // Create marker with mode-specific shape
-      const circleIcon = createNumberedIcon(index + 1, color, line.mode);
+      const circleIcon = createNumberedIcon(index + 1, color, ptState.selected.mode);
       const marker = L.marker(point.position, {
         draggable: false, // Will be enabled based on mode
         icon: circleIcon,
@@ -51,8 +61,8 @@ export function updatePTVisualization() {
       
       // Store stop data for drag events
       (marker as any).stopData = {
-        stopId: stop.id,
-        stopName: stop.name,
+        stopId: stop.stopId,
+        stopName: stop.stopName,
         lineId: line.id,
         routeId: route.id
       };
@@ -105,8 +115,7 @@ function setupMarkerEvents(marker: L.Marker, point: ConnectedPoint, stop: any, n
   
   // Get mode from stopData
   const stopData = (marker as any).stopData;
-  const selectedRouteData = ptState.selectedRoute();
-  const mode = selectedRouteData?.line.mode;
+  const mode = ptState.selected.mode;
   
   // Drag events
   marker.on('dragstart', () => {
@@ -131,24 +140,12 @@ function setupMarkerEvents(marker: L.Marker, point: ConnectedPoint, stop: any, n
     // Update stop location
     const newPos = marker.getLatLng();
     
-    if (stopData?.stopId) {
-      const stop = ptState.stops.get(stopData.stopId);
-      if (stop) {
-        const updatedStop = {
-          ...stop,
-          x: newPos.lng,
-          y: newPos.lat,
-          location: [newPos.lng, newPos.lat] as [number, number]
-        };
-        
-        // Update the stop in the state
-        const newStops = new Map(ptState.stops);
-        newStops.set(stopData.stopId, updatedStop);
-        ptState.stops = newStops;
-        
-        // Track the change
-        trackStopChange(updatedStop, 'update');
-      }
+    if (stop?.stopId) {
+      // Update the stop using ptState's update method
+      ptState.updateStop(stop.stopId, {
+        lat: newPos.lat,
+        lng: newPos.lng
+      });
     }
   });
   
@@ -211,7 +208,7 @@ function updateConnectedLines(pointId: string, newPosition: L.LatLng) {
 
 // Update dragging state based on current mode
 function updateDraggingState() {
-  const isDraggingMode = ptState.isDraggingStop || false;
+  const isDraggingMode = ptState.editMode === 'DRAGGING_STOP';
   
   mapState.connectedDots.points.forEach(point => {
     if (isDraggingMode) {

@@ -1,36 +1,50 @@
 <script lang="ts">
-  import { ButtonGroup, Button } from 'flowbite-svelte';
   import { ptState, TRANSPORT_MODES } from '$lib/stores/pt.svelte';
   import type { TransportMode } from '$lib/stores/pt.svelte';
   import { PTService } from '$lib/api/pt';
+  import { appState } from '$lib/stores/app.svelte';
+  import EzRadioGroup from '../EzRadioGroup.svelte';
+  import EzRadioOption from '../EzRadioOption.svelte';
   
   const modes = Object.values(TRANSPORT_MODES);
   
-  async function handleModeChange(mode: TransportMode) {
-    // Clear existing data and set new mode
-    ptState.setSelectedMode(mode);
+  async function handleModeChange(mode: string) {
+    ptState.selected.mode = mode as TransportMode;
     
-    // Fetch new mode data
-    try {
-      await PTService.loadPTData(mode);
-    } catch (error) {
-      console.error('Failed to load PT data for mode:', mode, error);
+    // Clear selection when switching modes
+    ptState.selected.lineId = null;
+    ptState.selected.routeId = null;
+    ptState.selected.stopId = null;
+    
+    // Close secondary sidebar when mode changes
+    appState.secondarySidebar = 'HIDDEN';
+    
+    // Only fetch data if we have a valid processId
+    if (appState.processId > 0) {
+      try {
+        await PTService.loadPTData(mode as TransportMode);
+      } catch (error) {
+        console.error('Failed to load PT data for mode:', mode, error);
+      }
     }
   }
 </script>
 
-<div class="flex items-center justify-center h-full">
-  <ButtonGroup class="shadow-sm">
-    {#each modes as mode}
-      <Button
-        size="sm"
-        color={ptState.selectedMode === mode.value ? 'primary' : 'alternative'}
-        onclick={() => handleModeChange(mode.value)}
-        class="px-4 py-2 text-sm font-medium transition-all duration-200 {ptState.selectedMode === mode.value ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}"
-      >
-        <span class="mr-2">{mode.icon}</span>
+<EzRadioGroup 
+  name="ptMode"
+  bind:value={ptState.selected.mode}
+  onchange={handleModeChange}
+>
+  {#each modes as mode}
+    <EzRadioOption 
+      name="ptMode" 
+      value={mode.value} 
+      checked={ptState.selected.mode === mode.value}
+    >
+      <div class="flex items-center gap-1.5">
+        <span>{mode.icon}</span>
         {mode.label}
-      </Button>
-    {/each}
-  </ButtonGroup>
-</div>
+      </div>
+    </EzRadioOption>
+  {/each}
+</EzRadioGroup>

@@ -1,24 +1,40 @@
 import { GetPTLinesByMode, GetPTStopsForRoute, GetPTDepartures } from '@wailsjs/go/gui/App';
-import { ptState } from '$lib/stores/pt.svelte';
+import { ptState, type Line, type TransportMode } from '$lib/stores/pt.svelte';
 import { appState } from '$lib/stores/app.svelte';
 import type { gui } from '@wailsjs/go/models';
 
 export class PTService {
   static async loadPTData(mode: string = 'BUS'): Promise<void> {
     try {
-      const lines = await GetPTLinesByMode(appState.processId, mode);
+      const backendLines = await GetPTLinesByMode(appState.processId, mode);
+      
+      // Convert backend lines to frontend Line type
+      const lines: Line[] = backendLines.map(line => ({
+        id: line.id,
+        type: line.type as TransportMode,
+        name: line.name,
+        routes: line.routes
+        // local is undefined for backend lines (not local)
+      }));
       
       // Create or update PTData for the current mode
       const ptData = {
-        mode: mode as any,
-        lines: lines as gui.Line[],
+        mode: mode as TransportMode,
+        lines: lines,
         stops: [],
         departures: []
       };
       
       const existingIndex = ptState.ptData.findIndex(pd => pd.mode === mode);
       if (existingIndex >= 0) {
-        ptState.ptData[existingIndex] = { ...ptState.ptData[existingIndex], lines: ptData.lines };
+        // Preserve local lines before overwriting
+        const localLines = ptState.ptData[existingIndex].lines.filter(line => line.local === true);
+        
+        // Set backend lines
+        ptState.ptData[existingIndex].lines = ptData.lines;
+        
+        // Add back local lines
+        ptState.ptData[existingIndex].lines.push(...localLines);
       } else {
         ptState.ptData.push(ptData);
       }

@@ -212,6 +212,91 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 		return a.db.DeleteLink(act.ProcessID, act.LinkID)
 
 	// ===== PT ACTIONS =====
+	case "pt.line.add":
+		var act struct {
+			ProcessID int `json:"processId"`
+			Line      struct {
+				ID    string `json:"id"`
+				Type  string `json:"type"`
+				Name  string `json:"name"`
+			} `json:"line"`
+		}
+		if err := json.Unmarshal(actionJSON, &act); err != nil {
+			return fmt.Errorf("failed to unmarshal add line action: %w", err)
+		}
+		return a.db.AddPTLine(act.ProcessID, act.Line.ID, act.Line.Type, act.Line.Name)
+
+	case "pt.line.update":
+		var act struct {
+			ProcessID int    `json:"processId"`
+			LineID    string `json:"lineId"`
+			Update    struct {
+				Name string `json:"name"`
+			} `json:"update"`
+		}
+		if err := json.Unmarshal(actionJSON, &act); err != nil {
+			return fmt.Errorf("failed to unmarshal update line action: %w", err)
+		}
+		return a.db.UpdatePTLine(act.ProcessID, act.LineID, act.Update.Name)
+
+	case "pt.route.add":
+		var act struct {
+			ProcessID int `json:"processId"`
+			Route     struct {
+				ID     string `json:"id"`
+				Name   string `json:"name"`
+				LineID string `json:"lineId"`
+			} `json:"route"`
+		}
+		if err := json.Unmarshal(actionJSON, &act); err != nil {
+			return fmt.Errorf("failed to unmarshal add route action: %w", err)
+		}
+		return a.db.AddPTRoute(act.ProcessID, act.Route.ID, act.Route.Name, act.Route.LineID)
+
+	case "pt.route.update":
+		var act struct {
+			ProcessID int    `json:"processId"`
+			RouteID   string `json:"routeId"`
+			Update    struct {
+				Name string `json:"name"`
+			} `json:"update"`
+		}
+		if err := json.Unmarshal(actionJSON, &act); err != nil {
+			return fmt.Errorf("failed to unmarshal update route action: %w", err)
+		}
+		return a.db.UpdatePTRoute(act.ProcessID, act.RouteID, act.Update.Name)
+
+	case "pt.departure.add":
+		var act struct {
+			ProcessID int `json:"processId"`
+			Departure struct {
+				ID           string `json:"id"`
+				RouteID      string `json:"routeId"`
+				DepartureTime string `json:"departureTime"`
+				VehicleRefID  string `json:"vehicleRefId,omitempty"`
+			} `json:"departure"`
+		}
+		if err := json.Unmarshal(actionJSON, &act); err != nil {
+			return fmt.Errorf("failed to unmarshal add departure action: %w", err)
+		}
+		return a.db.AddPTDeparture(act.ProcessID, act.Departure.ID, act.Departure.RouteID, 
+			act.Departure.DepartureTime, act.Departure.VehicleRefID)
+
+	case "pt.departure.update":
+		var act struct {
+			ProcessID   int    `json:"processId"`
+			DepartureID string `json:"departureId"`
+			Update      struct {
+				DepartureTime string `json:"departureTime"`
+				VehicleRefID  string `json:"vehicleRefId,omitempty"`
+			} `json:"update"`
+		}
+		if err := json.Unmarshal(actionJSON, &act); err != nil {
+			return fmt.Errorf("failed to unmarshal update departure action: %w", err)
+		}
+		return a.db.UpdatePTDeparture(act.ProcessID, act.DepartureID, 
+			act.Update.DepartureTime, act.Update.VehicleRefID)
+
 	case "pt.stop.add":
 		var act struct {
 			ProcessID int  `json:"processId"`
@@ -237,11 +322,15 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 		var act struct {
 			ProcessID int    `json:"processId"`
 			StopID    string `json:"stopId"`
+			RouteID   string `json:"routeId"`
 		}
 		if err := json.Unmarshal(actionJSON, &act); err != nil {
 			return fmt.Errorf("failed to unmarshal delete stop action: %w", err)
 		}
-		return a.db.DeletePTStop(act.ProcessID, act.StopID)
+		if act.RouteID == "" {
+			return fmt.Errorf("routeId is required for stop deletion")
+		}
+		return a.db.DeletePTStop(act.ProcessID, act.RouteID, act.StopID)
 
 	case "pt.stop.batchUpdate":
 		var act struct {
@@ -272,17 +361,6 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 			return fmt.Errorf("failed to unmarshal delete route action: %w", err)
 		}
 		return a.db.DeletePTRoute(act.ProcessID, act.RouteID)
-
-	case "pt.routeStop.delete":
-		var act struct {
-			ProcessID int    `json:"processId"`
-			RouteID   string `json:"routeId"`
-			StopOrder int    `json:"stopOrder"`
-		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal delete route stop action: %w", err)
-		}
-		return a.db.DeletePTRouteStop(act.ProcessID, act.RouteID, act.StopOrder)
 
 	case "pt.departure.delete":
 		var act struct {

@@ -43,7 +43,8 @@ export function trackStopChange(stop: Stop, action: 'add' | 'update' | 'delete')
       elementType: 'stop',
       action: 'delete',
       processId,
-      stopId: stop.stopId
+      stopId: stop.stopId,
+      routeId: stop.routeId
     };
     changeTracker.pendingChanges = [...changeTracker.pendingChanges, deleteAction];
   }
@@ -142,56 +143,6 @@ export function trackRouteChange(route: {id: string, name: string, lineId: strin
   }
 }
 
-// RouteStop doesn't exist anymore - just use Stop
-export function trackRouteStopChange(routeStop: Stop, action: 'add' | 'update' | 'delete') {
-  const processId = getCurrentProcessId();
-  if (!processId) return;
-  
-  // For route stops, we need to filter by both routeId and stopOrder
-  changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
-    (change) => {
-      if (change.type === 'pt' && change.elementType === 'routeStop') {
-        if ('routeStop' in change && change.routeStop.routeId === routeStop.routeId && 
-            change.routeStop.sequence === routeStop.sequence) return false;
-        if ('routeId' in change && 'stopOrder' in change && 
-            change.routeId === routeStop.routeId && change.stopOrder === routeStop.sequence) return false;
-      }
-      return true;
-    }
-  );
-  
-  if (action === 'add') {
-    const addAction: SyncAction = {
-      type: 'pt',
-      elementType: 'routeStop',
-      action: 'add',
-      processId,
-      routeStop
-    };
-    changeTracker.pendingChanges = [...changeTracker.pendingChanges, addAction];
-  } else if (action === 'update') {
-    const updateAction: SyncAction = {
-      type: 'pt',
-      elementType: 'routeStop',
-      action: 'update',
-      processId,
-      routeId: routeStop.routeId,
-      stopOrder: routeStop.sequence,
-      update: routeStop
-    };
-    changeTracker.pendingChanges = [...changeTracker.pendingChanges, updateAction];
-  } else if (action === 'delete') {
-    const deleteAction: SyncAction = {
-      type: 'pt',
-      elementType: 'routeStop',
-      action: 'delete',
-      processId,
-      routeId: routeStop.routeId,
-      stopOrder: routeStop.sequence
-    };
-    changeTracker.pendingChanges = [...changeTracker.pendingChanges, deleteAction];
-  }
-}
 
 export function trackBatchStopUpdates(updates: Record<string, Stop>) {
   const processId = getCurrentProcessId();
@@ -220,7 +171,7 @@ export function trackBatchStopUpdates(updates: Record<string, Stop>) {
   changeTracker.pendingChanges = [...changeTracker.pendingChanges, batchAction];
 }
 
-export function removePTChanges(elementType: 'stop' | 'line' | 'route' | 'routeStop', id: string, routeId?: string) {
+export function removePTChanges(elementType: 'stop' | 'line' | 'route', id: string) {
   changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
     (change) => {
       if (change.type === 'pt' && change.elementType === elementType) {
@@ -236,12 +187,6 @@ export function removePTChanges(elementType: 'stop' | 'line' | 'route' | 'routeS
           case 'route':
             if ('routeId' in change && change.routeId === id) return false;
             if ('route' in change && change.route.id === id) return false;
-            break;
-          case 'routeStop':
-            if ('routeId' in change && 'stopOrder' in change && 
-                change.routeId === routeId && change.stopOrder.toString() === id) return false;
-            if ('routeStop' in change && change.routeStop.routeId === routeId && 
-                change.routeStop.sequence.toString() === id) return false;
             break;
         }
       }

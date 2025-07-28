@@ -145,15 +145,18 @@ type Line struct {
 
 // Stop represents a stop with route-specific timing
 type Stop struct {
-	RouteID         string                 `json:"routeId"`
-	StopID          string                 `json:"stopId"`
-	ArrivalOffset   string                 `json:"arrivalOffset"`
-	DepartureOffset string                 `json:"departureOffset"`
-	StopName        string                 `json:"stopName"`
-	Lat             float64                `json:"lat"`
-	Lng             float64                `json:"lng"`
-	Sequence        int                    `json:"sequence"`
-	Attributes      map[string]interface{} `json:"attributes,omitempty"`
+	RouteID              string                 `json:"routeId"`
+	StopID               string                 `json:"stopId"`
+	ArrivalOffset        string                 `json:"arrivalOffset"`
+	DepartureOffset      string                 `json:"departureOffset"`
+	StopName             string                 `json:"stopName"`
+	Lat                  float64                `json:"lat"`
+	Lng                  float64                `json:"lng"`
+	Sequence             int                    `json:"sequence"`
+	StopType             string                 `json:"stopType,omitempty"`             // REGULAR, REQUEST, BOARDING_ONLY, ALIGHTING_ONLY
+	WheelchairAccessible string                 `json:"wheelchairAccessible,omitempty"` // YES, NO, UNKNOWN
+	TimingPoint          bool                   `json:"timingPoint,omitempty"`
+	Attributes           map[string]interface{} `json:"attributes,omitempty"`
 }
 
 // Departure represents a scheduled departure
@@ -166,13 +169,16 @@ type Departure struct {
 
 // PTStopUpdate represents an update to a stop
 type PTStopUpdate struct {
-	StopName        *string                `json:"stopName,omitempty"`
-	Lat             *float64               `json:"lat,omitempty"`
-	Lng             *float64               `json:"lng,omitempty"`
-	ArrivalOffset   *string                `json:"arrivalOffset,omitempty"`
-	DepartureOffset *string                `json:"departureOffset,omitempty"`
-	Sequence        *int                   `json:"sequence,omitempty"`
-	Attributes      map[string]interface{} `json:"attributes,omitempty"`
+	StopName             *string                `json:"stopName,omitempty"`
+	Lat                  *float64               `json:"lat,omitempty"`
+	Lng                  *float64               `json:"lng,omitempty"`
+	ArrivalOffset        *string                `json:"arrivalOffset,omitempty"`
+	DepartureOffset      *string                `json:"departureOffset,omitempty"`
+	Sequence             *int                   `json:"sequence,omitempty"`
+	StopType             *string                `json:"stopType,omitempty"`
+	WheelchairAccessible *string                `json:"wheelchairAccessible,omitempty"`
+	TimingPoint          *bool                  `json:"timingPoint,omitempty"`
+	Attributes           map[string]interface{} `json:"attributes,omitempty"`
 }
 
 // Spatial query types
