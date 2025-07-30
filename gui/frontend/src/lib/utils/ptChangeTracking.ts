@@ -1,335 +1,178 @@
-import { changeTracker } from '$lib/changeTracker.svelte';
-import type { SyncAction } from '$lib/changeTracker.svelte';
-import { getCurrentProcessId } from '$lib/utils/processId';
-import type { Line, Stop, Departure } from '$lib/stores/pt.svelte';
+// Simplified change tracking for PT module
+// Changes are tracked per route and saved automatically when switching routes
 
-export function trackStopChange(stop: Stop, action: 'save' | 'delete') {
-  const processId = getCurrentProcessId();
-  if (!processId) return;
-  
-  if (action === 'delete') {
-    // For delete, we only need to remove from route_stops (which cascades)
-    const deleteAction: SyncAction = {
-      type: 'pt',
-      elementType: 'routeStop',
-      action: 'delete',
-      processId,
-      stopId: stop.stopId,
-      routeId: stop.routeId
-    };
-    changeTracker.pendingChanges = [...changeTracker.pendingChanges, deleteAction];
-    return;
-  }
-  
-  if (action === 'save') {
-    // Save involves two operations:
-    // 1. Save the stop entity
-    const stopEntity = {
-      stopId: stop.stopId,
-      stopName: stop.stopName,
-      lat: stop.lat,
-      lng: stop.lng,
-      arrivalOffset: stop.arrivalOffset,
-      departureOffset: stop.departureOffset,
-      stopType: stop.stopType,
-      wheelchairAccessible: stop.wheelchairAccessible,
-      timingPoint: stop.timingPoint
-    };
-    
-    const saveStopAction: SyncAction = {
-      type: 'pt',
-      elementType: 'stop',
-      action: 'save',
-      processId,
-      stop: stopEntity
-    };
-    
-    // 2. Save the route-stop junction
-    const routeStop = {
-      linkId: `rs_${stop.routeId}_${stop.stopId}`,
-      routeId: stop.routeId,
-      stopId: stop.stopId,
-      sequence: stop.sequence
-    };
-    
-    const saveRouteStopAction: SyncAction = {
-      type: 'pt',
-      elementType: 'routeStop',
-      action: 'save',
-      processId,
-      routeStop: routeStop
-    };
-    
-    // Remove any existing changes for this stop/route-stop
-    changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
-      (change) => {
-        if (change.type === 'pt') {
-          if (change.elementType === 'stop' && 'stop' in change && change.stop.stopId === stop.stopId) return false;
-          if (change.elementType === 'routeStop' && 'routeStop' in change && change.routeStop.stopId === stop.stopId && change.routeStop.routeId === stop.routeId) return false;
-        }
-        return true;
-      }
-    );
-    
-    // Add both actions
-    changeTracker.pendingChanges = [...changeTracker.pendingChanges, saveStopAction, saveRouteStopAction];
-  }
-}
-
-export function trackLineChange(line: Line, action: 'save' | 'delete') {
-  const processId = getCurrentProcessId();
-  if (!processId) return;
-  
-  if (action === 'delete') {
-    // Check if there's an existing 'add' action for this line
-    const hasAddAction = changeTracker.pendingChanges.some(
-      (change) => change.type === 'pt' && 
-                  change.elementType === 'line' && 
-                  change.action === 'add' &&
-                  ('line' in change && change.line.id === line.id)
-    );
-    
-    // Remove any existing changes for this line
-    changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
-      (change) => {
-        if (change.type === 'pt' && change.elementType === 'line') {
-          if ('lineId' in change && change.lineId === line.id) return false;
-          if ('line' in change && change.line.id === line.id) return false;
-        }
-        return true;
-      }
-    );
-    
-    // If it was newly added (not yet in database), just remove it from pending changes
-    if (hasAddAction) {
-      return; // Don't add a delete action
+interface PTChanges {
+  stops: {
+    [stopId: string]: {
+      action: 'save' | 'delete';
+      data: any;
+      isNew: boolean;
     }
-    
-    // Otherwise, add a delete action
-    const deleteAction: SyncAction = {
-      type: 'pt',
-      elementType: 'line',
-      action: 'delete',
-      processId,
-      lineId: line.id
-    };
-    changeTracker.pendingChanges = [...changeTracker.pendingChanges, deleteAction];
-    return;
-  }
-  
-  // Remove any existing changes for this line
-  changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
-    (change) => {
-      if (change.type === 'pt' && change.elementType === 'line') {
-        if ('lineId' in change && change.lineId === line.id) return false;
-        if ('line' in change && change.line.id === line.id) return false;
-      }
-      return true;
-    }
-  );
-  
-  if (action === 'save') {
-    // Strip sourceState before sending to backend
-    const { sourceState, ...lineWithoutState } = line;
-    const saveAction: SyncAction = {
-      type: 'pt',
-      elementType: 'line',
-      action: 'save',
-      processId,
-      line: lineWithoutState
-    };
-    changeTracker.pendingChanges = [...changeTracker.pendingChanges, saveAction];
-  }
-}
-
-// Route is now a separate entity with lineId
-export function trackRouteChange(route: {id: string, name: string, lineId: string, sourceState?: string}, action: 'save' | 'delete') {
-  const processId = getCurrentProcessId();
-  if (!processId) return;
-  
-  if (action === 'delete') {
-    // Check if there's an existing 'add' action for this route
-    const hasAddAction = changeTracker.pendingChanges.some(
-      (change) => change.type === 'pt' && 
-                  change.elementType === 'route' && 
-                  change.action === 'add' &&
-                  ('route' in change && change.route.id === route.id)
-    );
-    
-    // Remove any existing changes for this route
-    changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
-      (change) => {
-        if (change.type === 'pt' && change.elementType === 'route') {
-          if ('routeId' in change && change.routeId === route.id) return false;
-          if ('route' in change && change.route.id === route.id) return false;
-        }
-        return true;
-      }
-    );
-    
-    // If it was newly added (not yet in database), just remove it from pending changes
-    if (hasAddAction) {
-      return; // Don't add a delete action
-    }
-    
-    // Otherwise, add a delete action
-    const deleteAction: SyncAction = {
-      type: 'pt',
-      elementType: 'route',
-      action: 'delete',
-      processId,
-      routeId: route.id
-    };
-    changeTracker.pendingChanges = [...changeTracker.pendingChanges, deleteAction];
-    return;
-  }
-  
-  // Remove any existing changes for this route
-  changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
-    (change) => {
-      if (change.type === 'pt' && change.elementType === 'route') {
-        if ('routeId' in change && change.routeId === route.id) return false;
-        if ('route' in change && change.route.id === route.id) return false;
-      }
-      return true;
-    }
-  );
-  
-  if (action === 'save') {
-    // Strip sourceState before sending to backend
-    const { sourceState, ...routeWithoutState } = route;
-    const saveAction: SyncAction = {
-      type: 'pt',
-      elementType: 'route',
-      action: 'save',
-      processId,
-      route: routeWithoutState
-    };
-    changeTracker.pendingChanges = [...changeTracker.pendingChanges, saveAction];
-  }
-}
-
-
-export function trackBatchStopUpdates(updates: Record<string, Stop>) {
-  const processId = getCurrentProcessId();
-  if (!processId) return;
-  
-  // Remove any existing individual stop changes for the stops being batch updated
-  const stopIds = Object.keys(updates);
-  changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
-    (change) => {
-      if (change.type === 'pt' && change.elementType === 'stop') {
-        if ('stopId' in change && stopIds.includes(change.stopId)) return false;
-        if ('stop' in change && stopIds.includes(change.stop.stopId)) return false;
-      }
-      return true;
-    }
-  );
-  
-  // Strip sourceState from all stops in the batch
-  const updatesWithoutState: Record<string, any> = {};
-  for (const [id, stop] of Object.entries(updates)) {
-    const { sourceState, ...stopWithoutState } = stop;
-    updatesWithoutState[id] = stopWithoutState;
-  }
-  
-  const batchAction: SyncAction = {
-    type: 'pt',
-    elementType: 'stop',
-    action: 'batchUpdate',
-    processId,
-    updates: updatesWithoutState
   };
-  
-  changeTracker.pendingChanges = [...changeTracker.pendingChanges, batchAction];
-}
-
-export function removePTChanges(elementType: 'stop' | 'line' | 'route', id: string) {
-  changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
-    (change) => {
-      if (change.type === 'pt' && change.elementType === elementType) {
-        switch (elementType) {
-          case 'stop':
-            if ('stopId' in change && change.stopId === id) return false;
-            if ('stop' in change && change.stop.stopId === id) return false;
-            break;
-          case 'line':
-            if ('lineId' in change && change.lineId === id) return false;
-            if ('line' in change && change.line.id === id) return false;
-            break;
-          case 'route':
-            if ('routeId' in change && change.routeId === id) return false;
-            if ('route' in change && change.route.id === id) return false;
-            break;
-        }
-      }
-      return true;
+  departures: {
+    [departureId: string]: {
+      action: 'save' | 'delete';
+      data: any;
+      isNew: boolean;
     }
-  );
+  };
+  lines: {
+    [lineId: string]: {
+      action: 'save' | 'delete';
+      data: any;
+      isNew: boolean;
+    }
+  };
+  routes: {
+    [routeId: string]: {
+      action: 'save' | 'delete';
+      data: any;
+      isNew: boolean;
+    }
+  };
 }
 
-export function trackDepartureChange(departure: Departure, action: 'save' | 'delete') {
-  const processId = getCurrentProcessId();
-  if (!processId) return;
+// Initialize global change tracking
+if (!(window as any).__ptChanges) {
+  (window as any).__ptChanges = {
+    stops: {},
+    departures: {},
+    lines: {},
+    routes: {}
+  } as PTChanges;
+}
+
+function getChanges(): PTChanges {
+  return (window as any).__ptChanges;
+}
+
+export function trackStopChange(stop: any, action: 'save' | 'delete') {
+  const changes = getChanges();
   
   if (action === 'delete') {
-    // Check if there's an existing 'add' action for this departure
-    const hasAddAction = changeTracker.pendingChanges.some(
-      (change) => change.type === 'pt' && 
-                  change.elementType === 'departure' && 
-                  change.action === 'add' &&
-                  ('departure' in change && change.departure.id === departure.id)
-    );
-    
-    // Remove any existing changes for this departure
-    changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
-      (change) => {
-        if (change.type === 'pt' && change.elementType === 'departure') {
-          if ('departureId' in change && change.departureId === departure.id) return false;
-          if ('departure' in change && change.departure.id === departure.id) return false;
-        }
-        return true;
-      }
-    );
-    
-    // If it was newly added (not yet in database), just remove it from pending changes
-    if (hasAddAction) {
-      return; // Don't add a delete action
+    // If it was new and not saved, just remove from tracking
+    if (changes.stops[stop.stopId]?.isNew) {
+      delete changes.stops[stop.stopId];
+    } else {
+      changes.stops[stop.stopId] = {
+        action: 'delete',
+        data: stop,
+        isNew: false
+      };
     }
+  } else {
+    // Check if this is a new stop (not in backend yet)
+    const isNew = stop.stopId.startsWith('stop_') && !changes.stops[stop.stopId]?.isNew === false;
     
-    // Otherwise, add a delete action
-    const deleteAction: SyncAction = {
-      type: 'pt',
-      elementType: 'departure',
-      action: 'delete',
-      processId,
-      departureId: departure.id
-    };
-    changeTracker.pendingChanges = [...changeTracker.pendingChanges, deleteAction];
-    return;
-  }
-  
-  // Remove any existing changes for this departure
-  changeTracker.pendingChanges = changeTracker.pendingChanges.filter(
-    (change) => {
-      if (change.type === 'pt' && change.elementType === 'departure') {
-        if ('departureId' in change && change.departureId === departure.id) return false;
-        if ('departure' in change && change.departure.id === departure.id) return false;
-      }
-      return true;
-    }
-  );
-  
-  if (action === 'save') {
-    // Strip sourceState before sending to backend
-    const { sourceState, ...departureWithoutState } = departure;
-    const saveAction: SyncAction = {
-      type: 'pt',
-      elementType: 'departure',
+    changes.stops[stop.stopId] = {
       action: 'save',
-      processId,
-      departure: departureWithoutState
+      data: stop,
+      isNew
     };
-    changeTracker.pendingChanges = [...changeTracker.pendingChanges, saveAction];
   }
+}
+
+export function trackLineChange(line: any, action: 'save' | 'delete') {
+  const changes = getChanges();
+  
+  if (action === 'delete') {
+    // If it was new and not saved, just remove from tracking
+    if (changes.lines[line.id]?.isNew) {
+      delete changes.lines[line.id];
+    } else {
+      changes.lines[line.id] = {
+        action: 'delete',
+        data: line,
+        isNew: false
+      };
+    }
+  } else {
+    // Check if this is a new line
+    const isNew = line.id.startsWith('line_') && !changes.lines[line.id]?.isNew === false;
+    
+    changes.lines[line.id] = {
+      action: 'save',
+      data: line,
+      isNew
+    };
+  }
+}
+
+export function trackRouteChange(route: any, action: 'save' | 'delete') {
+  const changes = getChanges();
+  
+  if (action === 'delete') {
+    // If it was new and not saved, just remove from tracking
+    if (changes.routes[route.id]?.isNew) {
+      delete changes.routes[route.id];
+    } else {
+      changes.routes[route.id] = {
+        action: 'delete',
+        data: route,
+        isNew: false
+      };
+    }
+  } else {
+    // Check if this is a new route
+    const isNew = route.id.startsWith('route_') && !changes.routes[route.id]?.isNew === false;
+    
+    changes.routes[route.id] = {
+      action: 'save',
+      data: route,
+      isNew
+    };
+  }
+}
+
+export function trackDepartureChange(departure: any, action: 'save' | 'delete') {
+  const changes = getChanges();
+  
+  if (action === 'delete') {
+    // If it was new and not saved, just remove from tracking
+    if (changes.departures[departure.id]?.isNew) {
+      delete changes.departures[departure.id];
+    } else {
+      changes.departures[departure.id] = {
+        action: 'delete',
+        data: departure,
+        isNew: false
+      };
+    }
+  } else {
+    // Check if this is a new departure
+    const isNew = departure.id.startsWith('dep_') && !changes.departures[departure.id]?.isNew === false;
+    
+    changes.departures[departure.id] = {
+      action: 'save',
+      data: departure,
+      isNew
+    };
+  }
+}
+
+export function clearRouteChanges(routeId: string) {
+  const changes = getChanges();
+  
+  // Clear stops for this route
+  Object.keys(changes.stops).forEach(stopId => {
+    if (changes.stops[stopId].data.routeId === routeId) {
+      delete changes.stops[stopId];
+    }
+  });
+  
+  // Clear departures for this route
+  Object.keys(changes.departures).forEach(depId => {
+    if (changes.departures[depId].data.routeId === routeId) {
+      delete changes.departures[depId];
+    }
+  });
+}
+
+export function clearAllChanges() {
+  (window as any).__ptChanges = {
+    stops: {},
+    departures: {},
+    lines: {},
+    routes: {}
+  };
 }

@@ -3,6 +3,7 @@
   import { CloseOutline, PlusOutline, TrashBinOutline, CogOutline, MapPinOutline, CheckOutline, CloseCircleOutline, EditOutline } from 'flowbite-svelte-icons';
   import { ptState, TRANSPORT_MODES, type StopType, type AccessibilityStatus } from '$lib/stores/pt.svelte';
   import { appState } from '$lib/stores/app.svelte';
+  import { PTService } from '$lib/api/pt';
   import DepartureManagementModal from '../modals/pt/DepartureManagementModal.svelte';
   import { mapState } from '../../map/mapState.svelte';
   import type * as L from 'leaflet';
@@ -18,32 +19,27 @@
   // Get current selected route data
   const selectedLine = $derived(() => {
     if (!ptState.selected.lineId) return null;
-    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
-    return ptData?.lines.find(l => l.id === ptState.selected.lineId);
+    const line = ptState.ptData[ptState.selected.mode][ptState.selected.lineId];
+    return line ? { id: ptState.selected.lineId, name: line.name } : null;
   });
   
   const selectedRoute = $derived(() => {
-    if (!ptState.selected.routeId) return null;
-    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
-    return ptData?.routes.find(r => r.id === ptState.selected.routeId);
+    if (!ptState.selected.routeId || !ptState.selected.lineId) return null;
+    const line = ptState.ptData[ptState.selected.mode][ptState.selected.lineId];
+    const route = line?.routes[ptState.selected.routeId];
+    return route ? { id: ptState.selected.routeId, name: route.name } : null;
   });
   
   const routeStops = $derived(() => {
-    if (!ptState.selected.routeId) return [];
-    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
-    return ptData?.stops.filter(s => s.routeId === ptState.selected.routeId).sort((a, b) => a.sequence - b.sequence) || [];
+    return ptState.currentRouteData.stops.sort((a, b) => a.sequence - b.sequence);
   });
   
   const departureCount = $derived(() => {
-    if (!ptState.selected.routeId) return 0;
-    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
-    return ptData?.departures.filter(d => d.routeId === ptState.selected.routeId).length || 0;
+    return ptState.currentRouteData.departures.length;
   });
 
   const routeDepartures = $derived(() => {
-    if (!ptState.selected.routeId) return [];
-    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
-    return ptData?.departures.filter(d => d.routeId === ptState.selected.routeId) || [];
+    return ptState.currentRouteData.departures;
   });
   
   const departureItems = $derived(() => {
@@ -79,10 +75,10 @@
   }
 
   function handleDeleteRoute() {
-    if (!selectedRoute()) return;
+    if (!selectedRoute() || !ptState.selected.lineId) return;
     
     if (confirm(`Delete route "${selectedRoute()?.name}"? This will also delete all stops and departures.`)) {
-      ptState.deleteRoute(selectedRoute()!.id);
+      ptState.deleteRoute(ptState.selected.lineId, selectedRoute()!.id);
       handleClose();
     }
   }
@@ -224,8 +220,8 @@
   }
   
   function saveRouteName() {
-    if (editingRouteName && editingRouteName.trim() && selectedRoute()) {
-      ptState.updateRoute(selectedRoute()!.id, { name: editingRouteName.trim() });
+    if (editingRouteName && editingRouteName.trim() && selectedRoute() && ptState.selected.lineId) {
+      ptState.updateRoute(ptState.selected.lineId, selectedRoute()!.id, editingRouteName.trim());
       editingRouteName = null;
     }
   }
@@ -322,7 +318,7 @@
           <p class="text-sm text-gray-400 text-center py-4">No stops</p>
         {:else}
           <div class="space-y-2">
-            {#each routeStops().sort((a, b) => a.sequence - b.sequence) as stop, index}
+            {#each routeStops() as stop, index}
               <div 
                 class="rounded border {ptState.selected.stopId === stop.stopId ? 'ring-2 ring-blue-500 border-blue-500' : 'border-gray-200 dark:border-gray-700'}"
               >

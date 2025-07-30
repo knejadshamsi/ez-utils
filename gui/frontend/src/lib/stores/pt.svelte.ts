@@ -3,55 +3,52 @@ import { nanoid } from 'nanoid';
 
 export type TransportMode = 'BUS' | 'METRO' | 'TRAM';
 
-export type SourceState = 'persisted' | 'local' | 'modified';
-
-export type Line = {
-  id: string;
-  type: TransportMode;
+export type LineData = {
   name: string;
-  sourceState: SourceState;
+  unsaved: boolean;
+  routes: {
+    [routeId: string]: {
+      name: string;
+      unsaved: boolean;
+    }
+  }
 };
 
-export type Route = {
-  id: string;
-  lineId: string;
-  name: string;
-  sourceState: SourceState;
+export type PTData = {
+  BUS: { [lineId: string]: LineData };
+  METRO: { [lineId: string]: LineData };
+  TRAM: { [lineId: string]: LineData };
 };
 
 export type StopType = 'REGULAR' | 'REQUEST' | 'BOARDING_ONLY' | 'ALIGHTING_ONLY';
 export type AccessibilityStatus = 'YES' | 'NO' | 'UNKNOWN';
 
 export type Stop = {
-  routeId: string;
   stopId: string;
-  arrivalOffset: string;
-  departureOffset: string;
   stopName: string;
   lat: number;
   lng: number;
-  sequence: number;
+  arrivalOffset: string;
+  departureOffset: string;
   stopType?: StopType;
   wheelchairAccessible?: AccessibilityStatus;
   timingPoint?: boolean;
   attributes?: Record<string, string | number | boolean>;
-  sourceState: SourceState;
+  unsaved: boolean;
 };
 
 export type Departure = {
   id: string;
-  routeId: string;
   departureTime: string;
   vehicleRefId?: string;
-  sourceState: SourceState;
+  unsaved: boolean;
 };
 
-export type PTData = {
-  mode: TransportMode;
-  lines: Line[];
-  routes: Route[];
-  stops: Stop[];
-  departures: Departure[];
+export type RouteStop = {
+  linkId: string;
+  routeId: string;
+  stopId: string;
+  sequence: number;
 };
 
 export const TRANSPORT_MODES = {
@@ -63,12 +60,25 @@ export const TRANSPORT_MODES = {
 export type PTEditMode = 'NORMAL' | 'ADDING_STOP' | 'DRAGGING_STOP' | 'EDITING_STOP_ATTRIBUTES' | 'EDITING_DEPARTURES' | 'ADDING_MULTIPLE_STOPS' | 'SELECTING_STOP_LOCATION';
 
 class PTState {
-  // Single data source with sourceState
-  ptData = $state<PTData[]>([
-    { mode: 'BUS', lines: [], routes: [], stops: [], departures: [] },
-    { mode: 'METRO', lines: [], routes: [], stops: [], departures: [] },
-    { mode: 'TRAM', lines: [], routes: [], stops: [], departures: [] }
-  ]);
+  // Nested object structure for lines and routes
+  ptData = $state<PTData>({
+    BUS: {},
+    METRO: {},
+    TRAM: {}
+  });
+  
+  // Current route data with object-based storage
+  currentRouteData = $state<{
+    routeId: string | null;
+    sequence: string[];  // Array of stopIds in order
+    stops: { [stopId: string]: Stop };  // Keyed by stopId
+    departures: { [departureId: string]: Departure };  // Keyed by departureId
+  }>({
+    routeId: null,
+    sequence: [],
+    stops: {},
+    departures: {}
+  });
   
   selected = $state<{
     mode: TransportMode;
@@ -90,275 +100,211 @@ class PTState {
   editMode = $state<PTEditMode>('NORMAL');
   selectingStopId = $state<string | null>(null);
 
-  // Helper to get current mode data
-  getCurrentModeData() {
-    return this.ptData.find(pd => pd.mode === this.selected.mode)!;
-  }
-
   // LINE CRUD
-  createLine(name: string): void {
-    const ptData = this.getCurrentModeData();
-    const newLine: Line = {
-      id: `line_${nanoid(10)}`,
+  createLine(name: string): string {
+    const lineId = `line_${nanoid(10)}`;
+    this.ptData[this.selected.mode][lineId] = {
       name,
-      type: this.selected.mode,
-      sourceState: 'local'
+      unsaved: true,
+      routes: {}
     };
-    ptData.lines.push(newLine);
     
-    // Track change as save
-    trackLineChange(newLine, 'save');
+    // Track change
+    trackLineChange({ id: lineId, name, type: this.selected.mode }, 'save');
+    
+    return lineId;
   }
 
-  updateLine(lineId: string, updates: {name?: string}): void {
-    const ptData = this.getCurrentModeData();
-    const index = ptData.lines.findIndex(l => l.id === lineId);
-    
-    if (index !== -1) {
-      const line = ptData.lines[index];
-      Object.assign(line, updates);
+  updateLine(lineId: string, name: string): void {
+    const line = this.ptData[this.selected.mode][lineId];
+    if (line) {
+      line.name = name;
+      line.unsaved = true;
       
-      // Update sourceState if it was persisted
-      if (line.sourceState === 'persisted') {
-        line.sourceState = 'modified';
-      }
-      
-      trackLineChange(line, 'save');
+      // Track change
+      trackLineChange({ id: lineId, name, type: this.selected.mode }, 'save');
     }
   }
 
   deleteLine(lineId: string): void {
-    // Clear selection if this line was selected
-    if (this.selected.lineId === lineId) {
-      this.selected.lineId = null;
-      this.selected.routeId = null;
-    }
-
-    const ptData = this.getCurrentModeData();
-    const index = ptData.lines.findIndex(l => l.id === lineId);
+    const mode = this.selected.mode;
+    const line = this.ptData[mode][lineId];
     
-    if (index !== -1) {
-      const line = ptData.lines[index];
+    if (line) {
+      // Clear selection if this line was selected
+      if (this.selected.lineId === lineId) {
+        this.selected.lineId = null;
+        this.selected.routeId = null;
+      }
       
-      if (line.sourceState === 'local') {
-        // Remove from data entirely
-        ptData.lines.splice(index, 1);
-        
-        // Also delete local routes, stops, departures for this line
-        const routeIds = ptData.routes.filter(r => r.lineId === lineId).map(r => r.id);
-        ptData.routes = ptData.routes.filter(r => r.lineId !== lineId);
-        ptData.stops = ptData.stops.filter(s => !routeIds.includes(s.routeId));
-        ptData.departures = ptData.departures.filter(d => !routeIds.includes(d.routeId));
-      } else {
-        // For persisted/modified, track delete
-        ptData.lines.splice(index, 1);
-        trackLineChange(line, 'delete');
+      // Delete the line
+      delete this.ptData[mode][lineId];
+      
+      // Track deletion if it was saved
+      if (!line.unsaved) {
+        trackLineChange({ id: lineId, name: line.name, type: mode }, 'delete');
       }
     }
   }
 
   // ROUTE CRUD
-  createRoute(lineId: string, name: string): void {
-    const ptData = this.getCurrentModeData();
-    const newRoute: Route = {
-      id: `route_${nanoid(10)}`,
-      lineId,
-      name,
-      sourceState: 'local'
-    };
-    ptData.routes.push(newRoute);
+  createRoute(lineId: string, name: string): string {
+    const routeId = `route_${nanoid(10)}`;
+    const line = this.ptData[this.selected.mode][lineId];
     
-    // Track change as save
-    trackRouteChange(newRoute, 'save');
+    if (line) {
+      line.routes[routeId] = {
+        name,
+        unsaved: true
+      };
+      
+      // Mark line as unsaved too
+      line.unsaved = true;
+      
+      // Track change
+      trackRouteChange({ id: routeId, name, lineId }, 'save');
+    }
+    
+    return routeId;
   }
 
-  updateRoute(routeId: string, updates: {name?: string}): void {
-    const ptData = this.getCurrentModeData();
-    const index = ptData.routes.findIndex(r => r.id === routeId);
-    
-    if (index !== -1) {
-      const route = ptData.routes[index];
-      Object.assign(route, updates);
+  updateRoute(lineId: string, routeId: string, name: string): void {
+    const line = this.ptData[this.selected.mode][lineId];
+    if (line?.routes[routeId]) {
+      line.routes[routeId].name = name;
+      line.routes[routeId].unsaved = true;
       
-      // Update sourceState if it was persisted
-      if (route.sourceState === 'persisted') {
-        route.sourceState = 'modified';
+      // Track change
+      trackRouteChange({ id: routeId, name, lineId }, 'save');
+    }
+  }
+
+  deleteRoute(lineId: string, routeId: string): void {
+    const line = this.ptData[this.selected.mode][lineId];
+    if (line?.routes[routeId]) {
+      const route = line.routes[routeId];
+      
+      // Clear selection if this route was selected
+      if (this.selected.routeId === routeId) {
+        this.selected.routeId = null;
       }
       
-      trackRouteChange(route, 'save');
-    }
-  }
-
-  deleteRoute(routeId: string): void {
-    // Clear selection if this route was selected
-    if (this.selected.routeId === routeId) {
-      this.selected.routeId = null;
-    }
-
-    const ptData = this.getCurrentModeData();
-    const index = ptData.routes.findIndex(r => r.id === routeId);
-    
-    if (index !== -1) {
-      const route = ptData.routes[index];
+      // Clear current route data if it was loaded
+      if (this.currentRouteData.routeId === routeId) {
+        this.currentRouteData = {
+          routeId: null,
+          sequence: [],
+          stops: {},
+          departures: {}
+        };
+      }
       
-      if (route.sourceState === 'local') {
-        // Remove from data entirely
-        ptData.routes.splice(index, 1);
-        
-        // Also delete local stops and departures for this route
-        ptData.stops = ptData.stops.filter(s => s.routeId !== routeId);
-        ptData.departures = ptData.departures.filter(d => d.routeId !== routeId);
-      } else {
-        // For persisted/modified, track delete
-        ptData.routes.splice(index, 1);
-        trackRouteChange(route, 'delete');
+      // Delete the route
+      delete line.routes[routeId];
+      
+      // Track deletion if it was saved
+      if (!route.unsaved) {
+        trackRouteChange({ id: routeId, name: route.name, lineId }, 'delete');
       }
     }
   }
 
-  // STOP CRUD
-  createStop(stopData: Omit<Stop, 'sequence' | 'sourceState'>): void {
-    const ptData = this.getCurrentModeData();
+  // STOP CRUD (operates on currentRouteData)
+  createStop(stopData: Omit<Stop, 'unsaved'>): string {
+    if (!this.currentRouteData.routeId) return '';
     
-    // Calculate next sequence number for this route
-    const routeStops = ptData.stops.filter(s => s.routeId === stopData.routeId);
-    const maxSequence = routeStops.reduce((max, s) => Math.max(max, s.sequence), 0);
+    const stopId = stopData.stopId || `stop_${nanoid(10)}`;
     
     const newStop: Stop = {
       ...stopData,
-      sequence: maxSequence + 1,
+      stopId,
       stopType: stopData.stopType || 'REGULAR',
       wheelchairAccessible: stopData.wheelchairAccessible || 'UNKNOWN',
       timingPoint: stopData.timingPoint || false,
-      sourceState: 'local'
+      unsaved: true
     };
     
-    ptData.stops.push(newStop);
+    // Add to stops map
+    this.currentRouteData.stops[stopId] = newStop;
     
     // Track change
     trackStopChange(newStop, 'save');
+    
+    return stopId;
   }
 
   updateStop(stopId: string, updates: Partial<Stop>): void {
-    const ptData = this.getCurrentModeData();
-    const index = ptData.stops.findIndex(s => s.stopId === stopId);
-    
-    if (index !== -1) {
-      const stop = ptData.stops[index];
+    const stop = this.currentRouteData.stops[stopId];
+    if (stop) {
       Object.assign(stop, updates);
+      stop.unsaved = true;
       
-      // Update sourceState if it was persisted
-      if (stop.sourceState === 'persisted') {
-        stop.sourceState = 'modified';
-      }
-      
+      // Track change
       trackStopChange(stop, 'save');
     }
   }
 
   deleteStop(stopId: string): void {
-    const ptData = this.getCurrentModeData();
-    const index = ptData.stops.findIndex(s => s.stopId === stopId);
-    
-    if (index !== -1) {
-      const stop = ptData.stops[index];
-      const routeId = stop.routeId;
+    const stop = this.currentRouteData.stops[stopId];
+    if (stop) {
+      // Remove from sequence
+      this.currentRouteData.sequence = this.currentRouteData.sequence.filter(id => id !== stopId);
       
-      if (stop.sourceState === 'local') {
-        // Remove from data entirely
-        ptData.stops.splice(index, 1);
-      } else {
-        // For persisted/modified, track delete
-        ptData.stops.splice(index, 1);
-        trackStopChange(stop, 'delete');
-      }
+      // Remove from stops map
+      delete this.currentRouteData.stops[stopId];
       
-      // Resequence remaining stops for this route
-      const remainingStops = ptData.stops
-        .filter(s => s.routeId === routeId)
-        .sort((a, b) => a.sequence - b.sequence);
-      
-      remainingStops.forEach((s, idx) => {
-        s.sequence = idx + 1;
-      });
+      // Track deletion
+      trackStopChange(stop, 'delete');
     }
   }
 
-
   // DEPARTURE CRUD
-  createDeparture(routeId: string, time: string, vehicleId?: string): void {
-    const ptData = this.getCurrentModeData();
+  createDeparture(time: string, vehicleId?: string): string {
+    if (!this.currentRouteData.routeId) return '';
+    
+    const departureId = `dep_${nanoid(10)}`;
+    
     const newDeparture: Departure = {
-      id: `dep_${nanoid(10)}`,
-      routeId,
+      id: departureId,
       departureTime: time,
       vehicleRefId: vehicleId,
-      sourceState: 'local'
+      unsaved: true
     };
     
-    ptData.departures.push(newDeparture);
+    // Add to departures map
+    this.currentRouteData.departures[departureId] = newDeparture;
     
     // Track change
-    trackDepartureChange(newDeparture, 'save');
+    trackDepartureChange({ ...newDeparture, routeId: this.currentRouteData.routeId }, 'save');
+    
+    return departureId;
   }
 
   updateDeparture(departureId: string, updates: Partial<Departure>): void {
-    const ptData = this.getCurrentModeData();
-    const index = ptData.departures.findIndex(d => d.id === departureId);
-    
-    if (index !== -1) {
-      const departure = ptData.departures[index];
+    const departure = this.currentRouteData.departures[departureId];
+    if (departure) {
       Object.assign(departure, updates);
+      departure.unsaved = true;
       
-      // Update sourceState if it was persisted
-      if (departure.sourceState === 'persisted') {
-        departure.sourceState = 'modified';
-      }
-      
-      trackDepartureChange(departure, 'save');
+      // Track change
+      trackDepartureChange({ ...departure, routeId: this.currentRouteData.routeId! }, 'save');
     }
   }
 
   deleteDeparture(departureId: string): void {
-    const ptData = this.getCurrentModeData();
-    const index = ptData.departures.findIndex(d => d.id === departureId);
-    
-    if (index !== -1) {
-      const departure = ptData.departures[index];
+    const departure = this.currentRouteData.departures[departureId];
+    if (departure) {
+      // Remove from departures map
+      delete this.currentRouteData.departures[departureId];
       
-      if (departure.sourceState === 'local') {
-        // Remove from data entirely
-        ptData.departures.splice(index, 1);
-      } else {
-        // For persisted/modified, track delete
-        ptData.departures.splice(index, 1);
-        trackDepartureChange(departure, 'delete');
-      }
+      // Track deletion
+      trackDepartureChange({ ...departure, routeId: this.currentRouteData.routeId! }, 'delete');
     }
   }
 
   // BATCH OPERATIONS
-  batchCreateStops(routeId: string, stops: Omit<Stop, 'sequence' | 'sourceState'>[]): void {
-    const ptData = this.getCurrentModeData();
-    
-    // Get current max sequence for this route
-    const routeStops = ptData.stops.filter(s => s.routeId === routeId);
-    let sequence = routeStops.reduce((max, s) => Math.max(max, s.sequence), 0);
-    
-    const newStops = stops.map(stopData => {
-      sequence++;
-      const newStop: Stop = {
-        ...stopData,
-        routeId,
-        sequence,
-        sourceState: 'local'
-      };
-      // Track each stop
-      trackStopChange(newStop, 'save');
-      return newStop;
-    });
-    
-    ptData.stops.push(...newStops);
+  batchCreateStops(stops: Array<Omit<Stop, 'unsaved'>>): string[] {
+    return stops.map(stopData => this.createStop(stopData));
   }
 
   // MODE SWITCHING
@@ -367,72 +313,180 @@ class PTState {
     this.selected.lineId = null;
     this.selected.routeId = null;
     this.selected.stopId = null;
-  }
-  
-  clearPersistedData(): void {
-    // Clear only persisted data for the current mode
-    const ptData = this.getCurrentModeData();
-    // Remove all persisted items
-    ptData.lines = ptData.lines.filter(l => l.sourceState !== 'persisted');
-    ptData.routes = ptData.routes.filter(r => r.sourceState !== 'persisted');
-    ptData.stops = ptData.stops.filter(s => s.sourceState !== 'persisted');
-    ptData.departures = ptData.departures.filter(d => d.sourceState !== 'persisted');
-  }
-  
-  // SAVE AND LOAD
-  loadPTData(data: { lines: Line[], routes: Route[], stops: Stop[], departures: Departure[] }): void {
-    const ptData = this.getCurrentModeData();
     
-    // Add sourceState to loaded data and merge with existing local/modified
-    const persistedLines = data.lines.map(l => ({ ...l, sourceState: 'persisted' as SourceState }));
-    const persistedRoutes = data.routes.map(r => ({ ...r, sourceState: 'persisted' as SourceState }));
-    const persistedStops = data.stops.map(s => ({ ...s, sourceState: 'persisted' as SourceState }));
-    const persistedDepartures = data.departures.map(d => ({ ...d, sourceState: 'persisted' as SourceState }));
-    
-    // Keep local and modified items, add new persisted items
-    ptData.lines = [...ptData.lines.filter(l => l.sourceState !== 'persisted'), ...persistedLines];
-    ptData.routes = [...ptData.routes.filter(r => r.sourceState !== 'persisted'), ...persistedRoutes];
-    ptData.stops = [...ptData.stops.filter(s => s.sourceState !== 'persisted'), ...persistedStops];
-    ptData.departures = [...ptData.departures.filter(d => d.sourceState !== 'persisted'), ...persistedDepartures];
-  }
-  
-  getDataForSave(): { 
-    localLines: Line[], 
-    modifiedLines: Line[],
-    localRoutes: Route[],
-    modifiedRoutes: Route[],
-    localStops: Stop[],
-    modifiedStops: Stop[],
-    localDepartures: Departure[],
-    modifiedDepartures: Departure[]
-  } {
-    const ptData = this.getCurrentModeData();
-    return {
-      localLines: ptData.lines.filter(l => l.sourceState === 'local'),
-      modifiedLines: ptData.lines.filter(l => l.sourceState === 'modified'),
-      localRoutes: ptData.routes.filter(r => r.sourceState === 'local'),
-      modifiedRoutes: ptData.routes.filter(r => r.sourceState === 'modified'),
-      localStops: ptData.stops.filter(s => s.sourceState === 'local'),
-      modifiedStops: ptData.stops.filter(s => s.sourceState === 'modified'),
-      localDepartures: ptData.departures.filter(d => d.sourceState === 'local'),
-      modifiedDepartures: ptData.departures.filter(d => d.sourceState === 'modified')
+    // Clear current route data
+    this.currentRouteData = {
+      routeId: null,
+      sequence: [],
+      stops: {},
+      departures: {}
     };
   }
-  
-  clearLocalAndModified(): void {
-    const ptData = this.getCurrentModeData();
+
+  // DATA LOADING
+  loadLinesAndRoutes(mode: TransportMode, data: Array<{
+    id: string;
+    name: string;
+    type: 'LINE' | 'ROUTE';
+    lineId?: string;
+  }>): void {
+    // Clear existing saved data for this mode
+    Object.keys(this.ptData[mode]).forEach(lineId => {
+      const line = this.ptData[mode][lineId];
+      if (!line.unsaved) {
+        delete this.ptData[mode][lineId];
+      }
+    });
     
-    // Remove all local and modified items
-    ptData.lines = ptData.lines.filter(l => l.sourceState === 'persisted');
-    ptData.routes = ptData.routes.filter(r => r.sourceState === 'persisted');
-    ptData.stops = ptData.stops.filter(s => s.sourceState === 'persisted');
-    ptData.departures = ptData.departures.filter(d => d.sourceState === 'persisted');
+    // Process the data
+    data.forEach(item => {
+      if (item.type === 'LINE') {
+        // Add line if it doesn't exist as unsaved
+        if (!this.ptData[mode][item.id]?.unsaved) {
+          this.ptData[mode][item.id] = {
+            name: item.name,
+            unsaved: false,
+            routes: this.ptData[mode][item.id]?.routes || {}
+          };
+        }
+      } else if (item.type === 'ROUTE' && item.lineId) {
+        // Ensure line exists
+        if (!this.ptData[mode][item.lineId]) {
+          // This shouldn't happen, but handle gracefully
+          this.ptData[mode][item.lineId] = {
+            name: 'Unknown Line',
+            unsaved: false,
+            routes: {}
+          };
+        }
+        
+        // Add route if it doesn't exist as unsaved
+        if (!this.ptData[mode][item.lineId].routes[item.id]?.unsaved) {
+          this.ptData[mode][item.lineId].routes[item.id] = {
+            name: item.name,
+            unsaved: false
+          };
+        }
+      }
+    });
+  }
+
+  loadRouteData(routeId: string, sequence: string[], stops: Stop[], departures: Departure[]): void {
+    // Keep existing unsaved stops and departures
+    const existingUnsavedStops: { [id: string]: Stop } = {};
+    const existingUnsavedDepartures: { [id: string]: Departure } = {};
     
-    // Update sourceState of all remaining items to persisted
-    ptData.lines.forEach(l => l.sourceState = 'persisted');
-    ptData.routes.forEach(r => r.sourceState = 'persisted');
-    ptData.stops.forEach(s => s.sourceState = 'persisted');
-    ptData.departures.forEach(d => d.sourceState = 'persisted');
+    if (this.currentRouteData.routeId === routeId) {
+      // Keep unsaved data from current route
+      Object.entries(this.currentRouteData.stops).forEach(([id, stop]) => {
+        if (stop.unsaved) {
+          existingUnsavedStops[id] = stop;
+        }
+      });
+      
+      Object.entries(this.currentRouteData.departures).forEach(([id, dep]) => {
+        if (dep.unsaved) {
+          existingUnsavedDepartures[id] = dep;
+        }
+      });
+    }
+    
+    // Convert arrays to objects
+    const stopsMap: { [stopId: string]: Stop } = {};
+    stops.forEach(stop => {
+      // Use existing unsaved version if available
+      stopsMap[stop.stopId] = existingUnsavedStops[stop.stopId] || { ...stop, unsaved: false };
+    });
+    
+    const departuresMap: { [departureId: string]: Departure } = {};
+    departures.forEach(dep => {
+      // Use existing unsaved version if available
+      departuresMap[dep.id] = existingUnsavedDepartures[dep.id] || { ...dep, unsaved: false };
+    });
+    
+    // Add any unsaved items that weren't in the fetched data
+    Object.assign(stopsMap, existingUnsavedStops);
+    Object.assign(departuresMap, existingUnsavedDepartures);
+    
+    this.currentRouteData = {
+      routeId,
+      sequence,
+      stops: stopsMap,
+      departures: departuresMap
+    };
+  }
+
+  // SAVE HELPERS
+  markLineAsSaved(lineId: string): void {
+    const line = this.ptData[this.selected.mode][lineId];
+    if (line) {
+      line.unsaved = false;
+      // Mark all routes as saved too
+      Object.keys(line.routes).forEach(routeId => {
+        line.routes[routeId].unsaved = false;
+      });
+    }
+  }
+
+  markRouteAsSaved(lineId: string, routeId: string): void {
+    const line = this.ptData[this.selected.mode][lineId];
+    if (line?.routes[routeId]) {
+      line.routes[routeId].unsaved = false;
+    }
+  }
+
+  markStopsAsSaved(stopIds: string[]): void {
+    stopIds.forEach(stopId => {
+      if (this.currentRouteData.stops[stopId]) {
+        this.currentRouteData.stops[stopId].unsaved = false;
+      }
+    });
+  }
+
+  markDeparturesAsSaved(departureIds: string[]): void {
+    departureIds.forEach(depId => {
+      if (this.currentRouteData.departures[depId]) {
+        this.currentRouteData.departures[depId].unsaved = false;
+      }
+    });
+  }
+
+  // Get all unsaved items
+  getUnsavedItems(): {
+    lines: Array<{ id: string; name: string; mode: TransportMode }>;
+    routes: Array<{ id: string; name: string; lineId: string; mode: TransportMode }>;
+    stops: Stop[];
+    departures: Array<Departure & { routeId: string }>;
+  } {
+    const lines: Array<{ id: string; name: string; mode: TransportMode }> = [];
+    const routes: Array<{ id: string; name: string; lineId: string; mode: TransportMode }> = [];
+    
+    Object.entries(this.ptData).forEach(([mode, modeData]) => {
+      Object.entries(modeData).forEach(([lineId, line]) => {
+        if (line.unsaved) {
+          lines.push({ id: lineId, name: line.name, mode: mode as TransportMode });
+        }
+        
+        Object.entries(line.routes).forEach(([routeId, route]) => {
+          if (route.unsaved) {
+            routes.push({ 
+              id: routeId, 
+              name: route.name, 
+              lineId, 
+              mode: mode as TransportMode 
+            });
+          }
+        });
+      });
+    });
+    
+    // Get unsaved stops and departures from current route
+    const stops = Object.values(this.currentRouteData.stops).filter(s => s.unsaved);
+    const departures = Object.values(this.currentRouteData.departures)
+      .filter(d => d.unsaved)
+      .map(d => ({ ...d, routeId: this.currentRouteData.routeId! }));
+    
+    return { lines, routes, stops, departures };
   }
 }
 

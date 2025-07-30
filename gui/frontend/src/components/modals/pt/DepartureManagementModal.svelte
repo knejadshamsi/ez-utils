@@ -11,8 +11,7 @@
   let { routeId }: Props = $props();
 
   const departures = $derived(() => {
-    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
-    return ptData?.departures.filter(d => d.routeId === routeId).sort((a, b) => a.departureTime.localeCompare(b.departureTime)) || [];
+    return ptState.currentRouteData.departures.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
   });
 
   let editingId = $state<string | null>(null);
