@@ -16,13 +16,8 @@ export async function syncChanges(): Promise<boolean> {
   const changeCount = changeTracker.pendingChanges.length;
   
   try {
-    console.log('=== SYNC MANAGER DEBUG ===');
-    console.log('Total pending changes:', changeCount);
-    console.log('Pending changes structure:', JSON.stringify(changeTracker.pendingChanges, null, 2));
-    console.log('Calling SyncChanges...');
     
     await SyncChanges(changeTracker.pendingChanges);
-    console.log('Successfully synced', changeCount, 'changes');
     
     // Clear pending changes after successful sync
     changeTracker.pendingChanges = [];
@@ -34,7 +29,6 @@ export async function syncChanges(): Promise<boolean> {
     showSuccess(`Successfully saved ${changeCount} change${changeCount > 1 ? 's' : ''}`);
     return true;
   } catch (error) {
-    console.error('Sync failed:', error);
     // Show error notification
     showError(`Failed to save changes: ${error instanceof Error ? error.message : 'Unknown error'}`);
     return false;

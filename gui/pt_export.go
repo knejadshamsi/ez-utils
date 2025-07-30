@@ -1,19 +1,32 @@
 package gui
 
 import (
+	"encoding/xml"
 	"fmt"
 	"os"
-	"strings"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-// escapeXML escapes special characters for XML attributes
-func escapeXML(s string) string {
-	s = strings.ReplaceAll(s, "&", "&amp;")
-	s = strings.ReplaceAll(s, "<", "&lt;")
-	s = strings.ReplaceAll(s, ">", "&gt;")
-	s = strings.ReplaceAll(s, "\"", "&quot;")
-	s = strings.ReplaceAll(s, "'", "&apos;")
-	return s
+// buildTransitSchedule builds the complete transit schedule structure
+func (e *PTExporter) buildTransitSchedule(processed *int, total int) (*TransitSchedule, error) {
+	schedule := &TransitSchedule{}
+
+	// Build stops
+	transitStops, err := e.buildTransitStops(processed, total)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transit stops: %w", err)
+	}
+	schedule.TransitStops = transitStops
+
+	// Build lines
+	transitLines, err := e.buildTransitLines(processed, total)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build transit lines: %w", err)
+	}
+	schedule.TransitLines = transitLines
+
+	return schedule, nil
 }
 
 // NewPTExporter creates a new PT exporter
@@ -33,258 +46,325 @@ func (a *App) ExportPTFile(processID int, outputPath string) error {
 
 // Export performs the actual export
 func (e *PTExporter) Export(outputPath string) error {
+	// We'll count stops as we export them since we need to get all stops
+	// from all routes to count them
+	stopCount := 0
+	uniqueStopIDs := make(map[string]bool)
+
+	// Get all lines for all modes to count them
+	modes := []TransportMode{"BUS", "METRO", "TRAM"}
+	var allLines []Line
+	for _, mode := range modes {
+		lines, err := e.app.GetPTLinesByMode(e.processID, mode)
+		if err == nil {
+			allLines = append(allLines, lines...)
+		}
+	}
+	lineCount := len(allLines)
+
+	// Count routes and departures by iterating through lines
+	routeCount := 0
+	departureCount := 0
+	for _, line := range allLines {
+		routes, err := e.app.GetPTRoutesByLineID(e.processID, line.ID)
+		if err == nil {
+			routeCount += len(routes)
+			for _, route := range routes {
+				deps, err := e.app.GetPTDeparturesByRouteID(e.processID, route.ID)
+				if err == nil {
+					departureCount += len(deps)
+				}
+				// Also count stops for this route
+				routeStops, err := e.app.GetPTStopsByRouteID(e.processID, route.ID)
+				if err == nil {
+					for _, rs := range routeStops {
+						uniqueStopIDs[rs.StopID] = true
+					}
+				}
+			}
+		}
+	}
+	stopCount = len(uniqueStopIDs)
+
+	totalElements := stopCount + lineCount + routeCount + departureCount
+	processed := 0
+
+	// Emit initial progress
+	runtime.EventsEmit(e.app.ctx, "export:progress", map[string]interface{}{
+		"current": 0,
+		"total":   totalElements,
+	})
+
+	// Build the complete transit schedule structure
+	schedule, err := e.buildTransitSchedule(&processed, totalElements)
+	if err != nil {
+		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return fmt.Errorf("failed to build transit schedule: %w", err)
+	}
+
 	// Create output file
 	file, err := os.Create(outputPath)
 	if err != nil {
+		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
 	defer file.Close()
 
-	// Write XML header
+	// Write XML declaration
 	if _, err := file.WriteString(`<?xml version="1.0" encoding="utf-8"?>`); err != nil {
+		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return fmt.Errorf("failed to write XML header: %w", err)
 	}
 	if _, err := file.WriteString("\n"); err != nil {
+		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return err
 	}
 
-	// Write DOCTYPE if needed (MATSim specific)
+	// Write DOCTYPE
 	if _, err := file.WriteString(`<!DOCTYPE transitSchedule SYSTEM "http://www.matsim.org/files/dtd/transitSchedule_v1.dtd">`); err != nil {
+		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+			"error": err.Error(),
+		})
 		return fmt.Errorf("failed to write DOCTYPE: %w", err)
 	}
 	if _, err := file.WriteString("\n"); err != nil {
 		return err
 	}
 
-	// Start root element
-	if _, err := file.WriteString(`<transitSchedule>`); err != nil {
-		return fmt.Errorf("failed to write root element: %w", err)
+	// Create XML encoder
+	encoder := xml.NewEncoder(file)
+	encoder.Indent("", "\t")
+
+	// Encode the transit schedule
+	if err := encoder.Encode(schedule); err != nil {
+		runtime.EventsEmit(e.app.ctx, "export:error", map[string]interface{}{
+			"error": err.Error(),
+		})
+		return fmt.Errorf("failed to encode transit schedule: %w", err)
 	}
+
+	// Add final newline
 	if _, err := file.WriteString("\n"); err != nil {
 		return err
 	}
 
-	// Export transit stops
-	if err := e.exportTransitStops(file); err != nil {
-		return fmt.Errorf("failed to export transit stops: %w", err)
-	}
-
-	// Export transit lines
-	if err := e.exportTransitLines(file); err != nil {
-		return fmt.Errorf("failed to export transit lines: %w", err)
-	}
-
-	// Close root element
-	if _, err := file.WriteString(`</transitSchedule>`); err != nil {
-		return fmt.Errorf("failed to close root element: %w", err)
-	}
-	if _, err := file.WriteString("\n"); err != nil {
-		return err
-	}
+	// Emit completion
+	runtime.EventsEmit(e.app.ctx, "export:complete", map[string]interface{}{
+		"total": totalElements,
+	})
 
 	return nil
 }
 
-func (e *PTExporter) exportTransitStops(file *os.File) error {
-	// Write transitStops opening tag
-	if _, err := file.WriteString("\t<transitStops>\n"); err != nil {
-		return err
-	}
-
-	// Get all stops
-	stops, err := e.app.GetPTStops(e.processID)
-	if err != nil {
-		return fmt.Errorf("failed to get stops: %w", err)
-	}
-
-	// Write each stop
-	for _, stop := range stops {
-		// Construct XML manually
-		stopXML := fmt.Sprintf(`<stopFacility id="%s" x="%.6f" y="%.6f"`,
-			escapeXML(stop.StopID), stop.Lng, stop.Lat)
+func (e *PTExporter) buildTransitStops(processed *int, total int) ([]TransitStop, error) {
+	// Get all stops by collecting from all routes
+	uniqueStops := make(map[string]TransitStop)
+	
+	// Get all transport modes
+	modes := []TransportMode{"BUS", "METRO", "TRAM"}
+	for _, mode := range modes {
+		lines, err := e.app.GetPTLinesByMode(e.processID, mode)
+		if err != nil {
+			continue
+		}
 		
-		if stop.StopName != "" {
-			stopXML += fmt.Sprintf(` name="%s"`, escapeXML(stop.StopName))
+		for _, line := range lines {
+			routes, err := e.app.GetPTRoutesByLineID(e.processID, line.ID)
+			if err != nil {
+				continue
+			}
+			
+			for _, route := range routes {
+				routeStops, err := e.app.GetPTStopsByRouteID(e.processID, route.ID)
+				if err != nil {
+					continue
+				}
+				
+				// Get actual stop details for each route stop
+				var stopIDs []string
+				for _, rs := range routeStops {
+					stopIDs = append(stopIDs, rs.StopID)
+				}
+				
+				if len(stopIDs) > 0 {
+					stops, err := e.app.GetPTStops(e.processID, stopIDs)
+					if err == nil {
+						for _, stop := range stops {
+							if _, exists := uniqueStops[stop.StopID]; !exists {
+								uniqueStops[stop.StopID] = TransitStop{
+									ID:   stop.StopID,
+									Lng:  stop.Lng,
+									Lat:  stop.Lat,
+									Name: stop.StopName,
+								}
+							}
+						}
+					}
+				}
+			}
 		}
-		stopXML += "/>"
+	}
+
+
+	// Build transit stops from unique map
+	var transitStops []TransitStop
+	for _, transitStop := range uniqueStops {
+		transitStops = append(transitStops, transitStop)
 		
-		if _, err := file.WriteString("\t\t" + stopXML + "\n"); err != nil {
-			return err
+		*processed++
+		// Emit progress update
+		runtime.EventsEmit(e.app.ctx, "export:progress", map[string]interface{}{
+			"current": *processed,
+			"total":   total,
+		})
+	}
+
+	return transitStops, nil
+}
+
+func (e *PTExporter) buildTransitLines(processed *int, total int) ([]TransitLine, error) {
+	// Get all lines for all modes
+	var allLines []Line
+	modes := []TransportMode{"BUS", "METRO", "TRAM"}
+	for _, mode := range modes {
+		lines, err := e.app.GetPTLinesByMode(e.processID, mode)
+		if err == nil {
+			allLines = append(allLines, lines...)
 		}
 	}
 
-	// Write transitStops closing tag
-	if _, err := file.WriteString("\t</transitStops>\n"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (e *PTExporter) exportTransitLines(file *os.File) error {
-	// Write transitLines opening tag
-	if _, err := file.WriteString("\t<transitLines>\n"); err != nil {
-		return err
-	}
-
-	// Get all lines
-	lines, err := e.app.GetPTLines(e.processID)
-	if err != nil {
-		return fmt.Errorf("failed to get lines: %w", err)
-	}
-
-	// Process each line
-	for _, line := range lines {
-		if err := e.exportTransitLine(file, &line); err != nil {
-			return fmt.Errorf("failed to export line %s: %w", line.ID, err)
+	// Build transit lines
+	var transitLines []TransitLine
+	for _, line := range allLines {
+		transitLine, err := e.buildTransitLine(&line, processed, total)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build line %s: %w", line.ID, err)
 		}
+		transitLines = append(transitLines, *transitLine)
+		
+		*processed++
+		// Emit progress update
+		runtime.EventsEmit(e.app.ctx, "export:progress", map[string]interface{}{
+			"current": *processed,
+			"total":   total,
+		})
 	}
 
-	// Write transitLines closing tag
-	if _, err := file.WriteString("\t</transitLines>\n"); err != nil {
-		return err
-	}
-
-	return nil
+	return transitLines, nil
 }
 
-func (e *PTExporter) exportTransitLine(file *os.File, line *Line) error {
-	// Write line opening tag
-	if _, err := file.WriteString(fmt.Sprintf("\t\t<transitLine id=\"%s\">\n", escapeXML(line.ID))); err != nil {
-		return err
-	}
-
+func (e *PTExporter) buildTransitLine(line *Line, processed *int, total int) (*TransitLine, error) {
 	// Get routes for this line
-	routes, err := e.app.GetPTRoutes(e.processID, line.ID)
+	routes, err := e.app.GetPTRoutesByLineID(e.processID, line.ID)
 	if err != nil {
-		return fmt.Errorf("failed to get routes: %w", err)
+		return nil, fmt.Errorf("failed to get routes: %w", err)
 	}
 
-	// Export each route
+	// Build transit routes
+	var transitRoutes []TransitRoute
 	for _, route := range routes {
-		if err := e.exportTransitRoute(file, &route); err != nil {
-			return fmt.Errorf("failed to export route %s: %w", route.ID, err)
+		transitRoute, err := e.buildTransitRoute(&route, line.Type, processed, total)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build route %s: %w", route.ID, err)
 		}
+		transitRoutes = append(transitRoutes, *transitRoute)
+		
+		*processed++
+		// Emit progress update
+		runtime.EventsEmit(e.app.ctx, "export:progress", map[string]interface{}{
+			"current": *processed,
+			"total":   total,
+		})
 	}
 
-	// Write line closing tag
-	if _, err := file.WriteString("\t\t</transitLine>\n"); err != nil {
-		return err
-	}
-
-	return nil
+	return &TransitLine{
+		ID:            line.ID,
+		TransitRoutes: transitRoutes,
+	}, nil
 }
 
-func (e *PTExporter) exportTransitRoute(file *os.File, route *Route) error {
-	// Write route opening tag
-	if _, err := file.WriteString(fmt.Sprintf("\t\t\t<transitRoute id=\"%s\">\n", escapeXML(route.ID))); err != nil {
-		return err
+func (e *PTExporter) buildTransitRoute(route *Route, transportMode string, processed *int, total int) (*TransitRoute, error) {
+	// Build route profile
+	routeProfile, err := e.buildRouteProfile(route.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build route profile: %w", err)
 	}
 
-	// Export route profile (stops)
-	if err := e.exportRouteProfile(file, route.ID); err != nil {
-		return fmt.Errorf("failed to export route profile: %w", err)
+	// Build departures
+	departures, err := e.buildDepartures(route.ID, processed, total)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build departures: %w", err)
 	}
 
-	// Export route (if any additional route data needed)
-	if err := e.exportRouteElement(file, route.ID); err != nil {
-		return fmt.Errorf("failed to export route element: %w", err)
-	}
-
-	// Export departures
-	if err := e.exportDepartures(file, route.ID); err != nil {
-		return fmt.Errorf("failed to export departures: %w", err)
-	}
-
-	// Write route closing tag
-	if _, err := file.WriteString("\t\t\t</transitRoute>\n"); err != nil {
-		return err
-	}
-
-	return nil
+	return &TransitRoute{
+		ID:            route.ID,
+		TransportMode: transportMode,
+		RouteProfile:  *routeProfile,
+		Departures:    departures,
+	}, nil
 }
 
-func (e *PTExporter) exportRouteProfile(file *os.File, routeID string) error {
+func (e *PTExporter) buildRouteProfile(routeID string) (*RouteProfile, error) {
 	// Get route stops
-	routeStops, err := e.app.GetPTRouteStops(e.processID, routeID)
+	routeStops, err := e.app.GetPTStopsByRouteID(e.processID, routeID)
 	if err != nil {
-		return fmt.Errorf("failed to get route stops: %w", err)
+		return nil, fmt.Errorf("failed to get route stops: %w", err)
 	}
 
-	if len(routeStops) == 0 {
-		return nil // No stops to export
-	}
-
-	// Write routeProfile opening tag
-	if _, err := file.WriteString("\t\t\t\t<routeProfile>\n"); err != nil {
-		return err
-	}
-
-	// Write each stop
+	// Build route stops
+	var stops []XMLRouteStop
 	for _, rs := range routeStops {
-		stopXML := fmt.Sprintf(`<stop refId="%s"`, escapeXML(rs.StopID))
+		// Get stop details
+		stopIDs := []string{rs.StopID}
+		stopDetails, _ := e.app.GetPTStops(e.processID, stopIDs)
 		
-		if rs.ArrivalOffset != "" {
-			stopXML += fmt.Sprintf(` arrivalOffset="%s"`, rs.ArrivalOffset)
+		arrivalOffset := ""
+		departureOffset := ""
+		if len(stopDetails) > 0 {
+			arrivalOffset = stopDetails[0].ArrivalOffset
+			departureOffset = stopDetails[0].DepartureOffset
 		}
-		if rs.DepartureOffset != "" {
-			stopXML += fmt.Sprintf(` departureOffset="%s"`, rs.DepartureOffset)
-		}
-		stopXML += "/>"
 		
-		if _, err := file.WriteString("\t\t\t\t\t" + stopXML + "\n"); err != nil {
-			return err
+		stop := XMLRouteStop{
+			RefID:           rs.StopID,
+			ArrivalOffset:   arrivalOffset,
+			DepartureOffset: departureOffset,
 		}
+		stops = append(stops, stop)
 	}
 
-	// Write routeProfile closing tag
-	if _, err := file.WriteString("\t\t\t\t</routeProfile>\n"); err != nil {
-		return err
-	}
-
-	return nil
+	return &RouteProfile{
+		Stops: stops,
+	}, nil
 }
 
-func (e *PTExporter) exportRouteElement(file *os.File, routeID string) error {
-	// Write empty route element (can be extended if needed)
-	if _, err := file.WriteString("\t\t\t\t<route/>\n"); err != nil {
-		return err
-	}
-	return nil
-}
 
-func (e *PTExporter) exportDepartures(file *os.File, routeID string) error {
+func (e *PTExporter) buildDepartures(routeID string, processed *int, total int) ([]Departure, error) {
 	// Get departures
-	departures, err := e.app.GetPTDepartures(e.processID, routeID)
+	departures, err := e.app.GetPTDeparturesByRouteID(e.processID, routeID)
 	if err != nil {
-		return fmt.Errorf("failed to get departures: %w", err)
+		return nil, fmt.Errorf("failed to get departures: %w", err)
 	}
 
-	if len(departures) == 0 {
-		return nil // No departures to export
+	// Track progress
+	for range departures {
+		*processed++
+		// Emit progress update
+		runtime.EventsEmit(e.app.ctx, "export:progress", map[string]interface{}{
+			"current": *processed,
+			"total":   total,
+		})
 	}
 
-	// Write departures opening tag
-	if _, err := file.WriteString("\t\t\t\t<departures>\n"); err != nil {
-		return err
-	}
-
-	// Write each departure
-	for _, dep := range departures {
-		depXML := fmt.Sprintf(`<departure id="%s" departureTime="%s"/>`,
-			escapeXML(dep.ID), dep.DepartureTime)
-		
-		if _, err := file.WriteString("\t\t\t\t\t" + depXML + "\n"); err != nil {
-			return err
-		}
-	}
-
-	// Write departures closing tag
-	if _, err := file.WriteString("\t\t\t\t</departures>\n"); err != nil {
-		return err
-	}
-
-	return nil
+	return departures, nil
 }
 
 // ExportPTSubset exports a subset of PT data based on a bounding box
@@ -295,10 +375,22 @@ func (a *App) ExportPTSubset(processID int, bbox BoundingBox, outputPath string)
 
 // ExportSubset exports only stops and related lines within a bounding box
 func (e *PTExporter) ExportSubset(bbox BoundingBox, outputPath string) error {
-	// Get all stops and filter by bounding box
-	allStops, err := e.app.GetPTStops(e.processID)
-	if err != nil {
-		return fmt.Errorf("failed to get stops: %w", err)
+	// Get stops within bounding box using viewport bounds
+	viewport := ViewportBounds{
+		MinLat: bbox.South,
+		MaxLat: bbox.North,
+		MinLng: bbox.West,
+		MaxLng: bbox.East,
+	}
+	
+	// Get stops for all modes within bounds
+	var allStops []Stop
+	modes := []string{"BUS", "METRO", "TRAM"}
+	for _, mode := range modes {
+		stops, err := e.app.GetPTStopsInBounds(e.processID, mode, viewport)
+		if err == nil {
+			allStops = append(allStops, stops...)
+		}
 	}
 	
 	// Filter stops by bounding box
@@ -319,21 +411,24 @@ func (e *PTExporter) ExportSubset(bbox BoundingBox, outputPath string) error {
 	relevantLines := make(map[string]bool)
 	relevantRoutes := make(map[string]bool)
 
-	// Get all lines
-	allLines, err := e.app.GetPTLines(e.processID)
-	if err != nil {
-		return fmt.Errorf("failed to get lines: %w", err)
+	// Get all lines for all modes
+	var allLines []Line
+	for _, mode := range []TransportMode{"BUS", "METRO", "TRAM"} {
+		lines, err := e.app.GetPTLinesByMode(e.processID, mode)
+		if err == nil {
+			allLines = append(allLines, lines...)
+		}
 	}
 
 	// Check each line's routes
 	for _, line := range allLines {
-		routes, err := e.app.GetPTRoutes(e.processID, line.ID)
+		routes, err := e.app.GetPTRoutesByLineID(e.processID, line.ID)
 		if err != nil {
 			continue
 		}
 
 		for _, route := range routes {
-			routeStops, err := e.app.GetPTRouteStops(e.processID, route.ID)
+			routeStops, err := e.app.GetPTStopsByRouteID(e.processID, route.ID)
 			if err != nil {
 				continue
 			}
@@ -349,71 +444,68 @@ func (e *PTExporter) ExportSubset(bbox BoundingBox, outputPath string) error {
 		}
 	}
 
-	// Now export the subset
+	// Build transit schedule for subset
+	schedule := &TransitSchedule{}
+
+	// Build transit stops from filtered stops
+	var transitStops []TransitStop
+	for _, stop := range stops {
+		transitStop := TransitStop{
+			ID:   stop.StopID,
+			Lng:  stop.Lng,
+			Lat:  stop.Lat,
+			Name: stop.StopName,
+		}
+		transitStops = append(transitStops, transitStop)
+	}
+	schedule.TransitStops = transitStops
+
+	// Build transit lines for subset
+	var transitLines []TransitLine
+	for _, line := range allLines {
+		if relevantLines[line.ID] {
+			transitLine, err := e.buildTransitLineSubset(&line, relevantRoutes)
+			if err != nil {
+				return fmt.Errorf("failed to build line subset %s: %w", line.ID, err)
+			}
+			transitLines = append(transitLines, *transitLine)
+		}
+	}
+	schedule.TransitLines = transitLines
+
+	// Create output file
 	file, err := os.Create(outputPath)
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
 	defer file.Close()
 
-	// Write XML header and root element
+	// Write XML declaration
 	if _, err := file.WriteString(`<?xml version="1.0" encoding="utf-8"?>`); err != nil {
 		return err
 	}
 	if _, err := file.WriteString("\n"); err != nil {
 		return err
 	}
+
+	// Write DOCTYPE
 	if _, err := file.WriteString(`<!DOCTYPE transitSchedule SYSTEM "http://www.matsim.org/files/dtd/transitSchedule_v1.dtd">`); err != nil {
 		return err
 	}
 	if _, err := file.WriteString("\n"); err != nil {
 		return err
 	}
-	if _, err := file.WriteString(`<transitSchedule>`); err != nil {
-		return err
-	}
-	if _, err := file.WriteString("\n"); err != nil {
-		return err
+
+	// Create XML encoder
+	encoder := xml.NewEncoder(file)
+	encoder.Indent("", "\t")
+
+	// Encode the transit schedule
+	if err := encoder.Encode(schedule); err != nil {
+		return fmt.Errorf("failed to encode transit schedule: %w", err)
 	}
 
-	// Export subset of stops
-	if _, err := file.WriteString("\t<transitStops>\n"); err != nil {
-		return err
-	}
-	for _, stop := range stops {
-		stopXML := fmt.Sprintf(`<stopFacility id="%s" x="%.6f" y="%.6f"`,
-			escapeXML(stop.StopID), stop.Lng, stop.Lat)
-		if stop.StopName != "" {
-			stopXML += fmt.Sprintf(` name="%s"`, escapeXML(stop.StopName))
-		}
-		stopXML += "/>"
-		if _, err := file.WriteString("\t\t" + stopXML + "\n"); err != nil {
-			return err
-		}
-	}
-	if _, err := file.WriteString("\t</transitStops>\n"); err != nil {
-		return err
-	}
-
-	// Export subset of lines
-	if _, err := file.WriteString("\t<transitLines>\n"); err != nil {
-		return err
-	}
-	for _, line := range allLines {
-		if relevantLines[line.ID] {
-			if err := e.exportTransitLineSubset(file, &line, relevantRoutes, stopIDSet); err != nil {
-				return err
-			}
-		}
-	}
-	if _, err := file.WriteString("\t</transitLines>\n"); err != nil {
-		return err
-	}
-
-	// Close root element
-	if _, err := file.WriteString(`</transitSchedule>`); err != nil {
-		return err
-	}
+	// Add final newline
 	if _, err := file.WriteString("\n"); err != nil {
 		return err
 	}
@@ -421,33 +513,28 @@ func (e *PTExporter) ExportSubset(bbox BoundingBox, outputPath string) error {
 	return nil
 }
 
-func (e *PTExporter) exportTransitLineSubset(file *os.File, line *Line, 
-	relevantRoutes map[string]bool, stopIDSet map[string]bool) error {
-	
-	// Write line opening tag
-	if _, err := file.WriteString(fmt.Sprintf("\t\t<transitLine id=\"%s\">\n", escapeXML(line.ID))); err != nil {
-		return err
-	}
-
+func (e *PTExporter) buildTransitLineSubset(line *Line, relevantRoutes map[string]bool) (*TransitLine, error) {
 	// Get routes for this line
-	routes, err := e.app.GetPTRoutes(e.processID, line.ID)
+	routes, err := e.app.GetPTRoutesByLineID(e.processID, line.ID)
 	if err != nil {
-		return fmt.Errorf("failed to get routes: %w", err)
+		return nil, fmt.Errorf("failed to get routes: %w", err)
 	}
 
-	// Export only relevant routes
+	// Build only relevant routes
+	var transitRoutes []TransitRoute
+	dummyProcessed := 0
 	for _, route := range routes {
 		if relevantRoutes[route.ID] {
-			if err := e.exportTransitRoute(file, &route); err != nil {
-				return fmt.Errorf("failed to export route %s: %w", route.ID, err)
+			transitRoute, err := e.buildTransitRoute(&route, line.Type, &dummyProcessed, 0)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build route %s: %w", route.ID, err)
 			}
+			transitRoutes = append(transitRoutes, *transitRoute)
 		}
 	}
 
-	// Write line closing tag
-	if _, err := file.WriteString("\t\t</transitLine>\n"); err != nil {
-		return err
-	}
-
-	return nil
+	return &TransitLine{
+		ID:            line.ID,
+		TransitRoutes: transitRoutes,
+	}, nil
 }

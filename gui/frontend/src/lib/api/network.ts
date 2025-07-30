@@ -320,11 +320,10 @@ export function createLink(fromNodeId: string, toNodeId: string): string {
     }
     
         const duplicateLink = networkState.links.find(l => 
-      (l.from === fromNodeId && l.to === toNodeId) || 
-      (l.from === toNodeId && l.to === fromNodeId)
+      l.from === fromNodeId && l.to === toNodeId
     );
     if (duplicateLink) {
-      throw new Error(`Link already exists between nodes ${fromNodeId} and ${toNodeId}`);
+      throw new Error(`Link already exists from ${fromNodeId} to ${toNodeId}`);
     }
     
         const linkId = `link_${fromNodeId}_${toNodeId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

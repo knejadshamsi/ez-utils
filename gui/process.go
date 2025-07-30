@@ -111,13 +111,13 @@ func (a *App) deleteProcess(processID int) error {
 	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", populationTable))
 
 	// Network tables
-	nodesTable := fmt.Sprintf("network_nodes_%d", processID)
-	linksTable := fmt.Sprintf("network_links_%d", processID)
+	nodesTable := fmt.Sprintf("network_%d_nodes", processID)
+	linksTable := fmt.Sprintf("network_%d_links", processID)
 	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", nodesTable))
 	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", linksTable))
 
 	// PT tables
-	ptPrefix := fmt.Sprintf("pt_data_%d", processID)
+	ptPrefix := fmt.Sprintf("pt_%d", processID)
 	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s_stops", ptPrefix))
 	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s_lines", ptPrefix))
 	_ = a.db.execTableQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s_routes", ptPrefix))

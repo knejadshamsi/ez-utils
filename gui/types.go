@@ -5,12 +5,14 @@ import (
 	"io"
 	"sync"
 	"time"
+	"gorm.io/gorm"
 )
 
 // App struct - Main application structure for Wails
 type App struct {
 	ctx         context.Context
 	db          *Database
+	gormDB      *gorm.DB
 	StartupFile string
 	EditMode    string // "population", "network", "public transportation"
 }
@@ -128,35 +130,49 @@ type ProcessResult struct {
 
 // PT-specific types
 
-// Route represents a route within a line
-type Route struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Stops int    `json:"stops"`
-}
+type TransportMode string
 
-// Line represents a transit line with embedded routes
+const (
+	BUS   TransportMode = "BUS"
+	METRO TransportMode = "METRO"
+	TRAM  TransportMode = "TRAM"
+)
+
+// Line represents a transit line
 type Line struct {
-	ID     string  `json:"id"`
-	Name   string  `json:"name"`
-	Type   string  `json:"type"` // BUS, METRO, TRAM
-	Routes []Route `json:"routes"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Type string `json:"type"` // BUS, METRO, TRAM
 }
 
-// Stop represents a stop with route-specific timing
+// Route represents a route that belongs to a line
+type Route struct {
+	ID     string `json:"id"`
+	LineID string `json:"lineId"`
+	Name   string `json:"name"`
+}
+
+// Stop represents a unique stop with its properties
+// Stop represents a transit stop (independent entity)
 type Stop struct {
-	RouteID              string                 `json:"routeId"`
 	StopID               string                 `json:"stopId"`
-	ArrivalOffset        string                 `json:"arrivalOffset"`
-	DepartureOffset      string                 `json:"departureOffset"`
 	StopName             string                 `json:"stopName"`
 	Lat                  float64                `json:"lat"`
 	Lng                  float64                `json:"lng"`
-	Sequence             int                    `json:"sequence"`
-	StopType             string                 `json:"stopType,omitempty"`             // REGULAR, REQUEST, BOARDING_ONLY, ALIGHTING_ONLY
-	WheelchairAccessible string                 `json:"wheelchairAccessible,omitempty"` // YES, NO, UNKNOWN
-	TimingPoint          bool                   `json:"timingPoint,omitempty"`
-	Attributes           map[string]interface{} `json:"attributes,omitempty"`
+	ArrivalOffset        string                 `json:"arrivalOffset"`
+	DepartureOffset      string                 `json:"departureOffset"`
+	StopType             *string                `json:"stopType,omitempty"`
+	WheelchairAccessible *string                `json:"wheelchairAccessible,omitempty"`
+	TimingPoint          *bool                  `json:"timingPoint,omitempty"`
+	Attributes           map[string]interface{} `json:"attributes,omitempty" gorm:"-"`
+}
+
+// RouteStop represents the junction between a route and a stop
+type RouteStop struct {
+	LinkID   string `json:"linkId"`
+	RouteID  string `json:"routeId"`
+	StopID   string `json:"stopId"`
+	Sequence int    `json:"sequence"`
 }
 
 // Departure represents a scheduled departure
@@ -169,16 +185,16 @@ type Departure struct {
 
 // PTStopUpdate represents an update to a stop
 type PTStopUpdate struct {
-	StopName             *string                `json:"stopName,omitempty"`
-	Lat                  *float64               `json:"lat,omitempty"`
-	Lng                  *float64               `json:"lng,omitempty"`
-	ArrivalOffset        *string                `json:"arrivalOffset,omitempty"`
-	DepartureOffset      *string                `json:"departureOffset,omitempty"`
-	Sequence             *int                   `json:"sequence,omitempty"`
-	StopType             *string                `json:"stopType,omitempty"`
-	WheelchairAccessible *string                `json:"wheelchairAccessible,omitempty"`
-	TimingPoint          *bool                  `json:"timingPoint,omitempty"`
-	Attributes           map[string]interface{} `json:"attributes,omitempty"`
+	StopName        *string  `json:"stopName,omitempty"`
+	Lat             *float64 `json:"lat,omitempty"`
+	Lng             *float64 `json:"lng,omitempty"`
+	ArrivalOffset   *string  `json:"arrivalOffset,omitempty"`
+	DepartureOffset *string  `json:"departureOffset,omitempty"`
+}
+
+// PTRouteStopUpdate represents an update to a route-stop junction
+type PTRouteStopUpdate struct {
+	Sequence *int `json:"sequence,omitempty"`
 }
 
 // Spatial query types

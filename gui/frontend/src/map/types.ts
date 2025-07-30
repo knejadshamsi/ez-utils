@@ -94,6 +94,7 @@ export interface MapState {
   connectedDotsLayer: L.FeatureGroup | null;
   networkLayer: L.FeatureGroup | null;
   polygonLayer: L.FeatureGroup | null;
+  sharedStopsLayer: L.FeatureGroup | null;
   
   // Tool-specific state
   connectedDots: {
@@ -119,7 +120,6 @@ export interface MapState {
   polygon: {
     currentVertices: PolygonVertex[];
     drawnPolygons: DrawnPolygon[];
-    isDrawing: boolean;
     defaultFillColor: string;
     defaultStrokeColor: string;
     hoverFillColor: string;

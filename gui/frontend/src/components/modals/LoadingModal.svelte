@@ -10,6 +10,7 @@
   import { gui } from "@wailsjs/go/models";
   import { getCurrentViewportBounds } from "$lib/map/mapUtils";
   import { parsePersonXML } from "$lib/utils/populationXmlParser";
+  import { updateNetworkVisualization } from "../../map/updateNetworkVisualization";
 
   $effect(() => {
     if (appState.display === 'LOADING') {
@@ -52,25 +53,17 @@
           } else if (commandArgs.fileEditMode === 'NETWORK') {
             networkState.nodes = result.data.nodes || [];
             networkState.links = result.data.links || [];
+            // Update visualization immediately after loading data
+            updateNetworkVisualization();
           } else if (commandArgs.fileEditMode === 'PT') {
             if (result.data) {
-              // Create PTData for the current mode
-              const ptData = {
-                mode: ptState.selected.mode,
-                lines: result.data.summaries || result.data.lines || [],
-                stops: result.data.stops || [],
-                departures: result.data.departures || []
-              };
-              
-              // Find or create PTData in array
-              const existingIndex = ptState.ptData.findIndex(pd => pd.mode === ptState.selected.mode);
-              if (existingIndex >= 0) {
-                // Reassign entire array for Svelte 5 reactivity
-                ptState.ptData = [...ptState.ptData.slice(0, existingIndex), ptData, ...ptState.ptData.slice(existingIndex + 1)];
-              } else {
-                ptState.ptData.push(ptData);
-              }
-              
+              // Load PT data using the store's method
+              ptState.loadPTData({
+                lines: result.data.lines || [],
+                routes: [],
+                stops: [],
+                departures: []
+              });
             }
           }
           

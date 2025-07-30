@@ -25,6 +25,7 @@ export const mapState = $state<MapState>({
   connectedDotsLayer: null,
   networkLayer: null,
   polygonLayer: null,
+  sharedStopsLayer: null,
   
   connectedDots: {
     points: [],
@@ -49,7 +50,6 @@ export const mapState = $state<MapState>({
   polygon: {
     currentVertices: [],
     drawnPolygons: [],
-    isDrawing: false,
     defaultFillColor: '#8b5cf6',
     defaultStrokeColor: '#7c3aed',
     hoverFillColor: '#a78bfa',
@@ -175,7 +175,6 @@ function initializeMode(mode: ToolMode) {
       break;
       
     case 'drawing-polygon':
-      mapState.polygon.isDrawing = true;
       break;
       
   }

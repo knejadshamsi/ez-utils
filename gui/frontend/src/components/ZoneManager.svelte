@@ -77,17 +77,26 @@
   }
   
   // Listen for zone drawn event from map
-  window.addEventListener('zoneDrawn', async (event: CustomEvent) => {
+  const handleZoneDrawn = async (event: CustomEvent) => {
     if (event.detail && event.detail.polygon) {
       await saveDrawnZone(event.detail.polygon);
     }
+  };
+  
+  window.addEventListener('zoneDrawn', handleZoneDrawn);
+  
+  // Clean up event listener on component destroy
+  $effect(() => {
+    return () => {
+      window.removeEventListener('zoneDrawn', handleZoneDrawn);
+    };
   });
 </script>
 
 <div class="p-4">
   <div class="flex items-center justify-between mb-4">
     <h2 class="text-lg font-semibold">Zone Management</h2>
-    <Button size="sm" color="primary" on:click={startDrawingZone}>
+    <Button size="sm" color="primary" onclick={startDrawingZone}>
       <PlusOutline class="w-4 h-4 mr-2" />
       Draw New Zone
     </Button>
@@ -104,7 +113,7 @@
           <Button size="xs" color="alternative">
             <EditOutline class="w-3 h-3" />
           </Button>
-          <Button size="xs" color="red" on:click={() => deleteZone(zone.id)}>
+          <Button size="xs" color="red" onclick={() => deleteZone(zone.id)}>
             <TrashBinOutline class="w-3 h-3" />
           </Button>
         </div>
@@ -137,6 +146,6 @@
   </p>
   
   <div class="flex justify-end gap-2">
-    <Button color="alternative" on:click={cancelDrawing}>Cancel</Button>
+    <Button color="alternative" onclick={cancelDrawing}>Cancel</Button>
   </div>
 </Modal>

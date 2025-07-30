@@ -3,6 +3,7 @@
   import type { TransportMode } from '$lib/stores/pt.svelte';
   import { PTService } from '$lib/api/pt';
   import { appState } from '$lib/stores/app.svelte';
+  import { updatePTVisualization } from '../../map/updatePTVisualization';
   import EzRadioGroup from '../EzRadioGroup.svelte';
   import EzRadioOption from '../EzRadioOption.svelte';
   
@@ -15,6 +16,9 @@
     ptState.selected.lineId = null;
     ptState.selected.routeId = null;
     ptState.selected.stopId = null;
+    
+    // Clear the map visualization
+    updatePTVisualization();
     
     // Close secondary sidebar when mode changes
     appState.secondarySidebar = 'HIDDEN';

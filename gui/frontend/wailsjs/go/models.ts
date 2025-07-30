@@ -48,27 +48,10 @@ export namespace gui {
 	        this.vehicleRefId = source["vehicleRefId"];
 	    }
 	}
-	export class Route {
-	    id: string;
-	    name: string;
-	    stops: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new Route(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.name = source["name"];
-	        this.stops = source["stops"];
-	    }
-	}
 	export class Line {
 	    id: string;
 	    name: string;
 	    type: string;
-	    routes: Route[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Line(source);
@@ -79,26 +62,7 @@ export namespace gui {
 	        this.id = source["id"];
 	        this.name = source["name"];
 	        this.type = source["type"];
-	        this.routes = this.convertValues(source["routes"], Route);
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	export class LinkResult {
 	    id: string;
@@ -194,32 +158,6 @@ export namespace gui {
 	        this.lng = source["lng"];
 	        this.lat = source["lat"];
 	        this.raw_xml = source["raw_xml"];
-	    }
-	}
-	export class PTTelemetry {
-	    process_id: number;
-	    total_file_size: number;
-	    bytes_read: number;
-	    stops_extracted: number;
-	    lines_extracted: number;
-	    routes_extracted: number;
-	    error_count: number;
-	    last_updated: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new PTTelemetry(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.process_id = source["process_id"];
-	        this.total_file_size = source["total_file_size"];
-	        this.bytes_read = source["bytes_read"];
-	        this.stops_extracted = source["stops_extracted"];
-	        this.lines_extracted = source["lines_extracted"];
-	        this.routes_extracted = source["routes_extracted"];
-	        this.error_count = source["error_count"];
-	        this.last_updated = source["last_updated"];
 	    }
 	}
 	export class Person {
@@ -389,16 +327,50 @@ export namespace gui {
 		    return a;
 		}
 	}
+	export class Route {
+	    id: string;
+	    lineId: string;
+	    name: string;
 	
-	export class Stop {
+	    static createFrom(source: any = {}) {
+	        return new Route(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.lineId = source["lineId"];
+	        this.name = source["name"];
+	    }
+	}
+	export class RouteStop {
+	    linkId: string;
 	    routeId: string;
 	    stopId: string;
-	    arrivalOffset: string;
-	    departureOffset: string;
+	    sequence: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RouteStop(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.linkId = source["linkId"];
+	        this.routeId = source["routeId"];
+	        this.stopId = source["stopId"];
+	        this.sequence = source["sequence"];
+	    }
+	}
+	export class Stop {
+	    stopId: string;
 	    stopName: string;
 	    lat: number;
 	    lng: number;
-	    sequence: number;
+	    arrivalOffset: string;
+	    departureOffset: string;
+	    stopType?: string;
+	    wheelchairAccessible?: string;
+	    timingPoint?: boolean;
 	    attributes?: Record<string, any>;
 	
 	    static createFrom(source: any = {}) {
@@ -407,14 +379,15 @@ export namespace gui {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.routeId = source["routeId"];
 	        this.stopId = source["stopId"];
-	        this.arrivalOffset = source["arrivalOffset"];
-	        this.departureOffset = source["departureOffset"];
 	        this.stopName = source["stopName"];
 	        this.lat = source["lat"];
 	        this.lng = source["lng"];
-	        this.sequence = source["sequence"];
+	        this.arrivalOffset = source["arrivalOffset"];
+	        this.departureOffset = source["departureOffset"];
+	        this.stopType = source["stopType"];
+	        this.wheelchairAccessible = source["wheelchairAccessible"];
+	        this.timingPoint = source["timingPoint"];
 	        this.attributes = source["attributes"];
 	    }
 	}
