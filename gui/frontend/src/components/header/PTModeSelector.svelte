@@ -10,12 +10,17 @@
   const modes = Object.values(TRANSPORT_MODES);
   
   async function handleModeChange(mode: string) {
-    ptState.selected.mode = mode as TransportMode;
+    // Auto-save current route if needed
+    if (ptState.currentRouteData.routeId) {
+      try {
+        await PTService.saveCurrentRoute();
+      } catch (error) {
+        console.error('Failed to auto-save route:', error);
+      }
+    }
     
-    // Clear selection when switching modes
-    ptState.selected.lineId = null;
-    ptState.selected.routeId = null;
-    ptState.selected.stopId = null;
+    // Switch mode (clears selections and current route data)
+    ptState.switchMode(mode as TransportMode);
     
     // Clear the map visualization
     updatePTVisualization();

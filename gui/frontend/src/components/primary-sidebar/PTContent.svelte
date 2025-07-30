@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Button, Checkbox, Label, Input } from 'flowbite-svelte';
   import { PlusOutline, CheckOutline, CloseOutline, EditOutline, TrashBinOutline } from 'flowbite-svelte-icons';
-  import { ptState, TRANSPORT_MODES, type Route } from '$lib/stores/pt.svelte';
+  import { ptState, TRANSPORT_MODES } from '$lib/stores/pt.svelte';
   import { appState } from '$lib/stores/app.svelte';
   import { updatePTVisualization } from '../../map/updatePTVisualization';
   import { PTService } from '$lib/api/pt';
@@ -17,8 +17,11 @@
   
   // Get lines for current mode
   const currentModeLines = $derived(() => {
-    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
-    return ptData?.lines || [];
+    return Object.entries(ptState.ptData[ptState.selected.mode]).map(([lineId, line]) => ({
+      id: lineId,
+      name: line.name,
+      unsaved: line.unsaved
+    }));
   });
 
   function handleLineClick(lineId: string) {
@@ -32,7 +35,7 @@
   
   function saveLineEdit() {
     if (editingLineId && editingLineName.trim()) {
-      ptState.updateLine(editingLineId, { name: editingLineName.trim() });
+      ptState.updateLine(editingLineId, editingLineName.trim());
       editingLineId = null;
     }
   }
@@ -56,6 +59,15 @@
   }
   
   async function handleRouteClick(lineId: string, routeId: string) {
+    // Save previous route data if needed
+    if (ptState.currentRouteData.routeId && ptState.currentRouteData.routeId !== routeId) {
+      try {
+        await PTService.saveCurrentRoute();
+      } catch (error) {
+        console.error('Failed to auto-save route:', error);
+      }
+    }
+    
     // Toggle functionality - if clicking the same route, unselect it
     if (ptState.selected.routeId === routeId) {
       ptState.selected.routeId = null;
@@ -70,20 +82,14 @@
     ptState.selected.routeId = routeId;
     appState.secondarySidebar = 'EXPANDED';
     
-    // Check if stops are already loaded for this route
-    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
-    const routeStopsExist = ptData?.stops.some(s => s.routeId === routeId);
-    
-    // Only load if not already cached
-    if (!routeStopsExist) {
-      try {
-        await Promise.all([
-          PTService.loadRouteStops(routeId),
-          PTService.loadRouteDepartures(routeId)
-        ]);
-      } catch (error) {
-        console.error('Failed to load route data:', error);
-      }
+    // Load route data (always fresh fetch)
+    try {
+      await Promise.all([
+        PTService.loadRouteStops(routeId),
+        PTService.loadRouteDepartures(routeId)
+      ]);
+    } catch (error) {
+      console.error('Failed to load route data:', error);
     }
     
     // Update visualization
@@ -130,8 +136,7 @@
     if (!trimmedName) return;
     
     // Check if line with same name exists for this mode
-    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
-    const existingLine = ptData?.lines.find(
+    const existingLine = Object.values(ptState.ptData[ptState.selected.mode]).find(
       line => line.name.toLowerCase() === trimmedName.toLowerCase()
     );
     
@@ -230,9 +235,13 @@
               id={line.id}
               resetOn={ptState.selected.mode}
               loadData={async () => {
-                await PTService.loadLineRoutes(line.id);
-                const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
-                return ptData?.routes.filter(r => r.lineId === line.id) || [];
+                const lineData = ptState.ptData[ptState.selected.mode][line.id];
+                if (!lineData) return [];
+                return Object.entries(lineData.routes).map(([routeId, route]) => ({
+                  id: routeId,
+                  name: route.name,
+                  unsaved: route.unsaved
+                }));
               }}
             >
               {#snippet header()}
@@ -294,10 +303,8 @@
                         tabindex="0"
                       >
                         {truncateText(line.name)} 
-                        {#if line.sourceState === 'local'}
-                          <span class="text-xs font-normal text-green-500" title="New line">●</span>
-                        {:else if line.sourceState === 'modified'}
-                          <span class="text-xs font-normal text-orange-500" title="Modified line">●</span>
+                        {#if line.unsaved}
+                          <span class="text-xs font-normal text-orange-500" title="Unsaved changes">●</span>
                         {/if}
                       </div>
                       <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

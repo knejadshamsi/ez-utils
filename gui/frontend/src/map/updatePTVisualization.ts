@@ -24,20 +24,18 @@ export function updatePTVisualization() {
   // Get selected route data
   if (!ptState.selected.routeId) return;
   
-  const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
-  if (!ptData) return;
+  const lineData = ptState.selected.lineId ? ptState.ptData[ptState.selected.mode][ptState.selected.lineId] : null;
+  if (!lineData) return;
   
-  const line = ptData.lines.find(l => l.id === ptState.selected.lineId);
-  if (!line) return;
-  
-  const route = ptData.routes.find(r => r.id === ptState.selected.routeId);
-  if (!route) return;
+  const routeData = lineData.routes[ptState.selected.routeId];
+  if (!routeData) return;
   
   const color = modeColors[ptState.selected.mode.toLowerCase()] || '#666666';
   
-  // Get stops for this route from ptData
-  const routeStops = ptData.stops.filter(s => s.routeId === ptState.selected.routeId)
-    .sort((a, b) => a.sequence - b.sequence);
+  // Get stops for this route using sequence
+  const routeStops = ptState.currentRouteData.sequence
+    .map(stopId => ptState.currentRouteData.stops[stopId])
+    .filter(stop => stop !== undefined);
   
   if (routeStops.length > 0) {
     // Create dots for each stop in the route
@@ -46,7 +44,7 @@ export function updatePTVisualization() {
       
       // Create point
       const point: ConnectedPoint = {
-        id: `pt_${line.id}_stop_${stop.stopId}`,
+        id: `pt_${ptState.selected.lineId}_stop_${stop.stopId}`,
         marker: null as any,
         position: L.latLng(stop.lat || 0, stop.lng || 0),
         color: color
