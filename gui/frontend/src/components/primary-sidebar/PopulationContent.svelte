@@ -88,7 +88,21 @@
     };
     
         mapState.map.on('click', clickHandler);
+        
+        // Store handler for cleanup
+        (window as any).__addPersonHandler = clickHandler;
   }
+  
+  // Clean up event handlers on component destroy
+  $effect(() => {
+    return () => {
+      // Clean up any existing click handler when component unmounts
+      if (mapState.map && (window as any).__addPersonHandler) {
+        mapState.map.off('click', (window as any).__addPersonHandler);
+        delete (window as any).__addPersonHandler;
+      }
+    };
+  });
 
   function handlePersonClick(personId: string) {
         if (populationState.selectedPersonId === personId) {
@@ -221,7 +235,10 @@
         // Select the new zone
         populationState.selectedZones.add(zoneId);
         
+        // Force transition to edit mode for the newly created zone
         populationState.mode = 'NORMAL';
+        enableZoneEditing(zoneId, handleZoneUpdate);
+        editingZoneId = zoneId;
       } catch (error) {
         console.error('Failed to create zone:', error);
         populationState.mode = 'NORMAL';

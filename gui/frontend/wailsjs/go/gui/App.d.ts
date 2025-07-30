@@ -29,6 +29,14 @@ export function DeleteNetworkLink(arg1:number,arg2:string):Promise<void>;
 
 export function DeleteNetworkNode(arg1:number,arg2:string):Promise<void>;
 
+export function DeletePTDepartures(arg1:number,arg2:Array<string>):Promise<void>;
+
+export function DeletePTLines(arg1:number,arg2:Array<string>):Promise<void>;
+
+export function DeletePTRoutes(arg1:number,arg2:Array<string>):Promise<void>;
+
+export function DeletePTStops(arg1:number,arg2:Array<string>):Promise<void>;
+
 export function DeleteZone(arg1:string):Promise<void>;
 
 export function ExecuteAction(arg1:json.RawMessage):Promise<void>;
@@ -57,25 +65,17 @@ export function GetLinksInBBox(arg1:number,arg2:Array<string>):Promise<Array<gui
 
 export function GetNodesInBBox(arg1:number,arg2:gui.BoundingBox):Promise<Array<gui.NodeResult>>;
 
-export function GetPTDepartures(arg1:number,arg2:string):Promise<Array<gui.Departure>>;
+export function GetPTDeparturesByRouteID(arg1:number,arg2:string):Promise<Array<gui.Departure>>;
 
-export function GetPTLine(arg1:number,arg2:string):Promise<gui.Line>;
+export function GetPTLinesByMode(arg1:number,arg2:gui.TransportMode):Promise<Array<gui.Line>>;
 
-export function GetPTLines(arg1:number):Promise<Array<gui.Line>>;
+export function GetPTRoutesByLineID(arg1:number,arg2:string):Promise<Array<gui.Route>>;
 
-export function GetPTLinesByMode(arg1:number,arg2:string):Promise<Array<gui.Line>>;
+export function GetPTStops(arg1:number,arg2:Array<string>):Promise<Array<gui.Stop>>;
 
-export function GetPTRouteStops(arg1:number,arg2:string):Promise<Array<gui.Stop>>;
+export function GetPTStopsByRouteID(arg1:number,arg2:string):Promise<Array<gui.RouteStop>>;
 
-export function GetPTRoutes(arg1:number,arg2:string):Promise<Array<gui.Route>>;
-
-export function GetPTStatistics(arg1:number):Promise<Record<string, any>>;
-
-export function GetPTStops(arg1:number):Promise<Array<gui.Stop>>;
-
-export function GetPTStopsForRoute(arg1:number,arg2:string):Promise<Array<gui.Stop>>;
-
-export function GetPTTelemetry(arg1:number):Promise<gui.PTTelemetry>;
+export function GetPTStopsInBounds(arg1:number,arg2:string,arg3:gui.ViewportBounds):Promise<Array<gui.Stop>>;
 
 export function GetPerson(arg1:string,arg2:string):Promise<gui.Person>;
 
@@ -115,9 +115,21 @@ export function ProcessPTFile(arg1:string):Promise<gui.ProcessResult>;
 
 export function ProcessPopulationFile(arg1:string):Promise<Record<string, any>>;
 
+export function RemovePTStopsFromRoute(arg1:number,arg2:string,arg3:Array<string>):Promise<void>;
+
 export function RemoveZoneFromSession(arg1:string,arg2:string):Promise<void>;
 
 export function SaveFile(arg1:string,arg2:string):Promise<string>;
+
+export function SavePTDepartures(arg1:number,arg2:Array<gui.Departure>):Promise<void>;
+
+export function SavePTLines(arg1:number,arg2:Array<gui.Line>):Promise<void>;
+
+export function SavePTRouteStops(arg1:number,arg2:Array<gui.RouteStop>):Promise<void>;
+
+export function SavePTRoutes(arg1:number,arg2:Array<gui.Route>):Promise<void>;
+
+export function SavePTStops(arg1:number,arg2:Array<gui.Stop>):Promise<void>;
 
 export function SaveZone(arg1:gui.Zone):Promise<void>;
 

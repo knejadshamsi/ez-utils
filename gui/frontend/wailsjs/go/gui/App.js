@@ -54,6 +54,22 @@ export function DeleteNetworkNode(arg1, arg2) {
   return window['go']['gui']['App']['DeleteNetworkNode'](arg1, arg2);
 }
 
+export function DeletePTDepartures(arg1, arg2) {
+  return window['go']['gui']['App']['DeletePTDepartures'](arg1, arg2);
+}
+
+export function DeletePTLines(arg1, arg2) {
+  return window['go']['gui']['App']['DeletePTLines'](arg1, arg2);
+}
+
+export function DeletePTRoutes(arg1, arg2) {
+  return window['go']['gui']['App']['DeletePTRoutes'](arg1, arg2);
+}
+
+export function DeletePTStops(arg1, arg2) {
+  return window['go']['gui']['App']['DeletePTStops'](arg1, arg2);
+}
+
 export function DeleteZone(arg1) {
   return window['go']['gui']['App']['DeleteZone'](arg1);
 }
@@ -110,44 +126,28 @@ export function GetNodesInBBox(arg1, arg2) {
   return window['go']['gui']['App']['GetNodesInBBox'](arg1, arg2);
 }
 
-export function GetPTDepartures(arg1, arg2) {
-  return window['go']['gui']['App']['GetPTDepartures'](arg1, arg2);
-}
-
-export function GetPTLine(arg1, arg2) {
-  return window['go']['gui']['App']['GetPTLine'](arg1, arg2);
-}
-
-export function GetPTLines(arg1) {
-  return window['go']['gui']['App']['GetPTLines'](arg1);
+export function GetPTDeparturesByRouteID(arg1, arg2) {
+  return window['go']['gui']['App']['GetPTDeparturesByRouteID'](arg1, arg2);
 }
 
 export function GetPTLinesByMode(arg1, arg2) {
   return window['go']['gui']['App']['GetPTLinesByMode'](arg1, arg2);
 }
 
-export function GetPTRouteStops(arg1, arg2) {
-  return window['go']['gui']['App']['GetPTRouteStops'](arg1, arg2);
+export function GetPTRoutesByLineID(arg1, arg2) {
+  return window['go']['gui']['App']['GetPTRoutesByLineID'](arg1, arg2);
 }
 
-export function GetPTRoutes(arg1, arg2) {
-  return window['go']['gui']['App']['GetPTRoutes'](arg1, arg2);
+export function GetPTStops(arg1, arg2) {
+  return window['go']['gui']['App']['GetPTStops'](arg1, arg2);
 }
 
-export function GetPTStatistics(arg1) {
-  return window['go']['gui']['App']['GetPTStatistics'](arg1);
+export function GetPTStopsByRouteID(arg1, arg2) {
+  return window['go']['gui']['App']['GetPTStopsByRouteID'](arg1, arg2);
 }
 
-export function GetPTStops(arg1) {
-  return window['go']['gui']['App']['GetPTStops'](arg1);
-}
-
-export function GetPTStopsForRoute(arg1, arg2) {
-  return window['go']['gui']['App']['GetPTStopsForRoute'](arg1, arg2);
-}
-
-export function GetPTTelemetry(arg1) {
-  return window['go']['gui']['App']['GetPTTelemetry'](arg1);
+export function GetPTStopsInBounds(arg1, arg2, arg3) {
+  return window['go']['gui']['App']['GetPTStopsInBounds'](arg1, arg2, arg3);
 }
 
 export function GetPerson(arg1, arg2) {
@@ -226,12 +226,36 @@ export function ProcessPopulationFile(arg1) {
   return window['go']['gui']['App']['ProcessPopulationFile'](arg1);
 }
 
+export function RemovePTStopsFromRoute(arg1, arg2, arg3) {
+  return window['go']['gui']['App']['RemovePTStopsFromRoute'](arg1, arg2, arg3);
+}
+
 export function RemoveZoneFromSession(arg1, arg2) {
   return window['go']['gui']['App']['RemoveZoneFromSession'](arg1, arg2);
 }
 
 export function SaveFile(arg1, arg2) {
   return window['go']['gui']['App']['SaveFile'](arg1, arg2);
+}
+
+export function SavePTDepartures(arg1, arg2) {
+  return window['go']['gui']['App']['SavePTDepartures'](arg1, arg2);
+}
+
+export function SavePTLines(arg1, arg2) {
+  return window['go']['gui']['App']['SavePTLines'](arg1, arg2);
+}
+
+export function SavePTRouteStops(arg1, arg2) {
+  return window['go']['gui']['App']['SavePTRouteStops'](arg1, arg2);
+}
+
+export function SavePTRoutes(arg1, arg2) {
+  return window['go']['gui']['App']['SavePTRoutes'](arg1, arg2);
+}
+
+export function SavePTStops(arg1, arg2) {
+  return window['go']['gui']['App']['SavePTStops'](arg1, arg2);
 }
 
 export function SaveZone(arg1) {

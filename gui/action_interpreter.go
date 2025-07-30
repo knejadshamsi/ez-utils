@@ -4,35 +4,23 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 )
 
 // ExecuteAction executes a single action from the frontend
 func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
-	log.Printf("[ExecuteAction] Processing action: %s", string(actionJSON))
-
-	// Add panic recovery
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[ExecuteAction] PANIC RECOVERED: %v", r)
 		}
 	}()
 
-	// First, get the type info to determine which action to execute
 	var typeInfo struct {
 		Type        string `json:"type"`
 		ElementType string `json:"elementType"`
 		Action      string `json:"action"`
 	}
 
-	if err := json.Unmarshal(actionJSON, &typeInfo); err != nil {
-		log.Printf("[ExecuteAction] Failed to unmarshal type info: %v", err)
-		return fmt.Errorf("failed to unmarshal action type info: %w", err)
-	}
-
-	// Create the switch key
+	json.Unmarshal(actionJSON, &typeInfo)
 	key := fmt.Sprintf("%s.%s.%s", typeInfo.Type, typeInfo.ElementType, typeInfo.Action)
-	log.Printf("[ExecuteAction] Action key: %s", key)
 
 	switch key {
 	// ===== POPULATION ACTIONS =====
@@ -46,11 +34,8 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 				RawXML string  `json:"rawXML"`
 			} `json:"data"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal add person action: %w", err)
-		}
-		err := a.db.AddPerson(act.TableName, act.Data.ID, act.Data.Lng, act.Data.Lat, act.Data.RawXML)
-		return err
+		json.Unmarshal(actionJSON, &act)
+		return a.db.AddPerson(act.TableName, act.Data.ID, act.Data.Lng, act.Data.Lat, act.Data.RawXML)
 
 	case "population.person.update":
 		var act struct {
@@ -60,27 +45,19 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 			Lng       float64 `json:"lng,omitempty"`
 			Lat       float64 `json:"lat,omitempty"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal update person action: %w", err)
-		}
+		json.Unmarshal(actionJSON, &act)
 		if act.PlanXML != "" {
-			// Call internal function with coordinate extraction logic
 			_, err := a.updatePersonPlan(act.TableName, act.PersonID, act.PlanXML)
 			return err
 		}
-		if act.Lng != 0 || act.Lat != 0 {
-			return a.db.UpdatePersonCoords(act.TableName, act.PersonID, act.Lng, act.Lat)
-		}
-		return nil
+		return a.db.UpdatePersonCoords(act.TableName, act.PersonID, act.Lng, act.Lat)
 
 	case "population.person.delete":
 		var act struct {
 			TableName string `json:"tableName"`
 			PersonID  string `json:"personId"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal delete person action: %w", err)
-		}
+		json.Unmarshal(actionJSON, &act)
 		_, err := a.deletePerson(act.TableName, act.PersonID)
 		return err
 
@@ -94,9 +71,7 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 				PlanXML  string  `json:"planXML,omitempty"`
 			} `json:"updates"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal batch update persons action: %w", err)
-		}
+		json.Unmarshal(actionJSON, &act)
 		var updates []PersonUpdate
 		for _, u := range act.Updates {
 			updates = append(updates, PersonUpdate{
@@ -116,9 +91,7 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 			Lng       float64 `json:"lng"`
 			Lat       float64 `json:"lat"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal update node action: %w", err)
-		}
+		json.Unmarshal(actionJSON, &act)
 		return a.db.UpdateNode(act.ProcessID, act.NodeID, act.Lng, act.Lat)
 
 	case "network.node.delete":
@@ -127,9 +100,7 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 			NodeID               string `json:"nodeId"`
 			DeleteConnectedLinks bool   `json:"deleteConnectedLinks"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal delete node action: %w", err)
-		}
+		json.Unmarshal(actionJSON, &act)
 		return a.db.DeleteNode(act.ProcessID, act.NodeID, act.DeleteConnectedLinks)
 
 	case "network.node.batchUpdate":
@@ -140,9 +111,7 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 				Lat float64 `json:"lat"`
 			} `json:"updates"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal batch update nodes action: %w", err)
-		}
+		json.Unmarshal(actionJSON, &act)
 		updates := make(map[string]NodeData)
 		for id, data := range act.Updates {
 			updates[id] = NodeData{
@@ -159,9 +128,7 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 			NodeIDs              []string `json:"nodeIds"`
 			DeleteConnectedLinks bool     `json:"deleteConnectedLinks"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal batch delete nodes action: %w", err)
-		}
+		json.Unmarshal(actionJSON, &act)
 		return a.db.BatchDeleteNodes(act.ProcessID, act.NodeIDs, act.DeleteConnectedLinks)
 
 	case "network.node.create":
@@ -172,9 +139,7 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 			Lat       float64 `json:"lat"`
 			RawXML    string  `json:"rawXML"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal create node action: %w", err)
-		}
+		json.Unmarshal(actionJSON, &act)
 		return a.db.InsertNetworkNode(act.ProcessID, act.NodeID, act.Lng, act.Lat, act.RawXML)
 
 	case "network.link.create":
@@ -185,9 +150,7 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 			ToNode    string `json:"toNode"`
 			RawXML    string `json:"rawXML"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal create link action: %w", err)
-		}
+		json.Unmarshal(actionJSON, &act)
 		return a.db.CreateNetworkLink(act.ProcessID, act.LinkID, act.FromNode, act.ToNode, act.RawXML)
 
 	case "network.link.update":
@@ -196,9 +159,7 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 			LinkID    string `json:"linkId"`
 			RawXML    string `json:"rawXML"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal update link action: %w", err)
-		}
+		json.Unmarshal(actionJSON, &act)
 		return a.db.UpdateNetworkLink(act.ProcessID, act.LinkID, act.RawXML)
 
 	case "network.link.delete":
@@ -206,229 +167,120 @@ func (a *App) ExecuteAction(actionJSON json.RawMessage) error {
 			ProcessID int    `json:"processId"`
 			LinkID    string `json:"linkId"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal delete link action: %w", err)
-		}
+		json.Unmarshal(actionJSON, &act)
 		return a.db.DeleteLink(act.ProcessID, act.LinkID)
 
 	// ===== PT ACTIONS =====
-	case "pt.line.add":
+	case "pt.line.save":
 		var act struct {
-			ProcessID int `json:"processId"`
-			Line      struct {
-				ID    string `json:"id"`
-				Type  string `json:"type"`
-				Name  string `json:"name"`
-			} `json:"line"`
+			ProcessID int  `json:"processId"`
+			Line      Line `json:"line"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal add line action: %w", err)
-		}
-		return a.db.AddPTLine(act.ProcessID, act.Line.ID, act.Line.Type, act.Line.Name)
+		json.Unmarshal(actionJSON, &act)
+		return a.SavePTLines(act.ProcessID, []Line{act.Line})
 
-	case "pt.line.update":
+	case "pt.route.save":
 		var act struct {
-			ProcessID int    `json:"processId"`
-			LineID    string `json:"lineId"`
-			Update    struct {
-				Name string `json:"name"`
-			} `json:"update"`
+			ProcessID int   `json:"processId"`
+			Route     Route `json:"route"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal update line action: %w", err)
-		}
-		return a.db.UpdatePTLine(act.ProcessID, act.LineID, act.Update.Name)
+		json.Unmarshal(actionJSON, &act)
+		return a.SavePTRoutes(act.ProcessID, []Route{act.Route})
 
-	case "pt.route.add":
+	case "pt.departure.save":
 		var act struct {
-			ProcessID int `json:"processId"`
-			Route     struct {
-				ID     string `json:"id"`
-				Name   string `json:"name"`
-				LineID string `json:"lineId"`
-			} `json:"route"`
+			ProcessID int       `json:"processId"`
+			Departure Departure `json:"departure"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal add route action: %w", err)
-		}
-		return a.db.AddPTRoute(act.ProcessID, act.Route.ID, act.Route.Name, act.Route.LineID)
+		json.Unmarshal(actionJSON, &act)
+		return a.SavePTDepartures(act.ProcessID, []Departure{act.Departure})
 
-	case "pt.route.update":
-		var act struct {
-			ProcessID int    `json:"processId"`
-			RouteID   string `json:"routeId"`
-			Update    struct {
-				Name string `json:"name"`
-			} `json:"update"`
-		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal update route action: %w", err)
-		}
-		return a.db.UpdatePTRoute(act.ProcessID, act.RouteID, act.Update.Name)
-
-	case "pt.departure.add":
-		var act struct {
-			ProcessID int `json:"processId"`
-			Departure struct {
-				ID           string `json:"id"`
-				RouteID      string `json:"routeId"`
-				DepartureTime string `json:"departureTime"`
-				VehicleRefID  string `json:"vehicleRefId,omitempty"`
-			} `json:"departure"`
-		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal add departure action: %w", err)
-		}
-		return a.db.AddPTDeparture(act.ProcessID, act.Departure.ID, act.Departure.RouteID, 
-			act.Departure.DepartureTime, act.Departure.VehicleRefID)
-
-	case "pt.departure.update":
-		var act struct {
-			ProcessID   int    `json:"processId"`
-			DepartureID string `json:"departureId"`
-			Update      struct {
-				DepartureTime string `json:"departureTime"`
-				VehicleRefID  string `json:"vehicleRefId,omitempty"`
-			} `json:"update"`
-		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal update departure action: %w", err)
-		}
-		return a.db.UpdatePTDeparture(act.ProcessID, act.DepartureID, 
-			act.Update.DepartureTime, act.Update.VehicleRefID)
-
-	case "pt.stop.add":
+	case "pt.stop.save":
 		var act struct {
 			ProcessID int  `json:"processId"`
 			Stop      Stop `json:"stop"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal add stop action: %w", err)
-		}
-		return a.db.AddPTStop(act.ProcessID, act.Stop)
+		json.Unmarshal(actionJSON, &act)
+		return a.SavePTStops(act.ProcessID, []Stop{act.Stop})
 
-	case "pt.stop.update":
+	case "pt.routeStop.save":
 		var act struct {
-			ProcessID int          `json:"processId"`
-			StopID    string       `json:"stopId"`
-			Update    PTStopUpdate `json:"update"`
+			ProcessID int       `json:"processId"`
+			RouteStop RouteStop `json:"routeStop"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal update stop action: %w", err)
-		}
-		return a.db.UpdatePTStop(act.ProcessID, act.StopID, act.Update)
+		json.Unmarshal(actionJSON, &act)
+		return a.SavePTRouteStops(act.ProcessID, []RouteStop{act.RouteStop})
 
-	case "pt.stop.delete":
+	case "pt.routeStop.delete":
 		var act struct {
 			ProcessID int    `json:"processId"`
 			StopID    string `json:"stopId"`
 			RouteID   string `json:"routeId"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal delete stop action: %w", err)
-		}
-		if act.RouteID == "" {
-			return fmt.Errorf("routeId is required for stop deletion")
-		}
-		return a.db.DeletePTStop(act.ProcessID, act.RouteID, act.StopID)
+		json.Unmarshal(actionJSON, &act)
+		return a.RemovePTStopsFromRoute(act.ProcessID, act.RouteID, []string{act.StopID})
 
-	case "pt.stop.batchUpdate":
-		var act struct {
-			ProcessID int                     `json:"processId"`
-			Updates   map[string]PTStopUpdate `json:"updates"`
-		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal batch update stops action: %w", err)
-		}
-		return a.db.BatchUpdatePTStops(act.ProcessID, act.Updates)
 
 	case "pt.line.delete":
 		var act struct {
 			ProcessID int    `json:"processId"`
 			LineID    string `json:"lineId"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal delete line action: %w", err)
-		}
-		return a.db.DeletePTLine(act.ProcessID, act.LineID)
+		json.Unmarshal(actionJSON, &act)
+		return a.DeletePTLines(act.ProcessID, []string{act.LineID})
 
 	case "pt.route.delete":
 		var act struct {
 			ProcessID int    `json:"processId"`
 			RouteID   string `json:"routeId"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal delete route action: %w", err)
-		}
-		return a.db.DeletePTRoute(act.ProcessID, act.RouteID)
+		json.Unmarshal(actionJSON, &act)
+		// With CASCADE DELETE, just delete the route
+		// Stops and departures will be automatically deleted
+		return a.DeletePTRoutes(act.ProcessID, []string{act.RouteID})
 
 	case "pt.departure.delete":
 		var act struct {
 			ProcessID   int    `json:"processId"`
 			DepartureID string `json:"departureId"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal delete departure action: %w", err)
+		json.Unmarshal(actionJSON, &act)
+		return a.DeletePTDepartures(act.ProcessID, []string{act.DepartureID})
+
+	case "pt.stop.delete":
+		var act struct {
+			ProcessID int    `json:"processId"`
+			StopID    string `json:"stopId"`
 		}
-		return a.db.DeletePTDeparture(act.ProcessID, act.DepartureID)
+		json.Unmarshal(actionJSON, &act)
+		return a.DeletePTStops(act.ProcessID, []string{act.StopID})
 
 	// ===== PROCESS ACTIONS =====
 	case "process.process.delete":
 		var act struct {
 			ProcessID int `json:"processId"`
 		}
-		if err := json.Unmarshal(actionJSON, &act); err != nil {
-			return fmt.Errorf("failed to unmarshal delete process action: %w", err)
-		}
+		json.Unmarshal(actionJSON, &act)
 		return a.deleteProcess(act.ProcessID)
 
 	default:
-		log.Printf("[ExecuteAction] Unknown action key: %s", key)
 		return fmt.Errorf("unknown action: %s", key)
 	}
-
 }
 
 // SyncChanges applies a batch of changes from the frontend
 func (a *App) SyncChanges(actions []json.RawMessage) error {
-	log.Printf("[SyncChanges] Starting sync with %d actions", len(actions))
-
-	// Add panic recovery
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("[SyncChanges] PANIC RECOVERED: %v", r)
 		}
 	}()
 
-	if len(actions) == 0 {
-		log.Printf("[SyncChanges] No actions to sync")
-		return nil
-	}
-
-	// Log each action for debugging
-	for i, action := range actions {
-		log.Printf("[SyncChanges] Action %d: %s", i, string(action))
-	}
-
-	err := a.db.WithTransaction(func(tx *sql.Tx) error {
-		log.Printf("[SyncChanges] Transaction started")
-		for i, action := range actions {
-			log.Printf("[SyncChanges] Executing action %d", i)
+	return a.db.WithTransaction(func(tx *sql.Tx) error {
+		for _, action := range actions {
 			if err := a.ExecuteAction(action); err != nil {
-				log.Printf("[SyncChanges] Action %d failed: %v", i, err)
-				return fmt.Errorf("action %d failed: %w", i, err)
+				return err
 			}
-			log.Printf("[SyncChanges] Action %d completed successfully", i)
 		}
-		log.Printf("[SyncChanges] All actions completed, committing transaction")
 		return nil
 	})
-
-	if err != nil {
-		log.Printf("[SyncChanges] Transaction failed: %v", err)
-		return err
-	}
-
-	log.Printf("[SyncChanges] Sync completed successfully")
-	return nil
 }

@@ -8,6 +8,7 @@
   import type * as L from 'leaflet';
   import { PTService } from '$lib/api/pt';
   import { updatePTVisualization } from '../../map/updatePTVisualization';
+  import { updateSharedStopsLayer } from '../../map/sharedStops';
   import CompactSelect from '../CompactSelect.svelte';
   import { nanoid } from 'nanoid';
   
@@ -22,14 +23,15 @@
   });
   
   const selectedRoute = $derived(() => {
-    if (!ptState.selected.routeId || !selectedLine()) return null;
-    return selectedLine()?.routes.find(r => r.id === ptState.selected.routeId);
+    if (!ptState.selected.routeId) return null;
+    const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
+    return ptData?.routes.find(r => r.id === ptState.selected.routeId);
   });
   
   const routeStops = $derived(() => {
     if (!ptState.selected.routeId) return [];
     const ptData = ptState.ptData.find(pd => pd.mode === ptState.selected.mode);
-    return ptData?.stops.filter(s => s.routeId === ptState.selected.routeId) || [];
+    return ptData?.stops.filter(s => s.routeId === ptState.selected.routeId).sort((a, b) => a.sequence - b.sequence) || [];
   });
   
   const departureCount = $derived(() => {
@@ -77,10 +79,10 @@
   }
 
   function handleDeleteRoute() {
-    if (!selectedLine() || !selectedRoute()) return;
+    if (!selectedRoute()) return;
     
     if (confirm(`Delete route "${selectedRoute()?.name}"? This will also delete all stops and departures.`)) {
-      ptState.deleteRoute(selectedLine()!.id, selectedRoute()!.id);
+      ptState.deleteRoute(selectedRoute()!.id);
       handleClose();
     }
   }
@@ -107,7 +109,16 @@
   function startAddingStops() {
     if (!mapState.map || !ptState.selected.routeId) return;
     
+    // Remove any existing handler first
+    const existingHandler = (window as any).__addStopHandler;
+    if (existingHandler) {
+      mapState.map.off('click', existingHandler);
+    }
+    
     ptState.editMode = 'ADDING_STOP';
+    
+    // Update shared stops layer
+    updateSharedStopsLayer();
     
     const clickHandler = async (e: L.LeafletMouseEvent) => {
       const coords: [number, number] = [e.latlng.lng, e.latlng.lat];
@@ -122,8 +133,8 @@
         stopName,
         lat: coords[1],
         lng: coords[0],
-        arrivalOffset: '00:00',
-        departureOffset: '00:00'
+        arrivalOffset: '00:00:00',
+        departureOffset: '00:00:00'
       });
       
       // Update map visualization
@@ -144,7 +155,26 @@
       mapState.map.off('click', handler);
       delete (window as any).__addStopHandler;
     }
+    
+    // Clear shared stops layer
+    updateSharedStopsLayer();
   }
+  
+  // Clean up event handlers on component destroy
+  $effect(() => {
+    return () => {
+      // Clean up any existing click handler when component unmounts
+      if (mapState.map && (window as any).__addStopHandler) {
+        mapState.map.off('click', (window as any).__addStopHandler);
+        delete (window as any).__addStopHandler;
+      }
+      
+      // Reset edit mode if we're in the middle of adding stops
+      if (ptState.editMode === 'ADDING_STOP') {
+        ptState.editMode = 'NORMAL';
+      }
+    };
+  });
   
   function toggleStopDragging() {
     ptState.editMode = ptState.editMode === 'DRAGGING_STOP' ? 'NORMAL' : 'DRAGGING_STOP';
@@ -179,8 +209,11 @@
   }
   
   function updateOffset(stopId: string, field: 'arrivalOffset' | 'departureOffset', value: string) {
-    if (/^[0-9]{2}:[0-9]{2}$/.test(value)) {
-      ptState.updateStop(stopId, { [field]: value });
+    // Accept both HH:MM and HH:MM:SS formats
+    if (/^[0-9]{2}:[0-9]{2}(:[0-9]{2})?$/.test(value)) {
+      // Normalize to HH:MM:SS format if needed
+      const normalizedValue = value.length === 5 ? `${value}:00` : value;
+      ptState.updateStop(stopId, { [field]: normalizedValue });
     }
   }
   
@@ -191,8 +224,8 @@
   }
   
   function saveRouteName() {
-    if (editingRouteName && editingRouteName.trim() && selectedLine() && selectedRoute()) {
-      ptState.updateRoute(selectedLine()!.id, selectedRoute()!.id, { name: editingRouteName.trim() });
+    if (editingRouteName && editingRouteName.trim() && selectedRoute()) {
+      ptState.updateRoute(selectedRoute()!.id, { name: editingRouteName.trim() });
       editingRouteName = null;
     }
   }
@@ -375,8 +408,8 @@
                           type="text"
                           value={stop.arrivalOffset}
                           size="sm"
-                          pattern="[0-9]{2}:[0-9]{2}"
-                          placeholder="HH:MM"
+                          pattern="[0-9]{2}:[0-9]{2}(:[0-9]{2})?"
+                          placeholder="HH:MM:SS"
                           onchange={(e) => updateOffset(stop.stopId, 'arrivalOffset', e.target.value)}
                         />
                       </div>
@@ -386,8 +419,8 @@
                           type="text"
                           value={stop.departureOffset}
                           size="sm"
-                          pattern="[0-9]{2}:[0-9]{2}"
-                          placeholder="HH:MM"
+                          pattern="[0-9]{2}:[0-9]{2}(:[0-9]{2})?"
+                          placeholder="HH:MM:SS"
                           onchange={(e) => updateOffset(stop.stopId, 'departureOffset', e.target.value)}
                         />
                       </div>
@@ -417,53 +450,6 @@
                         </button>
                       </div>
                     </div>
-                    
-                    <!-- Stop Type - COMMENTED OUT FOR NOW -->
-                    {#if false}
-                    <div>
-                      <label class="text-xs text-gray-400 block mb-1">Stop Type</label>
-                      <div class="flex gap-1">
-                        <button
-                          class="px-2 py-1 text-xs rounded border {stop.stopType === 'REGULAR' || !stop.stopType ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'}"
-                          onclick={() => updateStopType(stop.stopId, 'REGULAR')}
-                        >
-                          Regular
-                        </button>
-                        <button
-                          class="px-2 py-1 text-xs rounded border {stop.stopType === 'REQUEST' ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'}"
-                          onclick={() => updateStopType(stop.stopId, 'REQUEST')}
-                        >
-                          Request
-                        </button>
-                        <button
-                          class="px-2 py-1 text-xs rounded border {stop.stopType === 'BOARDING_ONLY' ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'}"
-                          onclick={() => updateStopType(stop.stopId, 'BOARDING_ONLY')}
-                          title="Boarding Only"
-                        >
-                          Board
-                        </button>
-                        <button
-                          class="px-2 py-1 text-xs rounded border {stop.stopType === 'ALIGHTING_ONLY' ? 'bg-blue-600 text-white border-blue-600' : 'bg-gray-700 text-gray-300 border-gray-600 hover:bg-gray-600'}"
-                          onclick={() => updateStopType(stop.stopId, 'ALIGHTING_ONLY')}
-                          title="Alighting Only"
-                        >
-                          Alight
-                        </button>
-                      </div>
-                    </div>
-                    {/if}
-                    
-                    <!-- Timing Point - COMMENTED OUT FOR NOW -->
-                    {#if false}
-                    <div class="flex items-center justify-between">
-                      <Label class="text-xs text-gray-400">Timing Point</Label>
-                      <Toggle
-                        checked={stop.timingPoint || false}
-                        onchange={() => toggleTimingPoint(stop.stopId, stop.timingPoint || false)}
-                        size="small"
-                      />
-                    </div>
-                    {/if}
                   </div>
                 {/if}
               </div>

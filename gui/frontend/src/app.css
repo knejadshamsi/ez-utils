@@ -28,3 +28,25 @@
 
 @source "../node_modules/flowbite-svelte/dist";
 @source "../node_modules/flowbite-svelte-icons/dist";
+
+/* Shared stop markers */
+.shared-stop-marker {
+  background: none;
+  border: none;
+}
+
+.shared-stop-icon {
+  width: 20px;
+  height: 20px;
+  background-color: #6366f1;
+  border: 2px solid white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.shared-stop-icon:hover {
+  transform: scale(1.2);
+  background-color: #4f46e5;
+}

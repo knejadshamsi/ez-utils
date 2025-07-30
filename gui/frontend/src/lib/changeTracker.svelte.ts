@@ -136,6 +136,7 @@ interface UpdateStopAction {
   action: 'update';
   processId: number;
   stopId: string;
+  routeId: string;
   update: any; // PTStopUpdate type
 }
 

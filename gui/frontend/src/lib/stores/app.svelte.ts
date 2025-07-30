@@ -34,7 +34,7 @@ export const appState = $state<{
   display: 'WELCOME',
   primarySidebar: 'EXPANDED',
   secondarySidebar: 'HIDDEN',
-  networkMode: 'VIEW',
+  networkMode: 'EDIT',
   processId: 0
 });
 

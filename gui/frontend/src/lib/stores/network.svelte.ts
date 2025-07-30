@@ -30,9 +30,6 @@ export const networkState = $state<{
   nodes: NetworkNode[];
   links: NetworkLink[];
   selection: NetworkSelection;
-  isDrawingPolygon: boolean;
-  isAddingNode: boolean;
-  isAddingLink: boolean;
 }>({
   nodes: [],
   links: [],
@@ -40,10 +37,7 @@ export const networkState = $state<{
     selectedNodeId: null,
     selectedLinkId: null,
     selectedPolygon: null
-  },
-  isDrawingPolygon: false,
-  isAddingNode: false,
-  isAddingLink: false
+  }
 });
 
 // Helper functions for network operations
@@ -76,11 +70,11 @@ export function getLinksConnectedToNode(nodeId: string): NetworkLink[] {
   return networkState.links.filter(link => link.from === nodeId || link.to === nodeId);
 }
 
-export function canDeleteNode(nodeId: string): { canDelete: boolean; affectedLinks: string[] } {
+export function canDeleteNode(nodeId: string): { canDelete: boolean; affectedLinks: NetworkLink[] } {
   const connectedLinks = getLinksConnectedToNode(nodeId);
   return {
     canDelete: true,
-    affectedLinks: connectedLinks.map(l => l.id)
+    affectedLinks: connectedLinks
   };
 }
 
@@ -103,4 +97,14 @@ export function validateLink(linkId: string): { isValid: boolean; errors: string
   }
   
   return { isValid: errors.length === 0, errors };
+}
+
+// Find reverse link (B→A for A→B)
+export function findReverseLink(linkId: string): NetworkLink | null {
+  const link = getLinkById(linkId);
+  if (!link) return null;
+  
+  return networkState.links.find(l => 
+    l.from === link.to && l.to === link.from
+  ) || null;
 }

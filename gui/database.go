@@ -2,10 +2,10 @@ package gui
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	_ "modernc.org/sqlite"
 )
@@ -48,6 +48,54 @@ const (
 			raw_xml TEXT
 		)`
 
+	// PT tables
+	createPTLinesTableQuery = `
+		CREATE TABLE IF NOT EXISTS %s (
+			id TEXT PRIMARY KEY,
+			name TEXT,
+			type TEXT
+		)`
+
+	createPTRoutesTableQuery = `
+		CREATE TABLE IF NOT EXISTS %s (
+			id TEXT PRIMARY KEY,
+			line_id TEXT NOT NULL,
+			name TEXT,
+			FOREIGN KEY (line_id) REFERENCES %s_lines(id) ON DELETE CASCADE
+		)`
+
+	createPTStopsTableQuery = `
+		CREATE TABLE IF NOT EXISTS %s (
+			stop_id TEXT PRIMARY KEY,
+			stop_name TEXT,
+			lat REAL,
+			lng REAL,
+			arrival_offset TEXT,
+			departure_offset TEXT,
+			stop_type TEXT,
+			wheelchair_accessible TEXT,
+			timing_point BOOLEAN
+		)`
+
+	createPTRouteStopsTableQuery = `
+		CREATE TABLE IF NOT EXISTS %s (
+			link_id TEXT PRIMARY KEY,
+			route_id TEXT NOT NULL,
+			stop_id TEXT NOT NULL,
+			sequence INTEGER,
+			FOREIGN KEY (route_id) REFERENCES %s_routes(id) ON DELETE CASCADE,
+			FOREIGN KEY (stop_id) REFERENCES %s_stops(stop_id) ON DELETE CASCADE
+		)`
+
+	createPTDeparturesTableQuery = `
+		CREATE TABLE IF NOT EXISTS %s (
+			id TEXT PRIMARY KEY,
+			route_id TEXT NOT NULL,
+			departure_time TEXT,
+			vehicle_ref_id TEXT,
+			FOREIGN KEY (route_id) REFERENCES %s_routes(id) ON DELETE CASCADE
+		)`
+
 	createNetworkLinksTableQuery = `
 		CREATE TABLE IF NOT EXISTS %s (
 			id TEXT PRIMARY KEY,
@@ -58,36 +106,6 @@ const (
 
 	dropTableQuery = "DROP TABLE IF EXISTS %s"
 
-	// PT table creation queries
-	createPTLinesTableQuery = `
-		CREATE TABLE IF NOT EXISTS %s (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			type TEXT NOT NULL,
-			routes JSON NOT NULL
-		)`
-
-	createPTStopsTableQuery = `
-		CREATE TABLE IF NOT EXISTS %s (
-			route_id TEXT NOT NULL,
-			stop_id TEXT NOT NULL,
-			arrival_offset TEXT,
-			departure_offset TEXT,
-			stop_name TEXT NOT NULL,
-			lat REAL NOT NULL,
-			lng REAL NOT NULL,
-			sequence INTEGER NOT NULL,
-			attributes JSON,
-			PRIMARY KEY (route_id, stop_id, sequence)
-		)`
-
-	createPTDeparturesTableQuery = `
-		CREATE TABLE IF NOT EXISTS %s (
-			id TEXT PRIMARY KEY,
-			route_id TEXT NOT NULL,
-			departure_time TEXT NOT NULL,
-			vehicle_ref_id TEXT
-		)`
 
 	// Spatial indexes for performance
 	createPopulationSpatialIndex = "CREATE INDEX IF NOT EXISTS idx_%s_spatial ON %s (lng, lat)"
@@ -123,6 +141,11 @@ func NewDatabase(dataSourceName string) (*Database, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
+
+	// Configure connection pool
+	conn.SetMaxOpenConns(25) // Maximum number of open connections
+	conn.SetMaxIdleConns(5)  // Maximum number of idle connections
+	conn.SetConnMaxLifetime(5 * time.Minute) // Maximum lifetime of a connection
 
 	if err = conn.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
@@ -245,12 +268,18 @@ func (db *Database) CreatePTTables(processID int) error {
 	if err := db.AlterTelemetryTableForPT(); err != nil {
 		return fmt.Errorf("failed to update telemetry table: %w", err)
 	}
-	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
+	tablePrefix := fmt.Sprintf("pt_%d", processID)
 	
 	// Create lines table
 	linesTable := fmt.Sprintf("%s_lines", tablePrefix)
 	if err := db.execTableQuery(fmt.Sprintf(createPTLinesTableQuery, linesTable)); err != nil {
 		return fmt.Errorf("failed to create PT lines table: %w", err)
+	}
+	
+	// Create routes table
+	routesTable := fmt.Sprintf("%s_routes", tablePrefix)
+	if err := db.execTableQuery(fmt.Sprintf(createPTRoutesTableQuery, routesTable, tablePrefix)); err != nil {
+		return fmt.Errorf("failed to create PT routes table: %w", err)
 	}
 	
 	// Create stops table
@@ -259,9 +288,15 @@ func (db *Database) CreatePTTables(processID int) error {
 		return fmt.Errorf("failed to create PT stops table: %w", err)
 	}
 	
+	// Create route_stops junction table
+	routeStopsTable := fmt.Sprintf("%s_route_stops", tablePrefix)
+	if err := db.execTableQuery(fmt.Sprintf(createPTRouteStopsTableQuery, routeStopsTable, tablePrefix, tablePrefix)); err != nil {
+		return fmt.Errorf("failed to create PT route_stops table: %w", err)
+	}
+	
 	// Create departures table
 	departuresTable := fmt.Sprintf("%s_departures", tablePrefix)
-	if err := db.execTableQuery(fmt.Sprintf(createPTDeparturesTableQuery, departuresTable)); err != nil {
+	if err := db.execTableQuery(fmt.Sprintf(createPTDeparturesTableQuery, departuresTable, tablePrefix)); err != nil {
 		return fmt.Errorf("failed to create PT departures table: %w", err)
 	}
 	
@@ -276,9 +311,11 @@ func (db *Database) CreatePTTables(processID int) error {
 
 // DropPTTables drops all PT tables for a given process
 func (db *Database) DropPTTables(processID int) error {
-	tablePrefix := fmt.Sprintf("pt_data_%d", processID)
+	tablePrefix := fmt.Sprintf("pt_%d", processID)
 	tables := []string{
 		fmt.Sprintf("%s_departures", tablePrefix),
+		fmt.Sprintf("%s_route_stops", tablePrefix),
+		fmt.Sprintf("%s_routes", tablePrefix),
 		fmt.Sprintf("%s_stops", tablePrefix),
 		fmt.Sprintf("%s_lines", tablePrefix),
 	}
@@ -376,7 +413,7 @@ func (db *Database) GetPopulationInBounds(processId int, viewport ViewportBounds
 
 // GetNodesInBounds retrieves network nodes within viewport bounds
 func (db *Database) GetNodesInBounds(processId int, viewport ViewportBounds, randomFactor float64, maxElements int) ([]NodeData, error) {
-	tableName := fmt.Sprintf("NETWORK_%d_nodes", processId)
+	tableName := fmt.Sprintf("network_%d_nodes", processId)
 	
 	query := fmt.Sprintf(`
 		SELECT id, lng, lat, raw_xml 
@@ -453,25 +490,27 @@ func (db *Database) GetLinksForNodesInBounds(processId int, viewport ViewportBou
 
 // GetPTLinesInBounds retrieves PT lines that have stops within viewport bounds
 func (db *Database) GetPTLinesInBounds(processId int, viewport ViewportBounds, mode string, randomFactor float64, maxElements int) ([]Line, error) {
-	linesTable := fmt.Sprintf("pt_data_%d_lines", processId)
-	stopsTable := fmt.Sprintf("pt_data_%d_stops", processId)
+	linesTable := fmt.Sprintf("pt_%d_lines", processId)
+	stopsTable := fmt.Sprintf("pt_%d_stops", processId)
 	
 	// Get lines that have stops in the viewport bounds
-	// Routes are now embedded in lines as JSON, and stops reference routes directly
+	// Routes are now in a separate table
+	routesTable := fmt.Sprintf("pt_%d_routes", processId)
+	routeStopsTable := fmt.Sprintf("pt_%d_route_stops", processId)
+	
 	query := fmt.Sprintf(`
-		SELECT DISTINCT l.id, l.name, l.type, l.routes
+		SELECT DISTINCT l.id, l.name, l.type
 		FROM %s l
 		WHERE l.type = ? AND EXISTS (
-			SELECT 1 FROM %s s
-			WHERE s.route_id IN (
-				SELECT json_extract(value, '$.id') 
-				FROM json_each(l.routes)
-			)
+			SELECT 1 FROM %s r
+			JOIN %s rs ON r.id = rs.route_id
+			JOIN %s s ON rs.stop_id = s.stop_id
+			WHERE r.line_id = l.id
 			AND s.lat BETWEEN ? AND ? 
 			AND s.lng BETWEEN ? AND ?
 		)
 		ORDER BY RANDOM()
-		LIMIT ?`, linesTable, stopsTable)
+		LIMIT ?`, linesTable, routesTable, routeStopsTable, stopsTable)
 	
 	rows, err := db.queryRows(query, "failed to query PT lines in bounds",
 		mode, viewport.MinLat, viewport.MaxLat, viewport.MinLng, viewport.MaxLng, maxElements)
@@ -483,16 +522,37 @@ func (db *Database) GetPTLinesInBounds(processId int, viewport ViewportBounds, m
 	var lines []Line
 	for rows.Next() {
 		var l Line
-		var routesJSON string
-		if err := rows.Scan(&l.ID, &l.Name, &l.Type, &routesJSON); err != nil {
+		if err := rows.Scan(&l.ID, &l.Name, &l.Type); err != nil {
 			return nil, err
 		}
-		
-		// Parse routes JSON
-		if err := json.Unmarshal([]byte(routesJSON), &l.Routes); err != nil {
-			return nil, fmt.Errorf("failed to parse routes JSON: %w", err)
+		lines = append(lines, l)
+	}
+	
+	return lines, nil
+}
+
+// GetPTLineSummaries retrieves all PT lines for a given mode
+func (db *Database) GetPTLineSummaries(processId int, mode string) ([]Line, error) {
+	linesTable := fmt.Sprintf("pt_%d_lines", processId)
+	
+	query := fmt.Sprintf(`
+		SELECT id, name, type
+		FROM %s
+		WHERE type = ?
+		ORDER BY name`, linesTable)
+	
+	rows, err := db.queryRows(query, "failed to query PT line summaries", mode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var lines []Line
+	for rows.Next() {
+		var l Line
+		if err := rows.Scan(&l.ID, &l.Name, &l.Type); err != nil {
+			return nil, err
 		}
-		
 		lines = append(lines, l)
 	}
 	
@@ -513,22 +573,23 @@ func (db *Database) estimateRowsInBounds(tableName string, viewport ViewportBoun
 // CreateNetworkTables creates network tables for a given process
 func (db *Database) CreateNetworkTables(processID int) error {
 	// Create nodes table
-	nodesTable := fmt.Sprintf("NETWORK_%d_nodes", processID)
+	nodesTable := fmt.Sprintf("network_%d_nodes", processID)
 	if err := db.execTableQuery(fmt.Sprintf(createNetworkNodesTableQuery, nodesTable)); err != nil {
 		return fmt.Errorf("failed to create network nodes table: %w", err)
 	}
 	
 	// Create spatial index for nodes
-	indexName := fmt.Sprintf("NETWORK_%d_nodes", processID)
+	indexName := fmt.Sprintf("network_%d_nodes", processID)
 	if err := db.execTableQuery(fmt.Sprintf(createNodesSpatialIndex, indexName, nodesTable)); err != nil {
 		return fmt.Errorf("failed to create nodes spatial index: %w", err)
 	}
 	
 	// Create links table
-	linksTable := fmt.Sprintf("NETWORK_%d_links", processID)
+	linksTable := fmt.Sprintf("network_%d_links", processID)
 	if err := db.execTableQuery(fmt.Sprintf(createNetworkLinksTableQuery, linksTable)); err != nil {
 		return fmt.Errorf("failed to create network links table: %w", err)
 	}
 	
 	return nil
 }
+

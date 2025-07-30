@@ -34,8 +34,8 @@ func (e *NetworkExporter) ExportToFile(filePath string, loadedRegions []Bounding
 	
 	// First, get the total count of nodes and links
 	var totalNodes, totalLinks int
-	nodesTable := fmt.Sprintf("network_nodes_%d", e.processID)
-	linksTable := fmt.Sprintf("network_links_%d", e.processID)
+	nodesTable := fmt.Sprintf("network_%d_nodes", e.processID)
+	linksTable := fmt.Sprintf("network_%d_links", e.processID)
 	
 	if err := e.db.queryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", nodesTable), "").Scan(&totalNodes); err != nil {
 		return fmt.Errorf("failed to count network nodes: %w", err)
@@ -123,7 +123,7 @@ func (e *NetworkExporter) ExportToFile(filePath string, loadedRegions []Bounding
 // exportNodesWithProgress exports nodes in batches with progress updates
 func (e *NetworkExporter) exportNodesWithProgress(file *os.File, totalElements, startProcessed int) (int, error) {
 	processed := startProcessed
-	nodesTable := fmt.Sprintf("network_nodes_%d", e.processID)
+	nodesTable := fmt.Sprintf("network_%d_nodes", e.processID)
 	
 	// Get total nodes count for batching
 	var totalNodes int
@@ -159,7 +159,7 @@ func (e *NetworkExporter) exportNodesWithProgress(file *os.File, totalElements, 
 	for offset := 0; offset < totalNodes; offset += NETWORK_EXPORT_BATCH_SIZE {
 		// Query batch
 		query := fmt.Sprintf(`
-			SELECT id, x, y, raw_xml 
+			SELECT id, lng, lat, raw_xml 
 			FROM %s 
 			ORDER BY id
 			LIMIT %d OFFSET %d
@@ -177,9 +177,9 @@ func (e *NetworkExporter) exportNodesWithProgress(file *os.File, totalElements, 
 		batchCount := 0
 		for rows.Next() {
 			var id string
-			var x, y float64
+			var lng, lat float64
 			var rawXML string
-			err := rows.Scan(&id, &x, &y, &rawXML)
+			err := rows.Scan(&id, &lng, &lat, &rawXML)
 			if err != nil {
 				log.Printf("Error scanning node row: %v", err)
 				continue
@@ -199,7 +199,7 @@ func (e *NetworkExporter) exportNodesWithProgress(file *os.File, totalElements, 
 				}
 			} else {
 				// Generate basic node XML if no raw XML
-				formattedXML = fmt.Sprintf("        <node id=\"%s\" x=\"%f\" y=\"%f\" />", escapeXMLNetwork(id), x, y)
+				formattedXML = fmt.Sprintf("        <node id=\"%s\" x=\"%f\" y=\"%f\" />", escapeXMLNetwork(id), lng, lat)
 			}
 			
 			// Write the formatted node XML
@@ -261,7 +261,7 @@ func (e *NetworkExporter) exportNodesWithProgress(file *os.File, totalElements, 
 // exportLinksWithProgress exports links in batches with progress updates
 func (e *NetworkExporter) exportLinksWithProgress(file *os.File, totalElements, startProcessed int) (int, error) {
 	processed := startProcessed
-	linksTable := fmt.Sprintf("network_links_%d", e.processID)
+	linksTable := fmt.Sprintf("network_%d_links", e.processID)
 	
 	// Get total links count for batching
 	var totalLinks int
@@ -399,8 +399,8 @@ func (e *NetworkExporter) exportLinksWithProgress(file *os.File, totalElements, 
 // GetNetworkStats returns network statistics.
 func (e *NetworkExporter) GetNetworkStats() (totalNodes, totalLinks int, err error) {
 	// Use db to query counts
-	nodesTable := fmt.Sprintf("network_nodes_%d", e.processID)
-	linksTable := fmt.Sprintf("network_links_%d", e.processID)
+	nodesTable := fmt.Sprintf("network_%d_nodes", e.processID)
+	linksTable := fmt.Sprintf("network_%d_links", e.processID)
 	err = e.db.queryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s", nodesTable), "").Scan(&totalNodes)
 	if err != nil {
 		return

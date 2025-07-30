@@ -15,6 +15,24 @@
   import { confirmationState } from "$lib/stores/confirmationModal.svelte";
   import NetworkController from "./components/network/NetworkController.svelte";
   import { networkState } from "$lib/stores/network.svelte";
+  
+  // Hide primary and secondary sidebars in VIEW mode for network
+  $effect(() => {
+    if (commandArgs.fileEditMode === 'NETWORK') {
+      if (appState.networkMode === 'VIEW') {
+        appState.primarySidebar = 'HIDDEN';
+        appState.secondarySidebar = 'HIDDEN';
+      } else if (appState.networkMode === 'CREATE') {
+        // In CREATE mode, keep secondary sidebar hidden
+        appState.secondarySidebar = 'HIDDEN';
+        if (appState.primarySidebar === 'HIDDEN') {
+          appState.primarySidebar = 'EXPANDED';
+        }
+      } else if (appState.primarySidebar === 'HIDDEN' && appState.networkMode === 'EDIT') {
+        appState.primarySidebar = 'EXPANDED';
+      }
+    }
+  });
 </script>
 
 <Header />

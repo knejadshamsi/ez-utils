@@ -5,6 +5,7 @@
   import 'leaflet-edgebuffer';
   import { initializePolygonDrawing } from './polygonDrawing';
   import { mapState, setupCentralEventHandlers } from './mapState.svelte';
+  import { setupSharedStopsHandlers } from './sharedStops';
   
   let mapContainer: HTMLDivElement;
   
@@ -40,12 +41,17 @@
     map.createPane('polygonPane');
     map.getPane('polygonPane').style.zIndex = '450';
     
+    // Create custom pane for network layer with proper z-index
+    map.createPane('networkPane');
+    map.getPane('networkPane').style.zIndex = '440'; // Between default (400) and polygons (450)
+    
     // Initialize polygon drawing
     initializePolygonDrawing(map);
     
     // Initialize layer groups
     mapState.connectedDotsLayer = L.featureGroup().addTo(map);
-    mapState.networkLayer = L.featureGroup().addTo(map);
+    mapState.networkLayer = L.featureGroup({ pane: 'networkPane' }).addTo(map);
+    mapState.sharedStopsLayer = L.featureGroup().addTo(map);
     
     // Create custom pane for connected dots
     map.createPane('connectedDotsPane');
@@ -53,6 +59,9 @@
     
     // Setup central event handlers
     setupCentralEventHandlers();
+    
+    // Setup shared stops handlers
+    setupSharedStopsHandlers();
     
     console.log('Leaflet map initialized');
     

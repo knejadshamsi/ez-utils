@@ -14,6 +14,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
 // NewApp creates a new App application struct
@@ -40,6 +42,16 @@ func (a *App) startup(ctx context.Context) {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	a.db = db
+	
+	// Initialize GORM connection once
+	sqlDB := db.GetConn()
+	gormDB, err := gorm.Open(sqlite.Dialector{
+		Conn: sqlDB,
+	}, &gorm.Config{})
+	if err != nil {
+		log.Fatalf("Failed to initialize GORM: %v", err)
+	}
+	a.gormDB = gormDB
 	
 	// Create zone tables
 	if err := db.CreateZoneTables(); err != nil {
@@ -571,7 +583,7 @@ func (a *App) LoadProcessData(params LoadingParams) (map[string]any, error) {
 		
 		return map[string]any{
 			"data": map[string]any{
-				"summaries": summaries,
+				"lines": summaries,
 			},
 			"type": "pt",
 		}, nil

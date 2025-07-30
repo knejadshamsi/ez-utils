@@ -9,13 +9,15 @@ import {
   setupMoveNodesMode,
   updateNodeStyle 
 } from './networkEditor';
+import { trackNodeChange, trackLinkChange } from '../lib/utils/networkChangeTracking';
+import { nanoid } from 'nanoid';
 
 function generateNodeId(): string {
-  return `node_${Math.floor(Math.random() * 1000000000)}`;
+  return `node_${nanoid(10)}`;
 }
 
 function generateLinkId(fromId: string, toId: string): string {
-  return `link_${fromId}_${toId}_${Math.floor(Math.random() * 1000000)}`;
+  return `link_${fromId}_${toId}_${nanoid(10)}`;
 }
 
 export function updateNetworkVisualization() {
@@ -63,7 +65,9 @@ export function updateNetworkVisualization() {
         {
           color: mapState.network.defaultLinkColor,
           weight: 3,
-          opacity: 0.8
+          opacity: 0.8,
+          interactive: true,
+          pane: 'networkPane'
         }
       ).addTo(mapState.networkLayer);
 
@@ -107,8 +111,8 @@ function setupNodeMarkerEvents(marker: L.Marker, node: MapNetworkNode) {
     if (storeNodeIndex !== -1) {
       networkState.nodes[storeNodeIndex] = {
         ...networkState.nodes[storeNodeIndex],
-        x: startPosition.lng,
-        y: startPosition.lat
+        lng: startPosition.lng,
+        lat: startPosition.lat
       };
     }
     
@@ -126,8 +130,8 @@ function setupNodeMarkerEvents(marker: L.Marker, node: MapNetworkNode) {
     if (storeNodeIndex !== -1) {
       networkState.nodes[storeNodeIndex] = {
         ...networkState.nodes[storeNodeIndex],
-        x: newPosition.lng,
-        y: newPosition.lat
+        lng: newPosition.lng,
+        lat: newPosition.lat
       };
     }
     
@@ -158,9 +162,7 @@ function setupNodeMarkerEvents(marker: L.Marker, node: MapNetworkNode) {
       const updatedNode = networkState.nodes[storeNodeIndex];
       
       // Track the change
-      import('../lib/utils/networkChangeTracking').then(module => {
-        module.trackNodeChange(updatedNode, 'update');
-      });
+      trackNodeChange(updatedNode, 'update');
     }
     
     // Maintain selection color after drag
@@ -195,7 +197,7 @@ function setupNodeMarkerEvents(marker: L.Marker, node: MapNetworkNode) {
   // Click event for selection and link creation
   marker.on('click', (e: L.LeafletMouseEvent) => {
     
-    if (appState.networkMode === 'EDIT' || appState.networkMode === 'VIEW') {
+    if (appState.networkMode === 'EDIT') {
       // Check if clicking on already selected node
       if (networkState.selection.selectedNodeId === node.id) {
         // Deselect
@@ -224,44 +226,48 @@ function setupNodeMarkerEvents(marker: L.Marker, node: MapNetworkNode) {
         // Open secondary sidebar
         appState.secondarySidebar = 'EXPANDED';
       }
-    } else if (networkState.isAddingLink && appState.networkMode === 'CREATE') {
-      // Handle link creation
-      if (!networkState.selection.selectedNodeId) {
-        // First node selection
-        networkState.selection.selectedNodeId = node.id;
-        updateNodeStyle(node, true);
-      } else if (networkState.selection.selectedNodeId === node.id) {
-        // Clicking same node - deselect
-        networkState.selection.selectedNodeId = null;
-        updateNodeStyle(node, false);
-      } else {
-        // Second node selection - create link
-        const fromId = networkState.selection.selectedNodeId;
-        const toId = node.id;
-        
-        // Generate unique link ID
-        const linkId = generateLinkId(fromId, toId);
-        
-        // Create link in network store
-        const newLink = {
-          id: linkId,
-          label: `Link ${networkState.links.length + 1}`,
-          from: fromId,
-          to: toId
-        };
-        networkState.links = [...networkState.links, newLink];
-        
-        // Track the change
-        import('../lib/utils/networkChangeTracking').then(module => {
-          module.trackLinkChange(newLink, 'add');
-        });
-        
-        // Reset selection
-        networkState.selection.selectedNodeId = null;
-        
-        // Update visualization to show new link
-        updateNetworkVisualization();
-        
+    } else if (appState.networkMode === 'CREATE') {
+      // Import NetworkContent's state to check current action
+      const networkContent = document.querySelector('[data-network-action]');
+      const currentAction = networkContent?.getAttribute('data-network-action');
+      
+      if (currentAction === 'link') {
+        // Handle link creation
+        if (!networkState.selection.selectedNodeId) {
+          // First node selection
+          networkState.selection.selectedNodeId = node.id;
+          updateNodeStyle(node, true);
+        } else if (networkState.selection.selectedNodeId === node.id) {
+          // Clicking same node - deselect
+          networkState.selection.selectedNodeId = null;
+          updateNodeStyle(node, false);
+        } else {
+          // Second node selection - create link
+          const fromId = networkState.selection.selectedNodeId;
+          const toId = node.id;
+          
+          // Generate unique link ID
+          const linkId = generateLinkId(fromId, toId);
+          
+          // Create link in network store
+          const newLink = {
+            id: linkId,
+            label: `Link ${networkState.links.length + 1}`,
+            from: fromId,
+            to: toId
+          };
+          networkState.links = [...networkState.links, newLink];
+          
+          // Track the change
+          trackLinkChange(newLink, 'add');
+          
+          // Reset selection
+          networkState.selection.selectedNodeId = null;
+          
+          // Update visualization to show new link
+          updateNetworkVisualization();
+          
+        }
       }
     }
     e.originalEvent.stopPropagation();
@@ -287,7 +293,7 @@ function setupLinkEvents(polyline: L.Polyline, link: MapNetworkLink) {
 
   // Click event for selection
   polyline.on('click', (e: L.LeafletMouseEvent) => {
-    if (appState.networkMode === 'EDIT' || appState.networkMode === 'VIEW') {
+    if (appState.networkMode === 'EDIT') {
       // Check if clicking on already selected link
       if (networkState.selection.selectedLinkId === link.id) {
         // Deselect
@@ -335,10 +341,10 @@ function setupLinkEvents(polyline: L.Polyline, link: MapNetworkLink) {
 
 // Update network visualization based on current mode
 function updateNetworkMode() {
-  // In EDIT mode, always allow dragging
-  // In CREATE mode, always allow dragging
+  // In EDIT mode, allow dragging
+  // In CREATE mode, disable dragging
   // In VIEW mode, disable dragging
-  const isDraggingEnabled = appState.networkMode === 'EDIT' || appState.networkMode === 'CREATE';
+  const isDraggingEnabled = appState.networkMode === 'EDIT';
   
   mapState.network.nodes.forEach(node => {
     if (isDraggingEnabled) {
@@ -351,29 +357,31 @@ function updateNetworkMode() {
 
 // Handle map click for adding nodes
 export function handleNetworkMapClick(e: L.LeafletMouseEvent) {
-  if (networkState.isAddingNode && appState.networkMode === 'CREATE') {
-    const nodeId = generateNodeId();
-    const latlng = e.latlng;
+  if (appState.networkMode === 'CREATE') {
+    const networkContent = document.querySelector('[data-network-action]');
+    const currentAction = networkContent?.getAttribute('data-network-action');
     
-    // Add to network store
-    const newNode = {
-      id: nodeId,
-      label: `Node ${networkState.nodes.length + 1}`,
-      x: latlng.lng,
-      y: latlng.lat
-    };
-    networkState.nodes = [...networkState.nodes, newNode];
-    
-    // Track the change
-    import('../lib/utils/networkChangeTracking').then(module => {
-      module.trackNodeChange(newNode, 'add');
-    });
-    
-    // Update visualization
-    updateNetworkVisualization();
-    
+    if (currentAction === 'node') {
+      const nodeId = generateNodeId();
+      const latlng = e.latlng;
+      
+      // Add to network store
+      const newNode = {
+        id: nodeId,
+        label: `Node ${networkState.nodes.length + 1}`,
+        lng: latlng.lng,
+        lat: latlng.lat
+      };
+      networkState.nodes = [...networkState.nodes, newNode];
+      
+      // Track the change
+      trackNodeChange(newNode, 'add');
+      
+      // Update visualization
+      updateNetworkVisualization();
+    }
   }
 }
 
 // Export utility functions
-export { generateNodeId, generateLinkId };
+export { generateNodeId, generateLinkId, updateNetworkMode };

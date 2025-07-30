@@ -39,10 +39,10 @@ type TransitRoute struct {
 }
 
 type RouteProfile struct {
-	Stops []RouteStop `xml:"stop" json:"stops"`
+	Stops []XMLRouteStop `xml:"stop" json:"stops"`
 }
 
-type RouteStop struct {
+type XMLRouteStop struct {
 	RefID           string `xml:"refId,attr" json:"refId"`
 	ArrivalOffset   string `xml:"arrivalOffset,attr" json:"arrivalOffset"`
 	DepartureOffset string `xml:"departureOffset,attr" json:"departureOffset"`
@@ -183,14 +183,14 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 	// Batch processing
 	const batchSize = 100
 	var lineBatch []Line
+	var routeBatch []Route
 	var stopBatch []Stop
 	var departureBatch []Departure
 
 	// Temporary storage for building complete structures
 	var currentLine *TransitLine
 	var currentRoute *TransitRoute
-	var lineRoutes = make(map[string][]Route) // Map line ID to routes
-	var routeStops = make(map[string][]RouteStop) // Map route ID to stops
+	var routeStops = make(map[string][]XMLRouteStop) // Map route ID to stops
 	var stopDetails = make(map[string]TransitStop) // Map stop ID to stop details
 	var routeStopOrder int
 	var currentTransportMode string
@@ -239,9 +239,29 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 					}
 				}
 
-				// Store stop details for later use
+				// Store stop details and create stop entity immediately
 				if stop.ID != "" {
 					stopDetails[stop.ID] = stop
+					
+					// Create stop entity (without route association)
+					stopEntity := Stop{
+						StopID:          stop.ID,
+						StopName:        stop.Name,
+						Lat:             stop.Lat,
+						Lng:             stop.Lng,
+						ArrivalOffset:   "",
+						DepartureOffset: "",
+					}
+					stopBatch = append(stopBatch, stopEntity)
+					
+					if len(stopBatch) >= batchSize {
+						if err := p.insertStopBatch(stopBatch); err != nil {
+							atomic.AddInt64(&p.errorCount, 1)
+							return fmt.Errorf("failed to insert stop batch: %w", err)
+						}
+						stopBatch = stopBatch[:0]
+					}
+					
 					atomic.AddInt64(&p.stopCount, 1)
 				}
 
@@ -269,7 +289,7 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 
 			case "stop":
 				if currentRoute != nil {
-					var routeStop RouteStop
+					var routeStop XMLRouteStop
 					for _, attr := range se.Attr {
 						switch attr.Name.Local {
 						case "refId":
@@ -283,7 +303,7 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 					if routeStop.RefID != "" {
 						// Store route stops temporarily
 						if routeStops[currentRoute.ID] == nil {
-							routeStops[currentRoute.ID] = []RouteStop{}
+							routeStops[currentRoute.ID] = []XMLRouteStop{}
 						}
 						routeStops[currentRoute.ID] = append(routeStops[currentRoute.ID], routeStop)
 						routeStopOrder++
@@ -332,41 +352,50 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 			switch se.Name.Local {
 			case "transitRoute":
 				if currentLine != nil && currentRoute != nil {
-					// Store route in temporary map
-					stops := routeStops[currentRoute.ID]
+					// Create route for separate table
 					route := Route{
-						ID:    currentRoute.ID,
-						Name:  currentRoute.ID, // Default to ID, can be enhanced later
-						Stops: len(stops),
+						ID:     currentRoute.ID,
+						LineID: currentLine.ID,
+						Name:   currentRoute.ID, // Default to ID, can be enhanced later
+					}
+					routeBatch = append(routeBatch, route)
+					
+					if len(routeBatch) >= batchSize {
+						if err := p.insertRouteBatch(routeBatch); err != nil {
+							atomic.AddInt64(&p.errorCount, 1)
+							return fmt.Errorf("failed to insert route batch: %w", err)
+						}
+						routeBatch = routeBatch[:0]
 					}
 					
-					if lineRoutes[currentLine.ID] == nil {
-						lineRoutes[currentLine.ID] = []Route{}
-					}
-					lineRoutes[currentLine.ID] = append(lineRoutes[currentLine.ID], route)
-					
-					// Create Stop entries for this route
-					for i, rs := range stops {
-						if stopDetail, exists := stopDetails[rs.RefID]; exists {
-							stop := Stop{
-								RouteID:         currentRoute.ID,
-								StopID:          rs.RefID,
-								ArrivalOffset:   rs.ArrivalOffset,
-								DepartureOffset: rs.DepartureOffset,
-								StopName:        stopDetail.Name,
-								Lat:             stopDetail.Lat,
-								Lng:             stopDetail.Lng,
-								Sequence:        i,
+					// Create RouteStop junction entries for this route
+					var routeStopBatch []RouteStop
+					for i, rs := range routeStops[currentRoute.ID] {
+						if _, exists := stopDetails[rs.RefID]; exists {
+							// Create route-stop junction with unique link ID
+							routeStop := RouteStop{
+								LinkID:   fmt.Sprintf("rs_%s_%s", currentRoute.ID, rs.RefID),
+								RouteID:  currentRoute.ID,
+								StopID:   rs.RefID,
+								Sequence: i,
 							}
-							stopBatch = append(stopBatch, stop)
+							routeStopBatch = append(routeStopBatch, routeStop)
 							
-							if len(stopBatch) >= batchSize {
-								if err := p.insertStopBatch(stopBatch); err != nil {
+							if len(routeStopBatch) >= batchSize {
+								if err := p.app.SavePTRouteStops(p.processID, routeStopBatch); err != nil {
 									atomic.AddInt64(&p.errorCount, 1)
-									return fmt.Errorf("failed to insert stop batch: %w", err)
+									return fmt.Errorf("failed to insert route_stop batch: %w", err)
 								}
-								stopBatch = stopBatch[:0]
+								routeStopBatch = routeStopBatch[:0]
 							}
+						}
+					}
+					
+					// Insert remaining route stops
+					if len(routeStopBatch) > 0 {
+						if err := p.app.SavePTRouteStops(p.processID, routeStopBatch); err != nil {
+							atomic.AddInt64(&p.errorCount, 1)
+							return fmt.Errorf("failed to insert final route_stop batch: %w", err)
 						}
 					}
 					
@@ -391,17 +420,11 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 						mode = "BUS"
 					}
 					
-					// Create Line with embedded routes
-					routes := lineRoutes[currentLine.ID]
-					if routes == nil {
-						routes = []Route{}
-					}
-					
+					// Create Line without routes
 					line := Line{
-						ID:     currentLine.ID,
-						Name:   currentLine.ID, // Default to ID, can be enhanced later
-						Type:   mode,
-						Routes: routes,
+						ID:   currentLine.ID,
+						Name: currentLine.ID, // Default to ID, can be enhanced later
+						Type: mode,
 					}
 					
 					lineBatch = append(lineBatch, line)
@@ -426,6 +449,12 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 		if err := p.insertLineBatch(lineBatch); err != nil {
 			atomic.AddInt64(&p.errorCount, 1)
 			return fmt.Errorf("failed to insert final line batch: %w", err)
+		}
+	}
+	if len(routeBatch) > 0 {
+		if err := p.insertRouteBatch(routeBatch); err != nil {
+			atomic.AddInt64(&p.errorCount, 1)
+			return fmt.Errorf("failed to insert final route batch: %w", err)
 		}
 	}
 	if len(stopBatch) > 0 {
@@ -493,20 +522,8 @@ func (p *PTProcessor) sendTelemetryUpdate(countingReader *CountingReader) {
 	}
 	p.telemetryMutex.RUnlock()
 
-	// Update database using the dedicated method
-	if err := p.db.UpdatePTTelemetry(
-		telemetry.ProcessID,
-		telemetry.BytesRead,
-		telemetry.StopsExtracted,
-		telemetry.LinesExtracted,
-		telemetry.RoutesExtracted,
-		telemetry.ErrorCount,
-	); err != nil {
-		return
-	}
-
-	// Emit events
-	wailsruntime.EventsEmit(p.app.ctx, "pt-telemetry-update", telemetry)
+	// Emit unified telemetry event
+	percentComplete := float64(telemetry.BytesRead) / float64(telemetry.TotalFileSize) * 100
 	wailsruntime.EventsEmit(p.app.ctx, "process:telemetry", map[string]interface{}{
 		"processId":        telemetry.ProcessID,
 		"bytesRead":        telemetry.BytesRead,
@@ -515,23 +532,26 @@ func (p *PTProcessor) sendTelemetryUpdate(countingReader *CountingReader) {
 		"routesExtracted":  telemetry.RoutesExtracted,
 		"errorCount":       telemetry.ErrorCount,
 		"lastUpdated":      telemetry.LastUpdated,
+		"percent":          percentComplete,
+		"currentElement":   fmt.Sprintf("Stops: %d, Lines: %d, Routes: %d", telemetry.StopsExtracted, telemetry.LinesExtracted, telemetry.RoutesExtracted),
+		"elementCount":     telemetry.StopsExtracted + telemetry.LinesExtracted + telemetry.RoutesExtracted,
 	})
 }
 
 // Batch insert methods
 func (p *PTProcessor) insertStopBatch(stops []Stop) error {
-	return p.db.InsertPTStopBatch(p.processID, stops)
+	return p.app.SavePTStops(p.processID, stops)
 }
 
 func (p *PTProcessor) insertLineBatch(lines []Line) error {
-	return p.db.InsertPTLineBatch(p.processID, lines)
+	return p.app.SavePTLines(p.processID, lines)
+}
+
+func (p *PTProcessor) insertRouteBatch(routes []Route) error {
+	return p.app.SavePTRoutes(p.processID, routes)
 }
 
 func (p *PTProcessor) insertDepartureBatch(departures []Departure) error {
-	return p.db.InsertPTDepartureBatch(p.processID, departures)
+	return p.app.SavePTDepartures(p.processID, departures)
 }
 
-// GetPTTelemetry retrieves telemetry data for a PT process
-func (a *App) GetPTTelemetry(processID int) (*PTTelemetry, error) {
-	return a.db.GetPTTelemetry(processID)
-}

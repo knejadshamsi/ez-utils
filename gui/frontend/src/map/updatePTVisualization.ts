@@ -2,6 +2,7 @@ import { clearConnectedDots, mapState, createNumberedIcon } from './mapState.sve
 import { ptState } from '$lib/stores/pt.svelte';
 import type { ConnectedPoint, ConnectedLine } from './types';
 import { trackStopChange } from '$lib/utils/ptChangeTracking';
+import { updateSharedStopsLayer } from './sharedStops';
 import L from 'leaflet';
 
 // Transport mode colors
@@ -17,8 +18,8 @@ export function updatePTVisualization() {
   // Clear existing dots
   clearConnectedDots();
   
-  // Check if PT visualization is enabled
-  if (!ptState.visibility.stops && !ptState.visibility.routes) return;
+  // Update shared stops layer when in add mode
+  updateSharedStopsLayer();
   
   // Get selected route data
   if (!ptState.selected.routeId) return;
@@ -29,7 +30,7 @@ export function updatePTVisualization() {
   const line = ptData.lines.find(l => l.id === ptState.selected.lineId);
   if (!line) return;
   
-  const route = line.routes.find(r => r.id === ptState.selected.routeId);
+  const route = ptData.routes.find(r => r.id === ptState.selected.routeId);
   if (!route) return;
   
   const color = modeColors[ptState.selected.mode.toLowerCase()] || '#666666';
@@ -38,7 +39,7 @@ export function updatePTVisualization() {
   const routeStops = ptData.stops.filter(s => s.routeId === ptState.selected.routeId)
     .sort((a, b) => a.sequence - b.sequence);
   
-  if (ptState.visibility.stops && routeStops.length > 0) {
+  if (routeStops.length > 0) {
     // Create dots for each stop in the route
     routeStops.forEach((stop, index) => {
       if (!stop || (stop.lng === 0 && stop.lat === 0)) return;
@@ -51,26 +52,31 @@ export function updatePTVisualization() {
         color: color
       };
       
-      // Create marker with mode-specific shape
-      const circleIcon = createNumberedIcon(index + 1, color, ptState.selected.mode);
-      const marker = L.marker(point.position, {
-        draggable: false, // Will be enabled based on mode
-        icon: circleIcon,
-        pane: 'connectedDotsPane'
-      }).addTo(mapState.connectedDotsLayer);
+      // Only create visible markers if stops are enabled
+      if (ptState.visibility.stops) {
+        // Create marker with mode-specific shape
+        const circleIcon = createNumberedIcon(index + 1, color, ptState.selected.mode);
+        const marker = L.marker(point.position, {
+          draggable: false, // Will be enabled based on mode
+          icon: circleIcon,
+          pane: 'connectedDotsPane'
+        }).addTo(mapState.connectedDotsLayer);
+        
+        // Store stop data for drag events
+        (marker as any).stopData = {
+          stopId: stop.stopId,
+          stopName: stop.stopName,
+          lineId: line.id,
+          routeId: route.id
+        };
+        
+        // Set up marker events
+        setupMarkerEvents(marker, point, stop, index + 1);
+        
+        point.marker = marker;
+      }
       
-      // Store stop data for drag events
-      (marker as any).stopData = {
-        stopId: stop.stopId,
-        stopName: stop.stopName,
-        lineId: line.id,
-        routeId: route.id
-      };
-      
-      // Set up marker events
-      setupMarkerEvents(marker, point, stop, index + 1);
-      
-      point.marker = marker;
+      // Always add point to array (needed for route lines)
       mapState.connectedDots.points.push(point);
       
       // Create line to previous stop
@@ -207,14 +213,14 @@ function updateConnectedLines(pointId: string, newPosition: L.LatLng) {
 }
 
 // Update dragging state based on current mode
-function updateDraggingState() {
-  const isDraggingMode = ptState.editMode === 'DRAGGING_STOP';
-  
+function updateDraggingState() {  
   mapState.connectedDots.points.forEach(point => {
-    if (isDraggingMode) {
-      point.marker.dragging?.enable();
-    } else {
-      point.marker.dragging?.disable();
+    if (point.marker) {
+      if (ptState.editMode === 'DRAGGING_STOP') {
+        point.marker.dragging?.enable();
+      } else {
+        point.marker.dragging?.disable();
+      }
     }
   });
 }
@@ -223,8 +229,8 @@ function updateDraggingState() {
 export type PTMode = 'IDLE' | 'DRAGGING_STOP' | 'ADDING_STOP' | 'SELECTING_LOCATION';
 
 export function getPTMode(): PTMode {
-  if (ptState.isDraggingStop) return 'DRAGGING_STOP';
-  if (ptState.isAddingStop) return 'ADDING_STOP';
-  if (ptState.isSelectingStopLocation) return 'SELECTING_LOCATION';
+  if (ptState.editMode === 'DRAGGING_STOP') return 'DRAGGING_STOP';
+  if (ptState.editMode === 'ADDING_STOP') return 'ADDING_STOP';
+  if (ptState.editMode === 'SELECTING_STOP_LOCATION') return 'SELECTING_LOCATION';
   return 'IDLE';
 }

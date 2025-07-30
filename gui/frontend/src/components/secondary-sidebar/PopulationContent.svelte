@@ -126,6 +126,22 @@
     }
   }
   
+  // Clean up event handlers on component destroy
+  $effect(() => {
+    return () => {
+      // Clean up any existing click handler when component unmounts
+      if (mapState.map && (window as any).__addActivityHandler) {
+        mapState.map.off('click', (window as any).__addActivityHandler);
+        delete (window as any).__addActivityHandler;
+      }
+      
+      // Reset interaction mode if we're in the middle of adding activities
+      if (populationState.sidebarInteraction === 'ADDING_ACTIVITY') {
+        populationState.sidebarInteraction = 'NORMAL';
+      }
+    };
+  });
+  
   function getNextStartTime(): string {
     if (!currentPlan || currentPlan.activities.length === 0) return '08:00';
     
