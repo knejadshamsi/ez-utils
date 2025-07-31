@@ -93,13 +93,6 @@ export interface CurrentRouteData {
   departures: Departure[];
 }
 
-export interface PTSelection {
-  mode: TransportMode;
-  lineId: string | null;
-  routeId: string | null;
-  stopId: string | null;
-}
-
 export type PTEditMode = 'NORMAL' | 'ADDING_STOP' | 'DRAGGING_STOP' | 'EDITING_STOP_ATTRIBUTES' | 'EDITING_DEPARTURES' | 'ADDING_MULTIPLE_STOPS' | 'SELECTING_STOP_LOCATION';
 
 export interface PTSelection {

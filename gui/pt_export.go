@@ -271,7 +271,7 @@ func (e *PTExporter) buildTransitLine(line *Line, processed *int, total int) (*T
 	// Build transit routes
 	var transitRoutes []TransitRoute
 	for _, route := range routes {
-		transitRoute, err := e.buildTransitRoute(&route, line.Type, processed, total)
+		transitRoute, err := e.buildTransitRoute(&route, line.Mode, processed, total)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build route %s: %w", route.ID, err)
 		}
@@ -525,7 +525,7 @@ func (e *PTExporter) buildTransitLineSubset(line *Line, relevantRoutes map[strin
 	dummyProcessed := 0
 	for _, route := range routes {
 		if relevantRoutes[route.ID] {
-			transitRoute, err := e.buildTransitRoute(&route, line.Type, &dummyProcessed, 0)
+			transitRoute, err := e.buildTransitRoute(&route, line.Mode, &dummyProcessed, 0)
 			if err != nil {
 				return nil, fmt.Errorf("failed to build route %s: %w", route.ID, err)
 			}

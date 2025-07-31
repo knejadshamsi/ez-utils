@@ -51,7 +51,7 @@ export namespace gui {
 	export class Line {
 	    id: string;
 	    name: string;
-	    type: string;
+	    mode: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Line(source);
@@ -61,7 +61,7 @@ export namespace gui {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
 	        this.name = source["name"];
-	        this.type = source["type"];
+	        this.mode = source["mode"];
 	    }
 	}
 	export class LinkResult {

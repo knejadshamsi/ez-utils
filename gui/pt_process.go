@@ -424,7 +424,7 @@ func (p *PTProcessor) process(countingReader *CountingReader) error {
 					line := Line{
 						ID:   currentLine.ID,
 						Name: currentLine.ID, // Default to ID, can be enhanced later
-						Type: mode,
+						Mode: mode,
 					}
 					
 					lineBatch = append(lineBatch, line)

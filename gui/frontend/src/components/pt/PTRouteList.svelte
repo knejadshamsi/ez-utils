@@ -3,7 +3,6 @@
   import { PlusOutline, CheckOutline, CloseOutline } from 'flowbite-svelte-icons';
   import { selected } from '@workflow/pt/state.svelte';
   import { createRoute } from '@workflow/pt/crud.svelte';
-  import { saveCurrentRoute, loadRouteStops, loadRouteDepartures } from '@workflow/pt/loading.svelte';
   import { selectRoute, selectStop, selectLine } from '@workflow/pt/functions.svelte';
   import type { Route } from '@workflow/pt/types';
   import { appState } from '$lib/stores/app.svelte';
@@ -18,16 +17,7 @@
   let addingRouteToLine = $state<string | null>(null);
   let newRouteName = $state('');
 
-  async function handleRouteClick(routeId: string) {
-    // Save previous route data if needed
-    if (selected.routeId && selected.routeId !== routeId) {
-      try {
-        await saveCurrentRoute();
-      } catch (error) {
-        console.error('Failed to auto-save route:', error);
-      }
-    }
-    
+  function handleRouteClick(routeId: string) {
     // Toggle functionality - if clicking the same route, unselect it
     if (selected.routeId === routeId) {
       selectRoute(null);
@@ -38,19 +28,13 @@
     }
     
     // Otherwise select the new route
-    selectLine(lineId); // Ensure line is selected
+    // Note: Line selection handled by primary sidebar to prevent race condition
+    // between multiple clearRouteData() calls that caused scrambled duplicate stops
     selectRoute(routeId);
     appState.secondarySidebar = 'EXPANDED';
     
-    // Load route data (always fresh fetch)
-    try {
-      await Promise.all([
-        loadRouteStops(routeId),
-        loadRouteDepartures(routeId)
-      ]);
-    } catch (error) {
-      console.error('Failed to load route data:', error);
-    }
+    // Note: Route data loading is handled by the primary sidebar component
+    // to prevent duplicate loading calls that cause duplicate stops bug
     
     // Update visualization
     updatePTVisualization();

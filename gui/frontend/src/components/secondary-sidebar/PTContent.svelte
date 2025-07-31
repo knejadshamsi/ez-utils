@@ -2,8 +2,9 @@
   import { Button, Input, Toggle, Label } from 'flowbite-svelte';
   import { CloseOutline, PlusOutline, TrashBinOutline, CogOutline, MapPinOutline, CheckOutline, CloseCircleOutline, EditOutline } from 'flowbite-svelte-icons';
   import { lines, routes, stops, departures, sequence, selected } from '@workflow/pt/state.svelte';
-  import { removeStopFromRoute } from '@workflow/pt/loading.svelte';
   import { setEditMode } from '@workflow/pt/functions.svelte';
+  import { createStop, updateStop, deleteStop, createRoute, updateRoute, deleteRoute } from '@workflow/pt/crud.svelte';
+  import { addStopToRoute } from '@workflow/pt/loading.svelte';
   import { TRANSPORT_MODES, type StopType, type AccessibilityStatus } from '@workflow/pt/types';
   import { appState } from '$lib/stores/app.svelte';
   import DepartureManagementModal from '../modals/pt/DepartureManagementModal.svelte';
@@ -18,28 +19,25 @@
   
   // Get current selected route data
   const selectedLine = $derived(() => {
-    if (!ptState.selected.lineId) return null;
-    const line = ptState.ptData[ptState.selected.mode][ptState.selected.lineId];
-    return line ? { id: ptState.selected.lineId, name: line.name } : null;
+    if (!selected.lineId) return null;
+    return lines[selected.lineId] || null;
   });
   
   const selectedRoute = $derived(() => {
-    if (!ptState.selected.routeId || !ptState.selected.lineId) return null;
-    const line = ptState.ptData[ptState.selected.mode][ptState.selected.lineId];
-    const route = line?.routes[ptState.selected.routeId];
-    return route ? { id: ptState.selected.routeId, name: route.name } : null;
+    if (!selected.routeId) return null;
+    return routes[selected.routeId] || null;
   });
   
   const routeStops = $derived(() => {
-    return ptState.currentRouteData.stops.sort((a, b) => a.sequence - b.sequence);
+    return sequence.map(stopId => stops[stopId]).filter(Boolean).map((stop, index) => ({ ...stop, sequence: index + 1 }));
   });
   
   const departureCount = $derived(() => {
-    return ptState.currentRouteData.departures.length;
+    return Object.values(departures).filter(dep => dep.routeId === selected.routeId).length;
   });
 
   const routeDepartures = $derived(() => {
-    return ptState.currentRouteData.departures;
+    return Object.values(departures).filter(dep => dep.routeId === selected.routeId);
   });
   
   const departureItems = $derived(() => {
@@ -69,41 +67,41 @@
   }
 
   function handleClose() {
-    ptState.selected.routeId = null;
-    ptState.selected.stopId = null;
+    selected.routeId = null;
+    selected.stopId = null;
     appState.secondarySidebar = 'HIDDEN';
   }
 
   function handleDeleteRoute() {
-    if (!selectedRoute() || !ptState.selected.lineId) return;
+    if (!selectedRoute() || !selected.lineId) return;
     
     if (confirm(`Delete route "${selectedRoute()?.name}"? This will also delete all stops and departures.`)) {
-      ptState.deleteRoute(ptState.selected.lineId, selectedRoute()!.id);
+      deleteRoute(selectedRoute()!.id);
       handleClose();
     }
   }
 
   function handleDeleteStop(stopId: string) {
-    ptState.deleteStop(stopId);
+    deleteStop(stopId);
     // Update map visualization after deletion
     updatePTVisualization();
   }
   
   function handleManageDepartures() {
-    ptState.editMode = 'EDITING_DEPARTURES';
+    selected.editMode = 'EDITING_DEPARTURES';
   }
   
   function handleStopClick(stopId: string) {
     // Toggle selection
-    if (ptState.selected.stopId === stopId) {
-      ptState.selected.stopId = null;
+    if (selected.stopId === stopId) {
+      selected.stopId = null;
     } else {
-      ptState.selected.stopId = stopId;
+      selected.stopId = stopId;
     }
   }
   
   function startAddingStops() {
-    if (!mapState.map || !ptState.selected.routeId) return;
+    if (!mapState.map || !selected.routeId) return;
     
     // Remove any existing handler first
     const existingHandler = (window as any).__addStopHandler;
@@ -111,7 +109,7 @@
       mapState.map.off('click', existingHandler);
     }
     
-    ptState.editMode = 'ADDING_STOP';
+    selected.editMode = 'ADDING_STOP';
     
     
     const clickHandler = async (e: L.LeafletMouseEvent) => {
@@ -121,15 +119,20 @@
       const stopName = 'New Stop';
       
       // Create the stop
-      ptState.createStop({
-        routeId: ptState.selected.routeId!,
+      const stopId = createStop({
         stopId: `stop_${nanoid(10)}`,
         stopName,
         lat: coords[1],
         lng: coords[0],
         arrivalOffset: '00:00:00',
-        departureOffset: '00:00:00'
+        departureOffset: '00:00:00',
+        stopType: 'REGULAR',
+        wheelchairAccessible: 'UNKNOWN',
+        timingPoint: false
       });
+      
+      // Add stop to current route sequence
+      await addStopToRoute(stopId);
       
       // Update map visualization
       updatePTVisualization();
@@ -142,7 +145,7 @@
   function stopAddingStops() {
     if (!mapState.map) return;
     
-    ptState.editMode = 'NORMAL';
+    selected.editMode = 'NORMAL';
     
     const handler = (window as any).__addStopHandler;
     if (handler) {
@@ -162,14 +165,14 @@
       }
       
       // Reset edit mode if we're in the middle of adding stops
-      if (ptState.editMode === 'ADDING_STOP') {
-        ptState.editMode = 'NORMAL';
+      if (selected.editMode === 'ADDING_STOP') {
+        selected.editMode = 'NORMAL';
       }
     };
   });
   
   function toggleStopDragging() {
-    ptState.editMode = ptState.editMode === 'DRAGGING_STOP' ? 'NORMAL' : 'DRAGGING_STOP';
+    selected.editMode = selected.editMode === 'DRAGGING_STOP' ? 'NORMAL' : 'DRAGGING_STOP';
     updatePTVisualization();
   }
   
@@ -179,7 +182,7 @@
   
   function saveStopName() {
     if (editingStopName && editingStopName.name.trim()) {
-      ptState.updateStop(editingStopName.stopId, { stopName: editingStopName.name.trim() });
+      updateStop(editingStopName.stopId, { stopName: editingStopName.name.trim() });
       editingStopName = null;
     }
   }
@@ -189,15 +192,15 @@
   }
   
   function updateStopType(stopId: string, type: StopType) {
-    ptState.updateStop(stopId, { stopType: type });
+    updateStop(stopId, { stopType: type });
   }
   
   function updateAccessibility(stopId: string, status: AccessibilityStatus) {
-    ptState.updateStop(stopId, { wheelchairAccessible: status });
+    updateStop(stopId, { wheelchairAccessible: status });
   }
   
   function toggleTimingPoint(stopId: string, currentValue: boolean) {
-    ptState.updateStop(stopId, { timingPoint: !currentValue });
+    updateStop(stopId, { timingPoint: !currentValue });
   }
   
   function updateOffset(stopId: string, field: 'arrivalOffset' | 'departureOffset', value: string) {
@@ -205,7 +208,7 @@
     if (/^[0-9]{2}:[0-9]{2}(:[0-9]{2})?$/.test(value)) {
       // Normalize to HH:MM:SS format if needed
       const normalizedValue = value.length === 5 ? `${value}:00` : value;
-      ptState.updateStop(stopId, { [field]: normalizedValue });
+      updateStop(stopId, { [field]: normalizedValue });
     }
   }
   
@@ -216,8 +219,8 @@
   }
   
   function saveRouteName() {
-    if (editingRouteName && editingRouteName.trim() && selectedRoute() && ptState.selected.lineId) {
-      ptState.updateRoute(ptState.selected.lineId, selectedRoute()!.id, editingRouteName.trim());
+    if (editingRouteName && editingRouteName.trim() && selectedRoute() && selected.lineId) {
+      updateRoute(selectedRoute()!.id, { name: editingRouteName.trim() });
       editingRouteName = null;
     }
   }
@@ -258,7 +261,7 @@
               <span class="text-lg font-semibold text-white">{selectedRoute()?.name || 'Route'}</span>
             {/if}
             <span class="text-sm text-gray-400">
-              {TRANSPORT_MODES[ptState.selected.mode]?.icon}
+              {TRANSPORT_MODES[selected.mode]?.icon}
             </span>
             {#if editingRouteName === null}
               <button
@@ -316,14 +319,10 @@
           <div class="space-y-2">
             {#each routeStops() as stop, index}
               <div 
-                class="rounded border {ptState.selected.stopId === stop.stopId ? 'ring-2 ring-blue-500 border-blue-500' : 'border-gray-200 dark:border-gray-700'}"
+                class="rounded border {selected.stopId === stop.stopId ? 'ring-2 ring-blue-500 border-blue-500' : 'border-gray-200 dark:border-gray-700'}"
               >
-                <button 
-                  type="button"
-                  class="w-full text-left p-2 bg-gray-800 cursor-pointer group"
-                  onclick={() => handleStopClick(stop.stopId)}
-                >
-                  <div class="flex items-center justify-between">
+                <div class="w-full text-left p-2 bg-gray-800 cursor-pointer group relative">
+                  <div class="flex items-center justify-between" onclick={() => handleStopClick(stop.stopId)}>
                     <div class="flex items-center gap-2 flex-1">
                       <span class="text-xs font-bold text-gray-500 bg-gray-700 rounded-full w-6 h-6 flex items-center justify-center">
                         {index + 1}
@@ -354,12 +353,6 @@
                             <p class="font-medium text-sm text-white">
                               {stop.stopName}
                             </p>
-                            <button
-                              class="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-700 rounded"
-                              onclick={(e) => { e.stopPropagation(); startEditingStopName(stop); }}
-                            >
-                              <EditOutline size="xs" class="text-gray-400" />
-                            </button>
                           </div>
                         {/if}
                         {#if selectedDepartureId !== 'offset'}
@@ -388,9 +381,19 @@
                       <TrashBinOutline size="xs" />
                     </Button>
                   </div>
-                </button>
+                  
+                  <!-- Edit button positioned separately to avoid nesting -->
+                  {#if editingStopName?.stopId !== stop.stopId}
+                    <button
+                      class="absolute top-2 right-12 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-gray-700 rounded"
+                      onclick={(e) => { e.stopPropagation(); startEditingStopName(stop); }}
+                    >
+                      <EditOutline size="xs" class="text-gray-400" />
+                    </button>
+                  {/if}
+                </div>
                 
-                {#if ptState.selected.stopId === stop.stopId}
+                {#if selected.stopId === stop.stopId}
                   <div class="border-t border-gray-700 p-3 space-y-3 bg-gray-800">
                     <!-- Offset Times -->
                     <div class="flex gap-2">
@@ -455,20 +458,20 @@
     <div class="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
       <Button 
         size="sm" 
-        color={ptState.editMode === 'DRAGGING_STOP' ? "yellow" : "alternative"}
+        color={selected.editMode === 'DRAGGING_STOP' ? "yellow" : "alternative"}
         class="w-full"
         onclick={toggleStopDragging}
       >
         <MapPinOutline size="sm" class="mr-1" />
-        {ptState.editMode === 'DRAGGING_STOP' ? 'Done Editing Locations' : 'Edit Stop Locations'}
+        {selected.editMode === 'DRAGGING_STOP' ? 'Done Editing Locations' : 'Edit Stop Locations'}
       </Button>
       <Button 
         size="sm" 
-        color={ptState.editMode === 'ADDING_STOP' ? "yellow" : "primary"}
+        color={selected.editMode === 'ADDING_STOP' ? "yellow" : "primary"}
         class="w-full"
-        onclick={ptState.editMode === 'ADDING_STOP' ? stopAddingStops : startAddingStops}
+        onclick={selected.editMode === 'ADDING_STOP' ? stopAddingStops : startAddingStops}
       >
-        {#if ptState.editMode === 'ADDING_STOP'}
+        {#if selected.editMode === 'ADDING_STOP'}
           Done Adding Stops
         {:else}
           <PlusOutline size="sm" class="mr-1" />
@@ -488,6 +491,6 @@
   {/if}
 </div>
 
-{#if ptState.selected.routeId}
-  <DepartureManagementModal routeId={ptState.selected.routeId} />
+{#if selected.routeId}
+  <DepartureManagementModal routeId={selected.routeId} />
 {/if}

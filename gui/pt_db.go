@@ -22,7 +22,7 @@ func (a *App) GetPTLinesByMode(processID int, mode TransportMode) ([]Line, error
 	
 	var lines []Line
 	tableName := fmt.Sprintf("pt_%d_lines", processID)
-	err = db.Table(tableName).Where("type = ?", mode).Find(&lines).Error
+	err = db.Table(tableName).Where("mode = ?", mode).Find(&lines).Error
 	return lines, err
 }
 
@@ -117,7 +117,30 @@ func (a *App) SavePTRouteStops(processID int, routeStops []RouteStop) error {
 	}
 	
 	tableName := fmt.Sprintf("pt_%d_route_stops", processID)
-	return db.Table(tableName).Save(&routeStops).Error
+	
+	// Delete existing route-stop relationships for these routes first
+	if len(routeStops) > 0 {
+		routeIDs := make([]string, 0, len(routeStops))
+		for _, rs := range routeStops {
+			routeIDs = append(routeIDs, rs.RouteID)
+		}
+		// Remove duplicates
+		uniqueRouteIDs := make([]string, 0, len(routeIDs))
+		seen := make(map[string]bool)
+		for _, id := range routeIDs {
+			if !seen[id] {
+				uniqueRouteIDs = append(uniqueRouteIDs, id)
+				seen[id] = true
+			}
+		}
+		
+		if len(uniqueRouteIDs) > 0 {
+			db.Table(tableName).Where("route_id IN ?", uniqueRouteIDs).Delete(&RouteStop{})
+		}
+	}
+	
+	// Insert new route-stop relationships
+	return db.Table(tableName).Create(&routeStops).Error
 }
 
 func (a *App) SavePTDepartures(processID int, departures []Departure) error {
@@ -194,7 +217,7 @@ func (a *App) GetPTStopsInBounds(processID int, mode string, bounds ViewportBoun
 			JOIN %s r ON rs.route_id = r.id
 			JOIN %s l ON r.line_id = l.id
 			WHERE rs.stop_id = s.stop_id
-			AND l.type = ?
+			AND l.mode = ?
 		)
 	`, stopsTable, routeStopsTable, routesTable, linesTable)
 	
