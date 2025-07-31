@@ -1,5 +1,5 @@
 import { mapState, clearNetwork, createNetworkNodeIcon } from './mapState.svelte';
-import { networkState } from '$lib/stores/network.svelte';
+import { networkState } from '@workflow/network/state.svelte';
 import { appState } from '$lib/stores/app.svelte';
 import L from 'leaflet';
 import type { NetworkNode as MapNetworkNode, NetworkLink as MapNetworkLink } from './types';
@@ -9,7 +9,7 @@ import {
   setupMoveNodesMode,
   updateNodeStyle 
 } from './networkEditor';
-import { trackNodeChange, trackLinkChange } from '../lib/utils/networkChangeTracking';
+import { trackNodeChange, trackLinkChange } from '@workflow/network/networkChangeTracking';
 import { nanoid } from 'nanoid';
 
 function generateNodeId(): string {

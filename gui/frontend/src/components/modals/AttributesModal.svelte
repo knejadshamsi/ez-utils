@@ -1,8 +1,9 @@
 <script lang="ts">
   import { Modal, Button, Checkbox } from 'flowbite-svelte';
   import { PlusOutline, CheckOutline, CloseOutline } from 'flowbite-svelte-icons';
-  import { populationState, type PersonAttribute } from '$lib/stores/population.svelte';
-  import { trackPersonChange } from '$lib/utils/populationChangeTracking';
+  import { populationState } from '@workflow/population/state.svelte';
+  import type { PersonAttribute } from '@workflow/population/types';
+  import { trackPersonChange } from '@workflow/population/populationChangeTracking';
   import CompactSelect from '../CompactSelect.svelte';
   
   const selectedPerson = $derived(

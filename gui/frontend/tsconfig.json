@@ -12,7 +12,8 @@
     "paths": {
       "@wailsjs/*": ["./wailsjs/*"],
       "@map/*": ["./src/map/*"],
-      "$lib/*": ["./src/lib/*"]
+      "$lib/*": ["./src/lib/*"],
+      "@workflow/*": ["./src/workflow/*"]
     }
   },
   "include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.js", "src/**/*.svelte", "wailsjs/**/*"],

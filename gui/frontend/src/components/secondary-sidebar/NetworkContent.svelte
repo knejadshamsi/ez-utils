@@ -2,8 +2,9 @@
   import { Button, Label, Input, Select, Hr, Heading, P, Helper, Toggle, Accordion, AccordionItem } from 'flowbite-svelte';
   import { CloseOutline, TrashBinOutline, ExclamationCircleOutline, ChevronDownOutline, ChevronRightOutline, PlusOutline } from 'flowbite-svelte-icons';
   import { appState } from '$lib/stores/app.svelte';
-  import { networkState, getNodeById, getLinkById, canDeleteNode, clearSelection, findReverseLink } from '$lib/stores/network.svelte';
-  import { updateNode, updateLink, deleteNode, deleteLink, createLink } from '$lib/api/network';
+  import { networkState } from '@workflow/network/state.svelte';
+  import { getNodeById, getLinkById, canDeleteNode, clearSelection, findReverseLink } from '@workflow/network/functions.svelte';
+  import { updateNode, updateLink, deleteNode, deleteLink, createLink } from '@workflow/network/network';
   import { mapState } from '../../map/mapState.svelte';
   
   let nodeDraggingEnabled = $state(true);

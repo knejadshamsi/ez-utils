@@ -2,10 +2,11 @@
   import { Button, Label, ButtonGroup, Hr, Heading, P } from 'flowbite-svelte';
   import { PlusOutline } from 'flowbite-svelte-icons';
   import { appState } from '$lib/stores/app.svelte';
-  import { networkState, selectNode as selectNetworkNode, selectLink as selectNetworkLink } from '$lib/stores/network.svelte';
+  import { networkState } from '@workflow/network/state.svelte';
+  import { selectNode as selectNetworkNode, selectLink as selectNetworkLink } from '@workflow/network/functions.svelte';
   import { mapState, createNetworkNodeIcon } from '../../map/mapState.svelte';
   import { startPolygonDrawing, stopPolygonDrawing, clearAllZones } from '../../map/polygonDrawing';
-  import { loadNetworkInBBox } from '$lib/api/network';
+  import { loadNetworkInBBox } from '@workflow/network/network';
   import { updateNetworkMode } from '../../map/updateNetworkVisualization';
   import type { gui } from '@wailsjs/go/models';
   

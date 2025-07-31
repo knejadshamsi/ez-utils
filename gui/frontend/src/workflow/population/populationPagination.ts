@@ -5,10 +5,10 @@ import {
   RemoveZoneFromSession,
   CloseFilterSession
 } from '@wailsjs/go/gui/App';
-import { populationState } from '$lib/stores/population.svelte';
-import { parsePersonXML } from '$lib/utils/populationXmlParser';
+import { populationState } from './state.svelte';
+import { parsePersonXML } from './populationXmlParser';
 import { changeTracker } from '$lib/changeTracker.svelte';
-import type { Person } from '$lib/stores/population.svelte';
+import type { Person } from './types';
 
 // Cache for unsaved persons to maintain during zone filtering
 const unsavedPersonsCache = new Map<string, Person>();

@@ -1,8 +1,10 @@
 <script lang="ts">
   import { Modal, Table, TableBody, TableHead, TableHeadCell, TableBodyRow, TableBodyCell, Input, Button, Helper } from 'flowbite-svelte';
   import { TrashBinOutline, PlusOutline, ClockOutline } from 'flowbite-svelte-icons';
-  import { ptState } from '$lib/stores/pt.svelte';
-  import type { Departure } from '$lib/stores/pt.svelte';
+  import { departures, selected } from '@workflow/pt/state.svelte';
+  import { updateDeparture, deleteDeparture, createDeparture } from '@workflow/pt/crud.svelte';
+  import { setEditMode } from '@workflow/pt/functions.svelte';
+  import type { Departure } from '@workflow/pt/types';
 
   interface Props {
     routeId: string;
@@ -10,19 +12,15 @@
 
   let { routeId }: Props = $props();
 
-  const departures = $derived(() => {
-    return ptState.currentRouteData.departures.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
-  });
-
   let editingId = $state<string | null>(null);
-  let editValues = $state<{[key: string]: {time: string, vehicleId: string}}>({});
+  let editValues = $state<{[key: string]: {time: string, vehicleId?: string}}>({});
   
   let newDepartureTime = $state('');
   let newDepartureVehicleId = $state('');
   let newDepartureError = $state('');
 
   function handleClose() {
-    ptState.editMode = 'NORMAL';
+    setEditMode('NORMAL');
     editingId = null;
     editValues = {};
     newDepartureTime = '';
@@ -34,7 +32,7 @@
     editingId = departure.id;
     editValues[departure.id] = {
       time: departure.departureTime,
-      vehicleId: departure.vehicleRefId || ''
+      vehicleId: departure.vehicleRefId
     };
   }
 
@@ -46,7 +44,7 @@
     const values = editValues[departureId];
     if (!values || !validateTime(values.time)) return;
 
-    ptState.updateDeparture(departureId, {
+    updateDeparture(departureId, {
       departureTime: values.time,
       vehicleRefId: values.vehicleId || undefined
     });
@@ -55,7 +53,7 @@
   }
 
   function handleDelete(departureId: string) {
-    ptState.deleteDeparture(departureId);
+    deleteDeparture(departureId);
   }
 
   function validateTime(time: string): boolean {
@@ -76,7 +74,7 @@
       return;
     }
 
-    ptState.createDeparture(routeId, newDepartureTime, newDepartureVehicleId || undefined);
+    createDeparture(newDepartureTime, newDepartureVehicleId || undefined, routeId);
     
     newDepartureTime = '';
     newDepartureVehicleId = '';
@@ -92,7 +90,7 @@
     if (hours >= 24) hours = 0;
     
     const newTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    ptState.createDeparture(routeId, newTime, departure.vehicleRefId);
+    createDeparture(newTime, departure.vehicleRefId, routeId);
   }
 
   function handleKeydown(e: KeyboardEvent, departureId: string) {
@@ -104,14 +102,14 @@
   }
 </script>
 
-<Modal open={ptState.editMode === 'EDITING_DEPARTURES'} onclose={handleClose} size="lg" title="Manage Departures">
+<Modal open={selected.editMode === 'EDITING_DEPARTURES'} onclose={handleClose} size="lg" title="Manage Departures">
   <div class="space-y-4">
     <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2">
         <ClockOutline class="w-5 h-5" />
         <span class="text-lg font-medium">Departure Schedule</span>
       </div>
-      <span class="text-sm text-gray-500">{departures().length} departures</span>
+      <span class="text-sm text-gray-500">{Object.values(departures).length} departures</span>
     </div>
 
     <Table striped={true}>
@@ -121,7 +119,7 @@
         <TableHeadCell class="w-1/3">Actions</TableHeadCell>
       </TableHead>
       <TableBody>
-        {#each departures() as departure (departure.id)}
+        {#each Object.values(departures).sort((a, b) => a.departureTime.localeCompare(b.departureTime)) as departure (departure.id)}
           <TableBodyRow>
             <TableBodyCell>
               {#if editingId === departure.id}
@@ -209,7 +207,7 @@
       <Helper color="red">{newDepartureError}</Helper>
     {/if}
 
-    {#if departures().length === 0}
+    {#if Object.values(departures).length === 0}
       <p class="text-center text-gray-500 py-8">No departures scheduled. Add one above.</p>
     {/if}
   </div>

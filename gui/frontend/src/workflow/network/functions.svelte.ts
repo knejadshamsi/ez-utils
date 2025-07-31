@@ -1,46 +1,8 @@
-// Network-specific state management
-export interface NetworkNode {
-  id: string;
-  label: string;
-  lng: number;
-  lat: number;
-  type?: string;
-  capacity?: number;
-}
+// Network functions
+import type { NetworkNode, NetworkLink } from './types';
+import { networkState } from './state.svelte';
 
-export interface NetworkLink {
-  id: string;
-  label: string;
-  from: string;
-  to: string;
-  length?: number;
-  capacity?: number;
-  lanes?: number;
-  speed?: number;
-}
-
-export interface NetworkSelection {
-  selectedNodeId: string | null;
-  selectedLinkId: string | null;
-  selectedPolygon: number[][] | null;
-}
-
-// Create reactive state for network operations
-export const networkState = $state<{
-  nodes: NetworkNode[];
-  links: NetworkLink[];
-  selection: NetworkSelection;
-}>({
-  nodes: [],
-  links: [],
-  selection: {
-    selectedNodeId: null,
-    selectedLinkId: null,
-    selectedPolygon: null
-  }
-});
-
-// Helper functions for network operations
+// Selection functions
 export function selectNode(nodeId: string) {
   networkState.selection.selectedNodeId = nodeId;
   networkState.selection.selectedLinkId = null;
@@ -57,6 +19,7 @@ export function clearSelection() {
   networkState.selection.selectedPolygon = null;
 }
 
+// Data access functions
 export function getNodeById(nodeId: string): NetworkNode | undefined {
   return networkState.nodes.find(n => n.id === nodeId);
 }

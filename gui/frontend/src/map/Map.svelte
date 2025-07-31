@@ -5,7 +5,6 @@
   import 'leaflet-edgebuffer';
   import { initializePolygonDrawing } from './polygonDrawing';
   import { mapState, setupCentralEventHandlers } from './mapState.svelte';
-  import { setupSharedStopsHandlers } from './sharedStops';
   
   let mapContainer: HTMLDivElement;
   
@@ -59,9 +58,6 @@
     
     // Setup central event handlers
     setupCentralEventHandlers();
-    
-    // Setup shared stops handlers
-    setupSharedStopsHandlers();
     
     console.log('Leaflet map initialized');
     

@@ -2,19 +2,13 @@
   import { Button, Select, Input, CloseButton } from 'flowbite-svelte';
   import { TrashBinOutline, PlusOutline, MapPinOutline, CogOutline } from 'flowbite-svelte-icons';
   import CompactSelect from '../CompactSelect.svelte';
-  import { 
-    populationState,
-    activityTypeConfig,
-    travelModeConfig,
-    type Activity,
-    type Leg,
-    type ActivityType,
-    type TravelMode
-  } from '$lib/stores/population.svelte';
+  import { populationState } from '@workflow/population/state.svelte';
+  import { activityTypeConfig, travelModeConfig } from '@workflow/population/functions.svelte';
+  import type { Activity, Leg, ActivityType, TravelMode } from '@workflow/population/types';
   import { appState } from '$lib/stores/app.svelte';
   import { GetPerson } from '@wailsjs/go/gui/App';
-  import { trackActivityChange } from '$lib/utils/populationChangeTracking';
-  import { parsePersonXML } from '$lib/utils/populationXmlParser';
+  import { trackActivityChange } from '@workflow/population/populationChangeTracking';
+  import { parsePersonXML } from '@workflow/population/populationXmlParser';
   import { updateConnectedDots } from '../../map/updateConnectedDots';
   import { mapState } from '../../map/mapState.svelte';
   import type * as L from 'leaflet';

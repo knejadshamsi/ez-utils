@@ -1,14 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { commandArgs, appState } from '$lib/stores/app.svelte';
-  import { loadInitialViewportData, loadNetworkInPolygon } from '$lib/api/network';
-  import { networkState } from '$lib/stores/network.svelte';
+  import { loadInitialViewportData, loadNetworkInPolygon } from '@workflow/network/network';
+  import { networkState } from '@workflow/network/state.svelte';
   import { mapState } from '../../map/mapState.svelte';
   import { updateNetworkVisualization } from '../../map/updateNetworkVisualization';
   
-  let isLoading = false;
-  let error: string | null = null;
-  let hasInitialLoad = false;
+  let isLoading = $state(false);
+  let error = $state<string | null>(null);
+  let hasInitialLoad = $state(false);
   
   onMount(async () => {
     if (commandArgs.fileEditMode === 'NETWORK') {
