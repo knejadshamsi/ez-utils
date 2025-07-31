@@ -142,7 +142,7 @@ const (
 type Line struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
-	Type string `json:"type"` // BUS, METRO, TRAM
+	Mode string `json:"mode"` // BUS, METRO, TRAM
 }
 
 // Route represents a route that belongs to a line

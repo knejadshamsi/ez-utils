@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Button, Checkbox, Label, Input } from 'flowbite-svelte';
-  import { PlusOutline, CheckOutline, CloseOutline, EditOutline, TrashBinOutline } from 'flowbite-svelte-icons';
+  import { PlusOutline, CheckOutline, CloseOutline, EditOutline, TrashBinOutline, ChevronRightOutline, ChevronDownOutline } from 'flowbite-svelte-icons';
   import { lines, routes, selected } from '@workflow/pt/state.svelte';
   import { updateLine, deleteLine, createLine, createRoute } from '@workflow/pt/crud.svelte';
   import { loadRouteStops, loadRouteDepartures, saveCurrentRoute } from '@workflow/pt/loading.svelte';
@@ -8,7 +8,6 @@
   import { TRANSPORT_MODES } from '@workflow/pt/types';
   import { appState } from '$lib/stores/app.svelte';
   import { updatePTVisualization } from '../../map/updatePTVisualization';
-  import EzExpandableList from '../EzExpandableList.svelte';
 
   let isAddingLine = $state(false);
   let newLineName = $state('');
@@ -17,6 +16,7 @@
   let editingLineId = $state<string | null>(null);
   let editingLineName = $state('');
   let deletingLineId = $state<string | null>(null);
+  let expandedLines = $state<Record<string, boolean>>({});
 
   let showStops = $state(true);
   let showRoutes = $state(true);
@@ -221,7 +221,7 @@
   <div class="flex-1 overflow-y-auto">
     <div class="px-4 py-3">
       <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-        {TRANSPORT_MODES[selected.mode]?.icon || '🚌'} {selected.mode} Lines ({currentModeLines.length})
+        {TRANSPORT_MODES[selected.mode]?.icon || '🚌'} {selected.mode} Lines ({currentModeLines().length})
       </h3>
     </div>
     <div class="py-1">
@@ -231,126 +231,178 @@
         </div>
       {:else}
         {#each currentModeLines() as line (line.id)}
+          {@const lineRoutes = Object.values(routes).filter(route => route.lineId === line.id)}
+          {@const isExpanded = expandedLines[line.id] || false}
           <div class="mx-3 mb-3">
-            <EzExpandableList
-              id={line.id}
-              resetOn={selected.mode}
-              loadData={async () => {
-                return Object.values(routes).filter(route => route.lineId === line.id).map(route => ({
-                  id: route.id,
-                  name: route.name,
-                  unsaved: route.unsaved
-                }));
-              }}
-            >
-              {#snippet header()}
-                <div class="flex-1">
-                  {#if editingLineId === line.id}
-                    <div class="flex items-center gap-2" onclick={(e) => e.stopPropagation()} role="group">
-                      <Input
-                        type="text"
-                        bind:value={editingLineName}
-                        size="sm"
-                        class="flex-1"
-                        onkeydown={(e) => {
-                          if (e.key === 'Enter') saveLineEdit();
-                          if (e.key === 'Escape') cancelLineEdit();
-                        }}
-                        autofocus
-                      />
-                      <Button size="xs" color="primary" onclick={saveLineEdit}>
-                        <CheckOutline size="xs" />
-                      </Button>
-                      <Button size="xs" color="alternative" onclick={cancelLineEdit}>
-                        <CloseOutline size="xs" />
-                      </Button>
-                    </div>
-                  {:else if deletingLineId === line.id}
-                    <div class="flex items-center justify-between w-full" onclick={(e) => e.stopPropagation()} role="group">
-                      <span class="text-sm text-gray-600 dark:text-gray-400">Delete this line?</span>
-                      <div class="flex items-center gap-1">
-                        <button
-                          class="p-1 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
-                          onclick={() => deleteLineHandler(line.id)}
+            <div class="rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+              <button
+                class="w-full px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left"
+                onclick={() => {
+                  expandedLines[line.id] = !expandedLines[line.id];
+                }}
+              >
+                <div class="flex items-center justify-between">
+                  <div class="flex-1">
+                    {#if editingLineId === line.id}
+                      <div class="flex items-center gap-2" onclick={(e) => e.stopPropagation()} role="group">
+                        <Input
+                          type="text"
+                          bind:value={editingLineName}
+                          size="sm"
+                          class="flex-1"
+                          onkeydown={(e) => {
+                            if (e.key === 'Enter') saveLineEdit();
+                            if (e.key === 'Escape') cancelLineEdit();
+                          }}
+                          autofocus
+                        />
+                        <Button size="xs" color="primary" onclick={saveLineEdit}>
+                          <CheckOutline size="xs" />
+                        </Button>
+                        <Button size="xs" color="alternative" onclick={cancelLineEdit}>
+                          <CloseOutline size="xs" />
+                        </Button>
+                      </div>
+                    {:else if deletingLineId === line.id}
+                      <div class="flex items-center justify-between w-full" onclick={(e) => e.stopPropagation()} role="group">
+                        <span class="text-sm text-gray-600 dark:text-gray-400">Delete this line?</span>
+                        <div class="flex items-center gap-1">
+                          <button
+                            class="p-1 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
+                            onclick={() => deleteLineHandler(line.id)}
+                          >
+                            <CheckOutline size="xs" class="text-red-500" />
+                          </button>
+                          <button
+                            class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                            onclick={cancelDeleteLine}
+                          >
+                            <CloseOutline size="xs" class="text-gray-500" />
+                          </button>
+                        </div>
+                      </div>
+                    {:else}
+                      <div class="flex items-center justify-between w-full group">
+                        <div 
+                          class="text-sm font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            handleLineClick(line.id);
+                          }}
+                          onkeydown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleLineClick(line.id);
+                            }
+                          }}
+                          role="link"
+                          tabindex="0"
                         >
-                          <CheckOutline size="xs" class="text-red-500" />
-                        </button>
+                          {truncateText(line.name)} 
+                          {#if line.unsaved}
+                            <span class="text-xs font-normal text-orange-500" title="Unsaved changes">●</span>
+                          {/if}
+                        </div>
+                        <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onclick={(e) => e.stopPropagation()}>
+                          <button
+                            class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                            onclick={(e) => {
+                              e.stopPropagation();
+                              startEditingLine(line);
+                            }}
+                          >
+                            <EditOutline size="xs" class="text-gray-500" />
+                          </button>
+                          <button
+                            class="p-1 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
+                            onclick={(e) => {
+                              e.stopPropagation();
+                              confirmDeleteLine(line.id);
+                            }}
+                          >
+                            <TrashBinOutline size="xs" class="text-red-500" />
+                          </button>
+                        </div>
+                      </div>
+                    {/if}
+                  </div>
+                  <div class="text-gray-500 ml-2">
+                    {#if isExpanded}
+                      <ChevronDownOutline size="sm" />
+                    {:else}
+                      <ChevronRightOutline size="sm" />
+                    {/if}
+                  </div>
+                </div>
+              </button>
+              
+              {#if isExpanded}
+                <div class="px-3 pb-3">
+                  {#if lineRoutes.length > 0}
+                    <div class="space-y-2">
+                      {#each lineRoutes as route (route.id)}
                         <button
-                          class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                          onclick={cancelDeleteLine}
+                          class="w-full flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded border hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left {selected.routeId === route.id ? 'ring-2 ring-blue-500 border-blue-500' : ''}"
+                          onclick={() => handleRouteClick(line.id, route.id)}
                         >
-                          <CloseOutline size="xs" class="text-gray-500" />
+                          <span class="text-sm font-medium text-gray-900 dark:text-white">
+                            {truncateText(route.name || 'Route')}
+                          </span>
                         </button>
+                      {/each}
+                      
+                      <div class="pt-2">
+                        {#if addingRouteToLine === line.id}
+                          <div class="flex gap-2 items-center">
+                            <Input
+                              bind:value={newRouteName}
+                              placeholder="Route name (e.g., Uptown)"
+                              size="sm"
+                              class="flex-1"
+                              onkeydown={(e) => {
+                                if (e.key === 'Enter') handleSaveRoute();
+                                if (e.key === 'Escape') handleCancelRoute();
+                              }}
+                              autofocus
+                            />
+                            <Button
+                              size="xs"
+                              color="primary"
+                              onclick={handleSaveRoute}
+                              disabled={!newRouteName.trim()}
+                            >
+                              <CheckOutline size="xs" />
+                            </Button>
+                            <Button
+                              size="xs"
+                              color="alternative"
+                              onclick={handleCancelRoute}
+                            >
+                              <CloseOutline size="xs" />
+                            </Button>
+                          </div>
+                        {:else}
+                          <Button
+                            size="xs"
+                            color="alternative"
+                            class="w-full"
+                            onclick={() => handleAddRoute(line.id)}
+                          >
+                            <PlusOutline size="xs" class="mr-1" />
+                            Add Route
+                          </Button>
+                        {/if}
                       </div>
                     </div>
                   {:else}
-                    <div class="flex items-center justify-between w-full group">
-                      <div 
-                        class="text-sm font-semibold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
-                        onclick={(e) => {
-                          e.stopPropagation();
-                          handleLineClick(line.id);
-                        }}
-                        onkeydown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleLineClick(line.id);
-                          }
-                        }}
-                        role="link"
-                        tabindex="0"
-                      >
-                        {truncateText(line.name)} 
-                        {#if line.unsaved}
-                          <span class="text-xs font-normal text-orange-500" title="Unsaved changes">●</span>
-                        {/if}
-                      </div>
-                      <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          class="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                          onclick={(e) => {
-                            e.stopPropagation();
-                            startEditingLine(line);
-                          }}
-                        >
-                          <EditOutline size="xs" class="text-gray-500" />
-                        </button>
-                        <button
-                          class="p-1 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
-                          onclick={(e) => {
-                            e.stopPropagation();
-                            confirmDeleteLine(line.id);
-                          }}
-                        >
-                          <TrashBinOutline size="xs" class="text-red-500" />
-                        </button>
-                      </div>
-                    </div>
-                  {/if}
-                </div>
-              {/snippet}
-              
-              {#snippet children({ items: routes, isExpanded })}
-                {#if isExpanded && routes.length > 0}
-                  <div class="space-y-2">
-                    {#each routes as route (route.id)}
-                      <button
-                        class="w-full flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded border hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left {selected.routeId === route.id ? 'ring-2 ring-blue-500 border-blue-500' : ''}"
-                        onclick={() => handleRouteClick(line.id, route.id)}
-                      >
-                        <span class="text-sm font-medium text-gray-900 dark:text-white">
-                          {truncateText(route.name || 'Route')}
-                        </span>
-                      </button>
-                    {/each}
-                    
-                    <div class="pt-2">
+                    <div class="text-center py-3">
+                      <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">No routes</p>
                       {#if addingRouteToLine === line.id}
                         <div class="flex gap-2 items-center">
                           <Input
                             bind:value={newRouteName}
-                            placeholder="Route name (e.g., Uptown)"
+                            placeholder="Route name (e.g., Downtown)"
                             size="sm"
                             class="flex-1"
                             onkeydown={(e) => {
@@ -378,8 +430,7 @@
                       {:else}
                         <Button
                           size="xs"
-                          color="alternative"
-                          class="w-full"
+                          color="primary"
                           onclick={() => handleAddRoute(line.id)}
                         >
                           <PlusOutline size="xs" class="mr-1" />
@@ -387,53 +438,10 @@
                         </Button>
                       {/if}
                     </div>
-                  </div>
-                {:else if isExpanded}
-                  <div class="text-center py-3">
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-2">No routes</p>
-                    {#if addingRouteToLine === line.id}
-                      <div class="flex gap-2 items-center">
-                        <Input
-                          bind:value={newRouteName}
-                          placeholder="Route name (e.g., Downtown)"
-                          size="sm"
-                          class="flex-1"
-                          onkeydown={(e) => {
-                            if (e.key === 'Enter') handleSaveRoute();
-                            if (e.key === 'Escape') handleCancelRoute();
-                          }}
-                          autofocus
-                        />
-                        <Button
-                          size="xs"
-                          color="primary"
-                          onclick={handleSaveRoute}
-                          disabled={!newRouteName.trim()}
-                        >
-                          <CheckOutline size="xs" />
-                        </Button>
-                        <Button
-                          size="xs"
-                          color="alternative"
-                          onclick={handleCancelRoute}
-                        >
-                          <CloseOutline size="xs" />
-                        </Button>
-                      </div>
-                    {:else}
-                      <Button
-                        size="xs"
-                        color="primary"
-                        onclick={() => handleAddRoute(line.id)}
-                      >
-                        <PlusOutline size="xs" class="mr-1" />
-                        Add Route
-                      </Button>
-                    {/if}
-                  </div>
-                {/if}
-              {/snippet}
-            </EzExpandableList>
+                  {/if}
+                </div>
+              {/if}
+            </div>
           </div>
         {/each}
       {/if}

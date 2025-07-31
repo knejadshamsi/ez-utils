@@ -53,7 +53,7 @@ const (
 		CREATE TABLE IF NOT EXISTS %s (
 			id TEXT PRIMARY KEY,
 			name TEXT,
-			type TEXT
+			mode TEXT
 		)`
 
 	createPTRoutesTableQuery = `
@@ -499,9 +499,9 @@ func (db *Database) GetPTLinesInBounds(processId int, viewport ViewportBounds, m
 	routeStopsTable := fmt.Sprintf("pt_%d_route_stops", processId)
 	
 	query := fmt.Sprintf(`
-		SELECT DISTINCT l.id, l.name, l.type
+		SELECT DISTINCT l.id, l.name, l.mode
 		FROM %s l
-		WHERE l.type = ? AND EXISTS (
+		WHERE l.mode = ? AND EXISTS (
 			SELECT 1 FROM %s r
 			JOIN %s rs ON r.id = rs.route_id
 			JOIN %s s ON rs.stop_id = s.stop_id
@@ -522,7 +522,7 @@ func (db *Database) GetPTLinesInBounds(processId int, viewport ViewportBounds, m
 	var lines []Line
 	for rows.Next() {
 		var l Line
-		if err := rows.Scan(&l.ID, &l.Name, &l.Type); err != nil {
+		if err := rows.Scan(&l.ID, &l.Name, &l.Mode); err != nil {
 			return nil, err
 		}
 		lines = append(lines, l)
@@ -536,9 +536,9 @@ func (db *Database) GetPTLineSummaries(processId int, mode string) ([]Line, erro
 	linesTable := fmt.Sprintf("pt_%d_lines", processId)
 	
 	query := fmt.Sprintf(`
-		SELECT id, name, type
+		SELECT id, name, mode
 		FROM %s
-		WHERE type = ?
+		WHERE mode = ?
 		ORDER BY name`, linesTable)
 	
 	rows, err := db.queryRows(query, "failed to query PT line summaries", mode)
@@ -550,7 +550,7 @@ func (db *Database) GetPTLineSummaries(processId int, mode string) ([]Line, erro
 	var lines []Line
 	for rows.Next() {
 		var l Line
-		if err := rows.Scan(&l.ID, &l.Name, &l.Type); err != nil {
+		if err := rows.Scan(&l.ID, &l.Name, &l.Mode); err != nil {
 			return nil, err
 		}
 		lines = append(lines, l)

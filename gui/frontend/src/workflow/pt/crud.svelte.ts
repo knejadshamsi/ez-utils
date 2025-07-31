@@ -14,7 +14,10 @@ export function createLine(name: string, mode: TransportMode): string {
     unsaved: true
   };
   
-  trackLineChange({ id: lineId, name, type: mode }, 'save');
+  // Automatically create a default route for the new line
+  createRoute('Route 1', lineId);
+  
+  trackLineChange({ id: lineId, name, mode: mode }, 'save');
   return lineId;
 }
 
@@ -22,7 +25,7 @@ export function updateLine(lineId: string, updates: Partial<Line>): void {
   if (lines[lineId]) {
     Object.assign(lines[lineId], updates);
     lines[lineId].unsaved = true;
-    trackLineChange({ id: lineId, name: lines[lineId].name, type: lines[lineId].mode }, 'save');
+    trackLineChange({ id: lineId, name: lines[lineId].name, mode: lines[lineId].mode }, 'save');
   }
 }
 
@@ -44,7 +47,7 @@ export function deleteLine(lineId: string): void {
     }
     
     // Track change
-    trackLineChange({ id: lineId, name: line.name, type: line.mode }, 'delete');
+    trackLineChange({ id: lineId, name: line.name, mode: line.mode }, 'delete');
     delete lines[lineId];
   }
 }

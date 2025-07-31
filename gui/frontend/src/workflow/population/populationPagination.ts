@@ -27,6 +27,8 @@ let currentSessionId: string | null = null;
 
 // Load a specific page of population data
 export async function loadPopulationPage(tableName: string, page: number) {
+  console.log('Loading population page:', page, 'Table:', tableName, 'SessionID:', currentSessionId);
+  
   if (!tableName) {
     console.error('No table name provided');
     return;
@@ -44,6 +46,12 @@ export async function loadPopulationPage(tableName: string, page: number) {
     );
     
     console.log(`Loaded page ${page}:`, response.persons?.length || 0, 'persons');
+    console.log('Backend response details:', {
+      currentPage: response.currentPage,
+      totalPages: response.totalPages,
+      totalCount: response.totalCount,
+      personsReturned: response.persons?.length || 0
+    });
     
     // Update pagination state
     populationState.currentPage = response.currentPage;
@@ -69,6 +77,8 @@ export async function loadPopulationPage(tableName: string, page: number) {
     }
     
     
+    console.log('Processed persons count:', processedPersons.length);
+    
     // Load into state
     loadPersonsIntoState(processedPersons);
     
@@ -79,24 +89,38 @@ export async function loadPopulationPage(tableName: string, page: number) {
 
 // Load persons into the active state
 function loadPersonsIntoState(persons: Person[]) {
-  // Clear current persons
-  populationState.persons.clear();
+  console.log('Loading persons into state. Backend count:', persons.length, 'Cache count:', unsavedPersonsCache.size);
   
-  // Add new persons from backend
-  persons.forEach(person => {
-    populationState.persons.set(person.id, person);
-    
-    // Restore visibility if it was previously set
-    if (!populationState.visiblePersons.has(person.id)) {
-      populationState.visiblePersons.add(person.id);
+  // First, remove all backend persons (those NOT in cache)
+  const personsToRemove: string[] = [];
+  populationState.persons.forEach((person, id) => {
+    if (!unsavedPersonsCache.has(id)) {
+      personsToRemove.push(id);
     }
   });
   
-  // Re-add ALL unsaved persons from cache (regardless of zone)
-  unsavedPersonsCache.forEach((person, id) => {
-    populationState.persons.set(id, person);
-    populationState.visiblePersons.add(id);
+  // Remove only backend persons
+  personsToRemove.forEach(id => {
+    populationState.persons.delete(id);
+    populationState.visiblePersons.delete(id);
   });
+  
+  console.log('Removed', personsToRemove.length, 'backend persons');
+  
+  // Add new filtered persons from backend
+  persons.forEach(person => {
+    // Don't overwrite cached versions
+    if (!unsavedPersonsCache.has(person.id)) {
+      populationState.persons.set(person.id, person);
+      
+      // Restore visibility if it was previously set
+      if (!populationState.visiblePersons.has(person.id)) {
+        populationState.visiblePersons.add(person.id);
+      }
+    }
+  });
+  
+  console.log('Final persons count in state:', populationState.persons.size);
 }
 
 // Clear unsaved cache after successful sync
@@ -134,6 +158,8 @@ export async function addZoneToFilter(
   polygon: [number, number][],
   tableName: string
 ) {
+  console.log('Adding zone to filter:', zoneId, 'SessionID:', currentSessionId);
+  
   if (!currentSessionId || !tableName) {
     console.error('No active session or table');
     return;
@@ -147,6 +173,7 @@ export async function addZoneToFilter(
       polygon.map(p => ({ x: p[0], y: p[1] }))
     );
     
+    console.log('Zone added to backend, reloading population data...');
     // Reload
     await loadPopulationPage(tableName, 1);
     

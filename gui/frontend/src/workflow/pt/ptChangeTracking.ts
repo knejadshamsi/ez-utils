@@ -1,6 +1,9 @@
 // Simplified change tracking for PT module
 // Changes are tracked per route and saved automatically when switching routes
 
+import { changeTracker } from '../../lib/changeTracker.svelte';
+import { appState } from '$lib/stores/app.svelte';
+
 interface PTChanges {
   stops: {
     [stopId: string]: {
@@ -59,6 +62,15 @@ export function trackStopChange(stop: any, action: 'save' | 'delete') {
         data: stop,
         isNew: false
       };
+      
+      // Add to global change tracker
+      changeTracker.pendingChanges.push({
+        type: 'pt',
+        elementType: 'stop',
+        action: 'delete',
+        processId: appState.processId,
+        stopId: stop.stopId
+      });
     }
   } else {
     // Check if this is a new stop (not in backend yet)
@@ -69,6 +81,15 @@ export function trackStopChange(stop: any, action: 'save' | 'delete') {
       data: stop,
       isNew
     };
+    
+    // Add to global change tracker - always use 'save' action
+    changeTracker.pendingChanges.push({
+      type: 'pt',
+      elementType: 'stop',
+      action: 'save',
+      processId: appState.processId,
+      stop: stop
+    });
   }
 }
 
@@ -85,6 +106,15 @@ export function trackLineChange(line: any, action: 'save' | 'delete') {
         data: line,
         isNew: false
       };
+      
+      // Add to global change tracker
+      changeTracker.pendingChanges.push({
+        type: 'pt',
+        elementType: 'line',
+        action: 'delete',
+        processId: appState.processId,
+        lineId: line.id
+      });
     }
   } else {
     // Check if this is a new line
@@ -95,6 +125,15 @@ export function trackLineChange(line: any, action: 'save' | 'delete') {
       data: line,
       isNew
     };
+    
+    // Add to global change tracker - always use 'save' action
+    changeTracker.pendingChanges.push({
+      type: 'pt',
+      elementType: 'line',
+      action: 'save',
+      processId: appState.processId,
+      line: line
+    });
   }
 }
 
@@ -111,6 +150,15 @@ export function trackRouteChange(route: any, action: 'save' | 'delete') {
         data: route,
         isNew: false
       };
+      
+      // Add to global change tracker
+      changeTracker.pendingChanges.push({
+        type: 'pt',
+        elementType: 'route',
+        action: 'delete',
+        processId: appState.processId,
+        routeId: route.id
+      });
     }
   } else {
     // Check if this is a new route
@@ -121,6 +169,15 @@ export function trackRouteChange(route: any, action: 'save' | 'delete') {
       data: route,
       isNew
     };
+    
+    // Add to global change tracker - always use 'save' action
+    changeTracker.pendingChanges.push({
+      type: 'pt',
+      elementType: 'route',
+      action: 'save',
+      processId: appState.processId,
+      route: route
+    });
   }
 }
 
@@ -137,6 +194,15 @@ export function trackDepartureChange(departure: any, action: 'save' | 'delete') 
         data: departure,
         isNew: false
       };
+      
+      // Add to global change tracker
+      changeTracker.pendingChanges.push({
+        type: 'pt',
+        elementType: 'departure',
+        action: 'delete',
+        processId: appState.processId,
+        departureId: departure.id
+      });
     }
   } else {
     // Check if this is a new departure
@@ -147,6 +213,15 @@ export function trackDepartureChange(departure: any, action: 'save' | 'delete') 
       data: departure,
       isNew
     };
+    
+    // Add to global change tracker - always use 'save' action
+    changeTracker.pendingChanges.push({
+      type: 'pt',
+      elementType: 'departure',
+      action: 'save',
+      processId: appState.processId,
+      departure: departure
+    });
   }
 }
 

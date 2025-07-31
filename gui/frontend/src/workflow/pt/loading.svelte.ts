@@ -72,6 +72,16 @@ function getUnsavedItems(): {
 // Data loading functions
 export async function loadPTData(mode: TransportMode): Promise<void> {
   try {
+    // Check if we already have complete data for this mode
+    const existingLines = Object.values(lines).filter(line => line.mode === mode);
+    const existingRoutes = Object.values(routes).filter(route => 
+      existingLines.some(line => line.id === route.lineId)
+    );
+    
+    if (existingLines.length > 0 && existingRoutes.length > 0) {
+      return; // Already loaded with routes
+    }
+    
     const linesData = await fetchPTLinesByMode(appState.processId, mode);
     
     // Clear existing data for this mode
@@ -111,6 +121,11 @@ export async function loadPTData(mode: TransportMode): Promise<void> {
 
 export async function loadRouteStops(routeId: string): Promise<void> {
   try {
+    // Check if we already have data for this route
+    if (sequence.length > 0 && selected.routeId === routeId) {
+      return; // Already loaded for this route
+    }
+    
     // Clear existing stops and sequence
     Object.keys(stops).forEach(key => delete stops[key]);
     sequence.splice(0, sequence.length);
@@ -197,7 +212,7 @@ export async function saveCurrentRoute(): Promise<void> {
       await savePTLines(appState.processId, unsaved.lines.map(line => ({
         id: line.id,
         name: line.name,
-        type: line.mode as string
+        mode: line.mode as string
       })));
       unsaved.lines.forEach(line => markLineAsSaved(line.id));
     }
