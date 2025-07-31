@@ -1,10 +1,13 @@
 <script lang="ts">
   import { Button, Checkbox, Label, Input } from 'flowbite-svelte';
   import { PlusOutline, CheckOutline, CloseOutline, EditOutline, TrashBinOutline } from 'flowbite-svelte-icons';
-  import { ptState, TRANSPORT_MODES } from '$lib/stores/pt.svelte';
+  import { lines, routes, selected } from '@workflow/pt/state.svelte';
+  import { updateLine, deleteLine, createLine, createRoute } from '@workflow/pt/crud.svelte';
+  import { loadRouteStops, loadRouteDepartures, saveCurrentRoute } from '@workflow/pt/loading.svelte';
+  import { selectLine, selectRoute } from '@workflow/pt/functions.svelte';
+  import { TRANSPORT_MODES } from '@workflow/pt/types';
   import { appState } from '$lib/stores/app.svelte';
   import { updatePTVisualization } from '../../map/updatePTVisualization';
-  import { PTService } from '$lib/api/pt';
   import EzExpandableList from '../EzExpandableList.svelte';
 
   let isAddingLine = $state(false);
@@ -14,18 +17,17 @@
   let editingLineId = $state<string | null>(null);
   let editingLineName = $state('');
   let deletingLineId = $state<string | null>(null);
+
+  let showStops = $state(true);
+  let showRoutes = $state(true);
   
   // Get lines for current mode
   const currentModeLines = $derived(() => {
-    return Object.entries(ptState.ptData[ptState.selected.mode]).map(([lineId, line]) => ({
-      id: lineId,
-      name: line.name,
-      unsaved: line.unsaved
-    }));
+    return Object.values(lines).filter(line => line.mode === selected.mode);
   });
 
   function handleLineClick(lineId: string) {
-    ptState.selected.lineId = lineId;
+    selectLine(lineId);
   }
   
   function startEditingLine(line: any) {
@@ -35,7 +37,7 @@
   
   function saveLineEdit() {
     if (editingLineId && editingLineName.trim()) {
-      ptState.updateLine(editingLineId, editingLineName.trim());
+      updateLine(editingLineId, { name: editingLineName.trim() });
       editingLineId = null;
     }
   }
@@ -53,40 +55,39 @@
     deletingLineId = null;
   }
   
-  function deleteLine(lineId: string) {
-    ptState.deleteLine(lineId);
+  function deleteLineHandler(lineId: string) {
+    deleteLine(lineId);
     deletingLineId = null;
   }
   
   async function handleRouteClick(lineId: string, routeId: string) {
     // Save previous route data if needed
-    if (ptState.currentRouteData.routeId && ptState.currentRouteData.routeId !== routeId) {
+    if (selected.routeId && selected.routeId !== routeId) {
       try {
-        await PTService.saveCurrentRoute();
+        await saveCurrentRoute();
       } catch (error) {
         console.error('Failed to auto-save route:', error);
       }
     }
     
     // Toggle functionality - if clicking the same route, unselect it
-    if (ptState.selected.routeId === routeId) {
-      ptState.selected.routeId = null;
-      ptState.selected.stopId = null;
+    if (selected.routeId === routeId) {
+      selectRoute(null);
       appState.secondarySidebar = 'HIDDEN';
       updatePTVisualization();
       return;
     }
     
     // Otherwise select the new route
-    ptState.selected.lineId = lineId;
-    ptState.selected.routeId = routeId;
+    selectLine(lineId);
+    selectRoute(routeId);
     appState.secondarySidebar = 'EXPANDED';
     
     // Load route data (always fresh fetch)
     try {
       await Promise.all([
-        PTService.loadRouteStops(routeId),
-        PTService.loadRouteDepartures(routeId)
+        loadRouteStops(routeId),
+        loadRouteDepartures(routeId)
       ]);
     } catch (error) {
       console.error('Failed to load route data:', error);
@@ -105,7 +106,7 @@
   function handleSaveRoute() {
     if (!addingRouteToLine || !newRouteName.trim()) return;
     
-    ptState.createRoute(addingRouteToLine, newRouteName.trim());
+    createRoute(newRouteName.trim(), addingRouteToLine);
     
     // Clear adding state
     addingRouteToLine = null;
@@ -136,8 +137,8 @@
     if (!trimmedName) return;
     
     // Check if line with same name exists for this mode
-    const existingLine = Object.values(ptState.ptData[ptState.selected.mode]).find(
-      line => line.name.toLowerCase() === trimmedName.toLowerCase()
+    const existingLine = Object.values(lines).find(
+      line => line.mode === selected.mode && line.name.toLowerCase() === trimmedName.toLowerCase()
     );
     
     if (existingLine) {
@@ -145,7 +146,7 @@
       return;
     }
     
-    ptState.createLine(trimmedName);
+    createLine(trimmedName, selected.mode);
     
     // Reset form
     cancelAddingLine();
@@ -196,9 +197,9 @@
     <div class="flex gap-4">
       <Label class="flex items-center gap-2">
         <Checkbox
-          checked={ptState.visibility.stops}
+          checked={showStops}
           onchange={() => {
-            ptState.visibility.stops = !ptState.visibility.stops;
+            showStops = !showStops;
             updatePTVisualization();
           }}
         />
@@ -206,9 +207,9 @@
       </Label>
       <Label class="flex items-center gap-2">
         <Checkbox
-          checked={ptState.visibility.routes}
+          checked={showRoutes}
           onchange={() => {
-            ptState.visibility.routes = !ptState.visibility.routes;
+            showRoutes = !showRoutes;
             updatePTVisualization();
           }}
         />
@@ -220,25 +221,23 @@
   <div class="flex-1 overflow-y-auto">
     <div class="px-4 py-3">
       <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-        {TRANSPORT_MODES[ptState.selected.mode]?.icon || '🚌'} {ptState.selected.mode} Lines ({currentModeLines().length})
+        {TRANSPORT_MODES[selected.mode]?.icon || '🚌'} {selected.mode} Lines ({currentModeLines.length})
       </h3>
     </div>
     <div class="py-1">
       {#if currentModeLines().length === 0}
         <div class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 italic text-center">
-          No {ptState.selected.mode.toLowerCase()} lines
+          No {selected.mode.toLowerCase()} lines
         </div>
       {:else}
         {#each currentModeLines() as line (line.id)}
           <div class="mx-3 mb-3">
             <EzExpandableList
               id={line.id}
-              resetOn={ptState.selected.mode}
+              resetOn={selected.mode}
               loadData={async () => {
-                const lineData = ptState.ptData[ptState.selected.mode][line.id];
-                if (!lineData) return [];
-                return Object.entries(lineData.routes).map(([routeId, route]) => ({
-                  id: routeId,
+                return Object.values(routes).filter(route => route.lineId === line.id).map(route => ({
+                  id: route.id,
                   name: route.name,
                   unsaved: route.unsaved
                 }));
@@ -272,7 +271,7 @@
                       <div class="flex items-center gap-1">
                         <button
                           class="p-1 hover:bg-red-100 dark:hover:bg-red-900 rounded transition-colors"
-                          onclick={() => deleteLine(line.id)}
+                          onclick={() => deleteLineHandler(line.id)}
                         >
                           <CheckOutline size="xs" class="text-red-500" />
                         </button>
@@ -337,7 +336,7 @@
                   <div class="space-y-2">
                     {#each routes as route (route.id)}
                       <button
-                        class="w-full flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded border hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left {ptState.selected.routeId === route.id ? 'ring-2 ring-blue-500 border-blue-500' : ''}"
+                        class="w-full flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700 rounded border hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors text-left {selected.routeId === route.id ? 'ring-2 ring-blue-500 border-blue-500' : ''}"
                         onclick={() => handleRouteClick(line.id, route.id)}
                       >
                         <span class="text-sm font-medium text-gray-900 dark:text-white">

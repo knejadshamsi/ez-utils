@@ -14,7 +14,7 @@
   import { appState, commandArgs, mapComponent } from "$lib/stores/app.svelte";
   import { confirmationState } from "$lib/stores/confirmationModal.svelte";
   import NetworkController from "./components/network/NetworkController.svelte";
-  import { networkState } from "$lib/stores/network.svelte";
+  import { networkState } from "@workflow/network/state.svelte";
   
   // Hide primary and secondary sidebars in VIEW mode for network
   $effect(() => {

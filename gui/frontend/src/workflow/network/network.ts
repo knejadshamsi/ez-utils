@@ -1,8 +1,9 @@
 import { GetNodesInBBox, GetLinksInBBox } from '@wailsjs/go/gui/App';
 import type { gui } from '@wailsjs/go/models';
-import { networkState, type NetworkNode, type NetworkLink } from '$lib/stores/network.svelte';
+import { networkState } from './state.svelte';
+import type { NetworkNode, NetworkLink } from './types';
 import { appState } from '$lib/stores/app.svelte';
-import { trackNodeChange, trackLinkChange } from '$lib/utils/networkChangeTracking';
+import { trackNodeChange, trackLinkChange } from './networkChangeTracking';
 import { updateNetworkVisualization } from '../../map/updateNetworkVisualization';
 
 export async function loadNetworkInBBox(bbox: gui.BoundingBox, appendData: boolean = false) {

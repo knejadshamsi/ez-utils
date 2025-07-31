@@ -1,7 +1,7 @@
 import { SyncChanges } from '@wailsjs/go/gui/App';
 import { changeTracker } from './changeTracker.svelte';
 import { showSuccess, showError } from './toast.svelte';
-import { clearUnsavedCache } from './services/populationPagination';
+import { clearUnsavedCache } from '@workflow/population/populationPagination';
 
 /**
  * Sync all pending changes to the backend

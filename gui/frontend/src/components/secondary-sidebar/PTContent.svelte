@@ -1,15 +1,15 @@
 <script lang="ts">
   import { Button, Input, Toggle, Label } from 'flowbite-svelte';
   import { CloseOutline, PlusOutline, TrashBinOutline, CogOutline, MapPinOutline, CheckOutline, CloseCircleOutline, EditOutline } from 'flowbite-svelte-icons';
-  import { ptState, TRANSPORT_MODES, type StopType, type AccessibilityStatus } from '$lib/stores/pt.svelte';
+  import { lines, routes, stops, departures, sequence, selected } from '@workflow/pt/state.svelte';
+  import { removeStopFromRoute } from '@workflow/pt/loading.svelte';
+  import { setEditMode } from '@workflow/pt/functions.svelte';
+  import { TRANSPORT_MODES, type StopType, type AccessibilityStatus } from '@workflow/pt/types';
   import { appState } from '$lib/stores/app.svelte';
-  import { PTService } from '$lib/api/pt';
   import DepartureManagementModal from '../modals/pt/DepartureManagementModal.svelte';
   import { mapState } from '../../map/mapState.svelte';
   import type * as L from 'leaflet';
-  import { PTService } from '$lib/api/pt';
   import { updatePTVisualization } from '../../map/updatePTVisualization';
-  import { updateSharedStopsLayer } from '../../map/sharedStops';
   import CompactSelect from '../CompactSelect.svelte';
   import { nanoid } from 'nanoid';
   
@@ -113,8 +113,6 @@
     
     ptState.editMode = 'ADDING_STOP';
     
-    // Update shared stops layer
-    updateSharedStopsLayer();
     
     const clickHandler = async (e: L.LeafletMouseEvent) => {
       const coords: [number, number] = [e.latlng.lng, e.latlng.lat];
@@ -152,8 +150,6 @@
       delete (window as any).__addStopHandler;
     }
     
-    // Clear shared stops layer
-    updateSharedStopsLayer();
   }
   
   // Clean up event handlers on component destroy

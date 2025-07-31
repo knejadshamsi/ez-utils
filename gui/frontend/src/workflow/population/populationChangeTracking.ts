@@ -1,8 +1,8 @@
 import { changeTracker } from '$lib/changeTracker.svelte';
-import type { Person, PersonAttribute, Plan, Activity } from '$lib/stores/population.svelte';
+import type { Person, PersonAttribute, Plan, Activity } from './types';
 import type { SyncAction } from '$lib/changeTracker.svelte';
 import { appState } from '$lib/stores/app.svelte';
-import { addToUnsavedCache } from '$lib/services/populationPagination';
+import { addToUnsavedCache } from './populationPagination';
 
 function convertPersonToXML(person: Person): string {
   // Convert person data to XML format - compact for storage

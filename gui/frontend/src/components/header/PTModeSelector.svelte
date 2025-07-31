@@ -1,26 +1,32 @@
 <script lang="ts">
-  import { ptState, TRANSPORT_MODES } from '$lib/stores/pt.svelte';
-  import type { TransportMode } from '$lib/stores/pt.svelte';
-  import { PTService } from '$lib/api/pt';
+  import { selected } from '@workflow/pt/state.svelte';
+  import { saveCurrentRoute, loadPTData } from '@workflow/pt/loading.svelte';
+  import { selectMode } from '@workflow/pt/functions.svelte';
+  import type { TransportMode } from '@workflow/pt/types';
   import { appState } from '$lib/stores/app.svelte';
   import { updatePTVisualization } from '../../map/updatePTVisualization';
   import EzRadioGroup from '../EzRadioGroup.svelte';
   import EzRadioOption from '../EzRadioOption.svelte';
   
+  const TRANSPORT_MODES = {
+    BUS: { value: 'BUS', label: 'Bus', icon: '🚌' },
+    METRO: { value: 'METRO', label: 'Metro', icon: '🚇' },
+    TRAM: { value: 'TRAM', label: 'Tram', icon: '🚋' },
+  };
   const modes = Object.values(TRANSPORT_MODES);
   
   async function handleModeChange(mode: string) {
     // Auto-save current route if needed
-    if (ptState.currentRouteData.routeId) {
+    if (selected.routeId) {
       try {
-        await PTService.saveCurrentRoute();
+        await saveCurrentRoute();
       } catch (error) {
         console.error('Failed to auto-save route:', error);
       }
     }
     
     // Switch mode (clears selections and current route data)
-    ptState.switchMode(mode as TransportMode);
+    selectMode(mode as TransportMode);
     
     // Clear the map visualization
     updatePTVisualization();
@@ -31,7 +37,7 @@
     // Only fetch data if we have a valid processId
     if (appState.processId > 0) {
       try {
-        await PTService.loadPTData(mode as TransportMode);
+        await loadPTData(mode as TransportMode);
       } catch (error) {
         console.error('Failed to load PT data for mode:', mode, error);
       }
@@ -41,14 +47,14 @@
 
 <EzRadioGroup 
   name="ptMode"
-  bind:value={ptState.selected.mode}
+  bind:value={selected.mode}
   onchange={handleModeChange}
 >
   {#each modes as mode}
     <EzRadioOption 
       name="ptMode" 
       value={mode.value} 
-      checked={ptState.selected.mode === mode.value}
+      checked={selected.mode === mode.value}
     >
       <div class="flex items-center gap-1.5">
         <span>{mode.icon}</span>

@@ -15,6 +15,7 @@ export default defineConfig({
       '@wailsjs': path.resolve(__dirname, 'wailsjs'),
       '$lib': path.resolve(__dirname, 'src/lib'),
       '@map': path.resolve(__dirname, 'src/map'),
+      '@workflow': path.resolve(__dirname, 'src/workflow'),
     },
   },
 })

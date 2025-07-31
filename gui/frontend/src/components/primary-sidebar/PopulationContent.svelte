@@ -1,16 +1,12 @@
 <script lang="ts">
   import { Button, Checkbox } from 'flowbite-svelte';
   import { PlusOutline, TrashBinOutline, EditOutline } from 'flowbite-svelte-icons';
-  import { 
-    populationState, 
-    toggleZone, 
-    toggleVisibility, 
-    selectPerson,
-    type Person
-  } from '$lib/stores/population.svelte';
+  import { populationState } from '@workflow/population/state.svelte';
+  import { toggleZone, toggleVisibility, selectPerson } from '@workflow/population/functions.svelte';
+  import type { Person } from '@workflow/population/types';
   import { appState } from '$lib/stores/app.svelte';
-  import { trackPersonChange } from '$lib/utils/populationChangeTracking';
-  import { loadPopulationPage, handlePageChange, handleZoneFilterChange, initializeFilterSession, addZoneToFilter, removeZoneFromFilter } from '$lib/services/populationPagination';
+  import { trackPersonChange } from '@workflow/population/populationChangeTracking';
+  import { loadPopulationPage, handlePageChange, handleZoneFilterChange, initializeFilterSession, addZoneToFilter, removeZoneFromFilter } from '@workflow/population/populationPagination';
   import { syncChanges } from '$lib/syncManager';
   import { mapState } from '../../map/mapState.svelte';
   import { startPolygonDrawing, stopPolygonDrawing, enableZoneEditing, disableZoneEditing, deleteZone as deleteMapZone } from '../../map/polygonDrawing';

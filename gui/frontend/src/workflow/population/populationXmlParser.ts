@@ -1,4 +1,4 @@
-import type { Person, Plan, Activity, Leg, PersonAttribute } from '../stores/population.svelte';
+import type { Person, Plan, Activity, Leg, PersonAttribute } from './types';
 
 export function parsePersonXML(rawXML: string): Partial<Person> {
   try {

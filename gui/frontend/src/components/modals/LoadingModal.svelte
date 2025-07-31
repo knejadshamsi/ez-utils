@@ -3,13 +3,15 @@
   import { CheckCircleOutline, ExclamationCircleOutline } from "flowbite-svelte-icons";
   import { appState, commandArgs } from "$lib/stores/app.svelte";
   import { welcomeModalState } from "./welcome-modal/welcome.svelte";
-  import { populationState, type Person } from "$lib/stores/population.svelte";
-  import { networkState } from "$lib/stores/network.svelte";
-  import { ptState } from "$lib/stores/pt.svelte";
+  import { populationState } from "@workflow/population/state.svelte";
+  import type { Person } from "@workflow/population/types";
+  import { networkState } from "@workflow/network/state.svelte";
+  import { selected } from "@workflow/pt/state.svelte";
+  import { loadPTData } from "@workflow/pt/loading.svelte";
   import { LoadProcessData } from "@wailsjs/go/gui/App";
   import { gui } from "@wailsjs/go/models";
   import { getCurrentViewportBounds } from "$lib/map/mapUtils";
-  import { parsePersonXML } from "$lib/utils/populationXmlParser";
+  import { parsePersonXML } from "@workflow/population/populationXmlParser";
   import { updateNetworkVisualization } from "../../map/updateNetworkVisualization";
 
   $effect(() => {
@@ -31,7 +33,7 @@
             randomFactor: config[commandArgs.fileEditMode].randomFactor,
             maxElements: config[commandArgs.fileEditMode].maxElements,
             minThreshold: config[commandArgs.fileEditMode].minThreshold,
-            mode: commandArgs.fileEditMode === 'PT' ? ptState.selected.mode : ''
+            mode: commandArgs.fileEditMode === 'PT' ? selected.mode : ''
           });
           
           const result = await LoadProcessData(params);
@@ -56,15 +58,11 @@
             // Update visualization immediately after loading data
             updateNetworkVisualization();
           } else if (commandArgs.fileEditMode === 'PT') {
-            if (result.data) {
-              // Load PT data using the store's method
-              ptState.loadPTData({
-                lines: result.data.lines || [],
-                routes: [],
-                stops: [],
-                departures: []
-              });
-            }
+            // PT data is loaded differently - we need to load for each mode
+            // The backend has already loaded the initial data, now we need to 
+            // load the full data for the selected mode
+            const mode = selected.mode || 'BUS';
+            await loadPTData(mode);
           }
           
           appState.display = 'LOADING_SUCCESS';

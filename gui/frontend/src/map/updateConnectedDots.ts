@@ -1,4 +1,5 @@
-import { populationState, activityTypeConfig } from '$lib/stores/population.svelte';
+import { populationState } from '@workflow/population/state.svelte';
+import { activityTypeConfig } from '@workflow/population/functions.svelte';
 import { clearConnectedDots, mapState, createNumberedIcon } from './mapState.svelte';
 import type { ConnectedPoint, ConnectedLine } from './types';
 import L from 'leaflet';
@@ -168,7 +169,7 @@ function setupMarkerEvents(marker: L.Marker, point: ConnectedPoint, activity: an
         populationState.persons.set(person.id, updatedPerson);
         
         // Track change for sync
-        import('$lib/utils/populationChangeTracking').then(({ trackActivityChange }) => {
+        import('@workflow/population/populationChangeTracking').then(({ trackActivityChange }) => {
           trackActivityChange(person.id, updatedPerson);
         });
       }

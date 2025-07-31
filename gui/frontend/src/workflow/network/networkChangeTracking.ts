@@ -1,6 +1,6 @@
 import { changeTracker } from '$lib/changeTracker.svelte';
 import { appState } from '$lib/stores/app.svelte';
-import type { NetworkNode, NetworkLink } from '$lib/stores/network.svelte';
+import type { NetworkNode, NetworkLink } from './types';
 
 // Track node changes
 export function trackNodeChange(node: NetworkNode, operation: 'add' | 'update' | 'delete') {
