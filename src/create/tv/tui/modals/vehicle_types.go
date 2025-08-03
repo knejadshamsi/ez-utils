@@ -33,8 +33,8 @@ func ShowAddTypeModal(m interfaces.ModelInterface) {
 	})
 
 	f.AddField("Description", "e.g., Standard city bus", false, nil)
-	f.AddNumberField("Seats", "30", true)
-	f.AddNumberField("Standing Room", "40", true)
+	f.AddCapacityField("Seats", "30", true)
+	f.AddCapacityField("Standing Room", "40", true)
 	f.AddFloatField("Length (meters)", "12.0", true)
 	f.AddFloatField("Width (meters)", "2.5", true)
 
@@ -119,8 +119,8 @@ func ShowEditTypeModal(m interfaces.ModelInterface, selectedType *core.VehicleTy
 	})
 
 	f.AddFieldWithValue("Description", selectedType.Description, "e.g., Standard city bus", false, nil)
-	f.AddFieldWithValue("Seats", fmt.Sprintf("%d", selectedType.Capacity.Seats), "30", true, nil)
-	f.AddFieldWithValue("Standing Room", fmt.Sprintf("%d", selectedType.Capacity.Standing), "40", true, nil)
+	f.AddCapacityFieldWithValue("Seats", fmt.Sprintf("%d", selectedType.Capacity.Seats), "30", true)
+	f.AddCapacityFieldWithValue("Standing Room", fmt.Sprintf("%d", selectedType.Capacity.Standing), "40", true)
 	f.AddFieldWithValue("Length (meters)", fmt.Sprintf("%.1f", selectedType.Length), "12.0", true, nil)
 	f.AddFieldWithValue("Width (meters)", fmt.Sprintf("%.1f", selectedType.Width), "2.5", true, nil)
 

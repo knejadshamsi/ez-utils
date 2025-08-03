@@ -3,6 +3,7 @@ package interfaces
 import (
 	"ez-utils/src/create/tv/core"
 	"ez-utils/src/create/tv/tui/form"
+	"github.com/charmbracelet/bubbles/list"
 )
 
 // ModelInterface defines what modals need from the main model
@@ -12,6 +13,7 @@ type ModelInterface interface {
 	SetStatusMsg(msg string)
 	SetErrorMsg(msg string)
 	SetCurrentForm(f *form.Form)
-	GetTypesList() any // Will be properly typed later
+	GetTypesList() *list.Model
+	GetSelectedVehicleType() *core.VehicleType
 	GetStyles() *form.Styles
 }

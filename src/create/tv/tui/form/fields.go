@@ -25,6 +25,44 @@ func (f *Form) AddNumberField(label string, placeholder string, required bool) *
 	return f
 }
 
+// AddCapacityField adds a capacity field that allows 0 values
+func (f *Form) AddCapacityField(label string, placeholder string, required bool) *Form {
+	ti := textinput.New()
+	ti.Placeholder = placeholder
+	ti.SetValue(placeholder) // Set actual value, not just placeholder
+	ti.CharLimit = 20
+	
+	field := FormField{
+		label:     label,
+		input:     ti,
+		validate:  validateNonNegativeIntForm,
+		required:  required,
+		fieldType: "number",
+	}
+	
+	f.fields = append(f.fields, field)
+	return f
+}
+
+// AddCapacityFieldWithValue adds a capacity field with an initial value
+func (f *Form) AddCapacityFieldWithValue(label string, initialValue string, placeholder string, required bool) *Form {
+	ti := textinput.New()
+	ti.Placeholder = placeholder
+	ti.SetValue(initialValue)
+	ti.CharLimit = 20
+	
+	field := FormField{
+		label:     label,
+		input:     ti,
+		validate:  validateNonNegativeIntForm,
+		required:  required,
+		fieldType: "number",
+	}
+	
+	f.fields = append(f.fields, field)
+	return f
+}
+
 // AddFloatField adds a float number field
 func (f *Form) AddFloatField(label string, placeholder string, required bool) *Form {
 	ti := textinput.New()
@@ -99,6 +137,23 @@ func validatePositiveFloatForm(s string) error {
 	
 	if n <= 0 {
 		return fmt.Errorf("must be greater than 0")
+	}
+	
+	return nil
+}
+
+func validateNonNegativeIntForm(s string) error {
+	if s == "" {
+		return nil
+	}
+	
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return fmt.Errorf("must be a valid integer")
+	}
+	
+	if n < 0 {
+		return fmt.Errorf("must be 0 or greater")
 	}
 	
 	return nil

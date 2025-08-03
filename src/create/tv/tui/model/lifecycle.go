@@ -105,6 +105,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "a":
 			if m.modal == ModalNone && m.focus == FocusTypesList {
 				modals.ShowAddTypeModal(&m)
+			} else if m.modal == ModalNone && m.focus == FocusVehiclesList {
+				modals.ShowAddVehicleModal(&m)
 			}
 		case "d":
 			// Check if we're in the delete confirmation modal
@@ -297,8 +299,17 @@ func (m *Model) SetCurrentForm(f *form.Form) {
 	m.currentForm = f
 }
 
-func (m *Model) GetTypesList() any {
+func (m *Model) GetTypesList() *list.Model {
 	return &m.typesList
+}
+
+func (m *Model) GetSelectedVehicleType() *core.VehicleType {
+	if selectedItem := m.typesList.SelectedItem(); selectedItem != nil {
+		if typeItem, ok := selectedItem.(VehicleTypeItem); ok {
+			return typeItem.vt
+		}
+	}
+	return nil
 }
 
 func (m *Model) GetStyles() *form.Styles {

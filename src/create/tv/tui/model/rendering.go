@@ -195,12 +195,21 @@ func (m Model) renderTypesList(width, height int) string {
 				typeItem.vt.Capacity.Standing)
 
 			if i == selectedIndex && m.focus == FocusTypesList {
+				// Focused + Selected state (current purple with arrow)
 				lineStyle := lipgloss.NewStyle().
 					Background(lipgloss.Color("#7C3AED")).
 					Foreground(lipgloss.Color("#FFFFFF")).
 					Bold(true).
 					Width(width - 2)
 				content.WriteString(lineStyle.Render("▶"+line[1:]) + "\n")
+			} else if i == selectedIndex {
+				// Selected but not focused state (subtle highlight)
+				lineStyle := lipgloss.NewStyle().
+					Background(lipgloss.Color("#374151")).
+					Foreground(lipgloss.Color("#A78BFA")).
+					Bold(true).
+					Width(width - 2)
+				content.WriteString(lineStyle.Render("•"+line[1:]) + "\n")
 			} else {
 				content.WriteString(line + "\n")
 			}
