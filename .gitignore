@@ -4,3 +4,5 @@ test
 ez-utils-binding-gen.log
 ez-utils-gui.log
 ez_utils_gui.db
+rsrc_windows_386.syso
+rsrc_windows_amd64.syso
