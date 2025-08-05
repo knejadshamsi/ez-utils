@@ -32,7 +32,12 @@ func LoadConfig() (*Config, string, error) {
 		configPath = globalPath
 		configSource = "global"
 	} else {
-		return nil, "", fmt.Errorf("no configuration file found. Run the command again to create one")
+		// No config found - create local config and continue
+		if err := createConfigInteractively(); err != nil {
+			return nil, "", fmt.Errorf("failed to create configuration: %v", err)
+		}
+		configPath = localPath
+		configSource = "local"
 	}
 
 	config, err := loadConfigFromPath(configPath)

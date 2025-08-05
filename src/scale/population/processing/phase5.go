@@ -54,7 +54,7 @@ func (p5p *Phase5Processor) Process() error {
 
 	// Step 1: Combine part files into single files per scale
 	if err := p5p.combinePartFiles(); err != nil {
-		logPhase5ErrorToFile(fmt.Sprintf("Warning: Failed to combine part files: %v", err))
+		return fmt.Errorf("failed to combine part files: %w", err)
 	}
 
 	if p5p.tuiEnabled {

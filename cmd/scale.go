@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -25,11 +27,31 @@ func RunScale() {
 	case "population":
 		if len(os.Args) < 4 {
 			fmt.Println("Error: Please provide a path to the population file")
-			fmt.Println("Usage: ez-utils scale population <population-file-path>")
+			fmt.Println("Usage: ez-utils scale population <population-file-path> [-s|--scales scale1,scale2,...]")
 			os.Exit(1)
 		}
 
 		populationFile := os.Args[3]
+
+		// Parse command line flags for scales
+		var customScales []int
+		for i := 4; i < len(os.Args); i++ {
+			if os.Args[i] == "-s" || os.Args[i] == "--scales" {
+				if i+1 < len(os.Args) {
+					scalesStr := os.Args[i+1]
+					scales, err := parseScales(scalesStr)
+					if err != nil {
+						fmt.Printf("Error parsing scales: %v\n", err)
+						os.Exit(1)
+					}
+					customScales = scales
+					break
+				} else {
+					fmt.Println("Error: -s/--scales flag requires a value")
+					os.Exit(1)
+				}
+			}
+		}
 
 		// Validate input file exists
 		if !population.FileExists(populationFile) {
@@ -42,6 +64,11 @@ func RunScale() {
 		if err != nil {
 			fmt.Printf("Error loading configuration: %v\n", err)
 			os.Exit(1)
+		}
+
+		// Override scales if provided via CLI
+		if len(customScales) > 0 {
+			cfg.Population.Scales = customScales
 		}
 
 		// Create Phase One configuration from loaded config
@@ -83,4 +110,34 @@ func RunScale() {
 		fmt.Println("  population    Process population data")
 		os.Exit(1)
 	}
+}
+
+// parseScales parses a comma-separated string of scale values
+func parseScales(scalesStr string) ([]int, error) {
+	parts := strings.Split(scalesStr, ",")
+	scales := make([]int, 0, len(parts))
+	
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		
+		scale, err := strconv.Atoi(part)
+		if err != nil {
+			return nil, fmt.Errorf("invalid scale value '%s': must be integer", part)
+		}
+		
+		if scale < 1 || scale > 100 {
+			return nil, fmt.Errorf("scale value %d out of range: must be between 1-100", scale)
+		}
+		
+		scales = append(scales, scale)
+	}
+	
+	if len(scales) == 0 {
+		return nil, fmt.Errorf("no valid scale values provided")
+	}
+	
+	return scales, nil
 }

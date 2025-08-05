@@ -25,11 +25,16 @@ func (c *Config) ToPhaseOneConfig() *population.PhaseOneConfig {
 
 // ToPhaseTwoConfig converts config to population.PhaseTwoConfig
 func (c *Config) ToPhaseTwoConfig() *population.PhaseTwoConfig {
+	scales := c.Population.Scales
+	if len(scales) == 0 {
+		scales = []int{1, 5, 10}
+	}
+	
 	return &population.PhaseTwoConfig{
 		ReducerCount:    c.Workers.Reducers,
 		DatabaseCount:   c.Workers.Database,
 		FileWriterCount: c.Workers.FileWriters,
 		OutputDir:       c.Population.OutputDir,
-		Scales:          []int{1, 5, 10},
+		Scales:          scales,
 	}
 }

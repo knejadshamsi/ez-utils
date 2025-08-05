@@ -26,6 +26,7 @@ type DatabaseConfig struct {
 type PopulationConfig struct {
 	ChunkSize int    `yaml:"chunk_size"`
 	OutputDir string `yaml:"output_dir"`
+	Scales    []int  `yaml:"scales"`
 }
 
 // WorkersConfig holds worker configuration settings
