@@ -44,7 +44,7 @@ sudo dnf install webkit2gtk4.1-devel    # Fedora/RHEL
 
 ## 🚀 Installation
 
-### Option 1: Install from Source (Recommended)
+### Install from Source
 ```bash
 # Clone the repository
 git clone https://github.com/your-username/ez-utils.git
@@ -58,15 +58,6 @@ go install -tags=wails,production,webkit2_41
 
 # Verify installation
 ez-utils --help
-```
-
-### Option 2: Clean Build (if experiencing issues)
-```bash
-# Clean build to ensure fresh bindings
-wails build -clean -tags=wails,production,webkit2_41
-
-# Install
-go install -tags=wails,production,webkit2_41
 ```
 
 ## 🎯 Quick Start

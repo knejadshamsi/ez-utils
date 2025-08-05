@@ -9,34 +9,34 @@ import (
 	"os"
 	"time"
 
-	displayCore "ez-utils/src/display/core"
-	displayConfig "ez-utils/src/display/config"
 	globalConfig "ez-utils/config"
+	"ez-utils/src/create/pt/tui"
 )
 
 // Constants for GTFS file names and directories
 const (
-	CalendarFile   = "calendar.txt"
+	CalendarFile  = "calendar.txt"
 	TripsFile     = "trips.txt"
 	StopTimesFile = "stop_times.txt"
 	StopsFile     = "stops.txt"
 	RoutesFile    = "routes.txt"
-	
-	ServicesDir     = "02_services"
-	TripsDir        = "03_trips"
+
+	ServicesDir      = "02_services"
+	TripsDir         = "03_trips"
 	StopSequencesDir = "03_trips/stop_sequences"
 	ScheduleBuildDir = "04_schedule_building"
-	
+
 	ServicePatternsFile  = "service_patterns.json"
 	ServiceMappingFile   = "service_mapping.json"
 	SelectedServicesFile = "selected_services.json"
+	TripDatabaseFile     = "trips.db"
 	TripMappingsFile     = "trip_mappings.json"
 	StopSequencesFile    = "stop_sequences.json"
 	StopDetailsFile      = "stop_details.json"
 	TransitScheduleFile  = "transit_schedule.xml"
-	
-	LogFilePrefix = "pt_processing_"
-	LogTimeFormat = "20060102_150405"
+
+	LogFilePrefix   = "pt_processing_"
+	LogTimeFormat   = "20060102_150405"
 	FilePermissions = 0644
 	DirPermissions  = 0755
 )
@@ -82,6 +82,7 @@ const (
 type PTConfig struct {
 	GTFSDirectory string
 	ServiceDay    ServiceDay
+	TargetDate    string // YYYY-MM-DD format, empty for auto-selection
 	CleanFlag     bool
 	TempDir       string
 	OutputDir     string
@@ -89,16 +90,16 @@ type PTConfig struct {
 
 // ProcessingStats tracks processing statistics
 type ProcessingStats struct {
-	ValidationFile      string
-	ServiceCounter      int
-	RouteCounter        int
-	TripCounter         int
-	SequenceCounter     int
-	StopCounter         int
-	TransitStopCounter  int
-	CleanupFiles        int
-	CleanupDirs         int
-	CleanupBytes        int64
+	ValidationFile     string
+	ServiceCounter     int
+	RouteCounter       int
+	TripCounter        int
+	SequenceCounter    int
+	StopCounter        int
+	TransitStopCounter int
+	CleanupFiles       int
+	CleanupDirs        int
+	CleanupBytes       int64
 }
 
 // ServicePattern represents a service pattern from calendar.txt
@@ -111,6 +112,8 @@ type ServicePattern struct {
 	Friday    bool   `json:"friday"`
 	Saturday  bool   `json:"saturday"`
 	Sunday    bool   `json:"sunday"`
+	StartDate string `json:"start_date"` // YYYYMMDD from calendar.txt
+	EndDate   string `json:"end_date"`   // YYYYMMDD from calendar.txt
 }
 
 // Route represents a route from routes.txt
@@ -214,15 +217,15 @@ func NewDirectoryError(directory, operation string) PtError {
 	}
 }
 
-// PTOrchestrator coordinates all 9 steps of PT processing
+// PTOrchestrator coordinates all 10 steps of PT processing
 type PTOrchestrator struct {
-	config        *PTConfig
-	stats         *ProcessingStats
-	tuiEnabled    bool
-	logFile       *os.File
-	logger        *log.Logger
-	displayInstance *displayCore.DisplayInstance
-	globalConfig  *globalConfig.Config // Global config for language settings
+	config       *PTConfig
+	stats        *ProcessingStats
+	tuiEnabled   bool
+	logFile      *os.File
+	logger       *log.Logger
+	tui          *tui.TUI
+	globalConfig *globalConfig.Config // Global config for language settings
 }
 
 // NewPTOrchestrator creates a new PTOrchestrator instance
@@ -234,7 +237,7 @@ func NewPTOrchestrator(gtfsDir string, serviceDay ServiceDay, cleanFlag bool) *P
 		TempDir:       "temp/pt",
 		OutputDir:     "output/pt",
 	}
-	
+
 	return &PTOrchestrator{
 		config:     config,
 		stats:      &ProcessingStats{},
@@ -254,7 +257,12 @@ func (pto *PTOrchestrator) DisableTUI() {
 	pto.tuiEnabled = false
 }
 
-// Process executes all 9 steps of the PT processing pipeline
+// SetTargetDate sets the target date for processing
+func (pto *PTOrchestrator) SetTargetDate(date string) {
+	pto.config.TargetDate = date
+}
+
+// Process executes all 10 steps of the PT processing pipeline
 func (pto *PTOrchestrator) Process() error {
 	// Step 0: Setup logging
 	if err := pto.setupLogging(); err != nil {
@@ -273,7 +281,7 @@ func (pto *PTOrchestrator) Process() error {
 		} else {
 			// Defer cleanup as fallback in case of early exit
 			defer func() {
-				if pto.displayInstance != nil {
+				if pto.tui != nil {
 					pto.cleanupDisplay()
 				}
 			}()
@@ -333,151 +341,118 @@ func (pto *PTOrchestrator) Process() error {
 		return err
 	}
 
-	// Step 5: Trip Collection (Display Step 4)
-	pto.logMessage("Starting Step 5: Trip Collection")
+	// Step 5: Trip Database Creation (Display Step 4)
+	pto.logMessage("Starting Step 5: Trip Database Creation")
 	pto.setDisplayStep(4)
 	if pto.checkQuitRequested() {
 		pto.logMessage("Process aborted by user")
 		return nil
 	}
-	if err := pto.collectTrips(); err != nil {
+	if err := pto.buildTripDatabase(); err != nil {
 		pto.logMessage(fmt.Sprintf("Step 5 failed: %v", err))
 		return err
 	}
 
-	// Step 6: Stop Sequence Collection (Display Step 5)
-	pto.logMessage("Starting Step 6: Stop Sequence Collection")
+	// Step 6: Trip Collection (Display Step 5)
+	pto.logMessage("Starting Step 6: Trip Collection")
 	pto.setDisplayStep(5)
 	if pto.checkQuitRequested() {
 		pto.logMessage("Process aborted by user")
 		return nil
 	}
-	if err := pto.collectStopSequences(); err != nil {
+	if err := pto.collectTrips(); err != nil {
 		pto.logMessage(fmt.Sprintf("Step 6 failed: %v", err))
 		return err
 	}
 
-	// Step 7: Stop Details Collection (Display Step 6)
-	pto.logMessage("Starting Step 7: Stop Details Collection")
+	// Step 7: Stop Sequence Collection (Display Step 6)
+	pto.logMessage("Starting Step 7: Stop Sequence Collection")
 	pto.setDisplayStep(6)
 	if pto.checkQuitRequested() {
 		pto.logMessage("Process aborted by user")
 		return nil
 	}
-	if err := pto.collectStopDetails(); err != nil {
+	if err := pto.collectStopSequences(); err != nil {
 		pto.logMessage(fmt.Sprintf("Step 7 failed: %v", err))
 		return err
 	}
 
-	// Step 8: Generate MATSim Transit Schedule XML (Display Step 7)
-	pto.logMessage("Starting Step 8: Generate MATSim Transit Schedule XML")
+	// Step 8: Stop Details Collection (Display Step 7)
+	pto.logMessage("Starting Step 8: Stop Details Collection")
 	pto.setDisplayStep(7)
 	if pto.checkQuitRequested() {
 		pto.logMessage("Process aborted by user")
 		return nil
 	}
-	if err := pto.generateXML(); err != nil {
+	if err := pto.collectStopDetails(); err != nil {
 		pto.logMessage(fmt.Sprintf("Step 8 failed: %v", err))
 		return err
 	}
 
-	// Step 9: Clean Temporary Files (Display Step 8) - if requested
+	// Step 9: Generate MATSim Transit Schedule XML (Display Step 8)
+	pto.logMessage("Starting Step 9: Generate MATSim Transit Schedule XML")
+	pto.setDisplayStep(8)
+	if pto.checkQuitRequested() {
+		pto.logMessage("Process aborted by user")
+		return nil
+	}
+	if err := pto.generateXML(); err != nil {
+		pto.logMessage(fmt.Sprintf("Step 9 failed: %v", err))
+		return err
+	}
+
+	// Step 10: Clean Temporary Files (Display Step 9) - if requested
 	if pto.config.CleanFlag {
-		pto.logMessage("Starting Step 9: Clean Temporary Files")
-		pto.setDisplayStep(8)
+		pto.logMessage("Starting Step 10: Clean Temporary Files")
+		pto.setDisplayStep(9)
 		if pto.checkQuitRequested() {
 			pto.logMessage("Process aborted by user")
-		return nil
+			return nil
 		}
 		if err := pto.cleanupFiles(); err != nil {
-			pto.logMessage(fmt.Sprintf("Step 9 failed: %v", err))
+			pto.logMessage(fmt.Sprintf("Step 10 failed: %v", err))
 			return err
 		}
 	}
 
 	pto.logMessage("PT processing pipeline completed successfully")
-	
+
 	// Signal completion to display system for proper cleanup
-	if pto.tuiEnabled && pto.displayInstance != nil {
-		if err := pto.displayInstance.SetProcessComplete(true); err != nil {
-			pto.logMessage(fmt.Sprintf("Failed to signal completion: %v", err))
-		}
-		
-		// Give the display system time to handle completion and cleanup
+	if pto.tuiEnabled && pto.tui != nil {
+		pto.tui.SetProcessComplete(true)
+		pto.logMessage("Set process complete in TUI")
+
+		// Give the TUI time to handle completion
 		time.Sleep(300 * time.Millisecond)
-		
-		// Now stop the display properly
+
+		// Now stop the TUI properly
 		pto.cleanupDisplay()
 	}
-	
+
 	return nil
 }
 
 // initializeDisplay sets up the TUI display for PT processing
 func (pto *PTOrchestrator) initializeDisplay() error {
-	var cfg *displayConfig.Config
-	var err error
-	
-	// Use global config if available for language setting
-	if pto.globalConfig != nil {
-		cfg, err = displayConfig.NewPTDisplayConfig(pto.globalConfig, pto.config.CleanFlag)
-	} else {
-		// Fallback to default English
-		cfg, err = displayConfig.NewConfig(
-			"GTFS Transit Processing",
-			"Converting GTFS data to MATSim transit schedule format",
-			"en", // Default to English
-			9,    // PT has 9 steps (Steps 1-9, display indices 0-8)
-		)
-		if err == nil {
-			// Add PT-specific step configurations (Steps 1-9 mapped to display indices 0-8)
-			cfg.AddStep("Validate GTFS Files", "Checking required GTFS files", "file", "status", "size").
-				AddStep("Identify Service Patterns", "Analyzing calendar.txt for service patterns", "services", "progress").
-				AddStep("Map Service Routes", "Linking services to routes (bus=3, metro=1)", "routes", "mappings").
-				AddStep("Select Services", "Randomly selecting bus and metro services", "selected", "total").
-				AddStep("Collect Trips", "Gathering trip data for selected services", "trips", "progress").
-				AddStep("Extract Stop Sequences", "Creating individual trip files", "sequences", "stops").
-				AddStep("Gather Stop Details", "Collecting stop coordinates and names", "stops", "details").
-				AddStep("Generate MATSim XML", "Creating transit schedule XML with offsets", "progress", "size").
-				AddStep("Cleanup Files", "Removing temporary files", "files", "dirs", "bytes").
-				SetTheme("pt-blue").
-				SetFlag("clean", pto.config.CleanFlag)
-		}
-	}
-	
-	if err != nil {
-		return fmt.Errorf("failed to create display config: %v", err)
-	}
+	pto.tui = tui.NewTUI()
 
-	// Configuration is already set up by NewPTDisplayConfig or default setup above
-	
-	pto.displayInstance, err = displayCore.NewDisplayInstance(cfg)
-	if err != nil {
-		return fmt.Errorf("failed to create display instance: %v", err)
-	}
-
-	// Add completion callback for proper cleanup
-	pto.displayInstance.AddCleanupFunc(func() {
-		pto.logMessage("Display cleanup callback executed")
-		// Force terminal restoration
-		fmt.Print("\033[?25h")  // Show cursor
-		fmt.Print("\033[2K")    // Clear line
-		fmt.Print("\033[0m")    // Reset colors
-		fmt.Print("\r")         // Return to start of line
+	// Set up error callback to capture TUI errors in logs
+	pto.tui.SetErrorCallback(func(err error) {
+		pto.logMessage(fmt.Sprintf("TUI Runtime Error: %v", err))
 	})
 
-	if err := pto.displayInstance.Start(); err != nil {
-		return fmt.Errorf("failed to start display: %v", err)
+	if err := pto.tui.Start(); err != nil {
+		return fmt.Errorf("failed to start TUI: %v", err)
 	}
 
-	pto.logMessage("Display instance started successfully")
+	pto.logMessage("TUI started successfully")
 	return nil
 }
 
 // checkQuitRequested checks if user requested to quit
 func (pto *PTOrchestrator) checkQuitRequested() bool {
-	if pto.tuiEnabled && pto.displayInstance != nil {
-		return pto.displayInstance.IsQuitRequested()
+	if pto.tuiEnabled && pto.tui != nil {
+		return pto.tui.IsQuitRequested()
 	}
 	return false
 }
@@ -487,32 +462,29 @@ func (pto *PTOrchestrator) IsQuitRequested() bool {
 	return pto.checkQuitRequested()
 }
 
-// cleanupDisplay shuts down the display using callback-based cleanup
+// cleanupDisplay shuts down the TUI
 func (pto *PTOrchestrator) cleanupDisplay() {
-	if pto.displayInstance != nil {
-		pto.logMessage("Stopping display...")
-		
-		// The display system will handle cleanup via the registered callback
-		if err := pto.displayInstance.Stop(); err != nil {
-			pto.logMessage(fmt.Sprintf("Display stop error: %v", err))
+	if pto.tui != nil {
+		pto.logMessage("Stopping TUI...")
+
+		if err := pto.tui.Stop(); err != nil {
+			pto.logMessage(fmt.Sprintf("TUI stop error: %v", err))
 		} else {
-			pto.logMessage("Display stopped successfully")
+			pto.logMessage("TUI stopped successfully")
 		}
-		
-		pto.displayInstance = nil
-		pto.logMessage("Display cleanup completed")
+
+		pto.tui = nil
+		pto.logMessage("TUI cleanup completed")
 	}
 }
 
 // setDisplayStep updates the display step if TUI is enabled
 func (pto *PTOrchestrator) setDisplayStep(step int) {
-	if pto.tuiEnabled && pto.displayInstance != nil {
-		if err := pto.displayInstance.SetStep(step); err != nil {
-			pto.logMessage(fmt.Sprintf("Failed to set display step: %v", err))
-		}
+	if pto.tuiEnabled && pto.tui != nil {
+		pto.tui.SetStep(step)
+		pto.logMessage(fmt.Sprintf("Set TUI step to %d", step))
 	}
 }
-
 
 func (pto *PTOrchestrator) setupLogging() error {
 	logFileName := LogFilePrefix + time.Now().Format(LogTimeFormat) + ".log"
@@ -521,7 +493,7 @@ func (pto *PTOrchestrator) setupLogging() error {
 	if err != nil {
 		return fmt.Errorf("failed to create log file: %v", err)
 	}
-	
+
 	pto.logger = SetupLogger(pto.logFile)
 	return nil
 }
@@ -537,14 +509,14 @@ func (pto *PTOrchestrator) createDirectories() error {
 		pto.config.TempDir,
 		pto.config.OutputDir,
 	}
-	
+
 	for _, dir := range directories {
 		if err := CreateDirectoryIfNotExists(dir); err != nil {
 			pto.logMessage(fmt.Sprintf("Failed to create directory %s: %v", dir, err))
 			return NewDirectoryError(dir, "create")
 		}
 	}
-	
+
 	pto.logMessage("Created necessary directories")
 	return nil
 }

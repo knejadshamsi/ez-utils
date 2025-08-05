@@ -35,8 +35,14 @@ func RunCreate() {
 
 		// Default time period to "work" if not provided
 		timePeriod := "work"
+		targetDate := "" // Optional specific date
 		if len(os.Args) >= 5 {
 			timePeriod = os.Args[4]
+			// Check if it's a date format (YYYY-MM-DD)
+			if len(timePeriod) == 10 && timePeriod[4] == '-' && timePeriod[7] == '-' {
+				targetDate = timePeriod
+				timePeriod = "work" // Default to weekday processing for date input
+			}
 		}
 
 		// Validate input directory exists
@@ -69,6 +75,11 @@ func RunCreate() {
 
 		// Create the PT orchestrator
 		orchestrator := pt.NewPTOrchestrator(gtfsDir, serviceDay, cleanFlag)
+		
+		// Set target date if provided
+		if targetDate != "" {
+			orchestrator.SetTargetDate(targetDate)
+		}
 
 		// Disable TUI in non-interactive environments
 		if os.Getenv("TERM") == "" || os.Getenv("CI") != "" {
@@ -95,6 +106,7 @@ func RunCreate() {
 			select {
 			case err := <-done:
 				if err != nil {
+					fmt.Printf("PT processing failed: %v\n", err)
 					os.Exit(1)
 				}
 				// Wait a moment for cleanup to complete
