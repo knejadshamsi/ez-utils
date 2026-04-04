@@ -1,0 +1,33 @@
+{
+  "app": {
+    "name": "EZ-Utils"
+  },
+  "settings": {
+    "title": "Settings",
+    "general": "General",
+    "display": "Display",
+    "sources": "Sources",
+    "general_placeholder": "General settings will appear here.",
+    "sources_placeholder": "Data source settings will appear here."
+  },
+  "theme": {
+    "label": "Theme",
+    "dark": "Dark",
+    "light": "Light"
+  },
+  "locale": {
+    "label": "Language",
+    "en": "English",
+    "fr": "Français"
+  },
+  "status": {
+    "importing": "importing",
+    "exporting": "exporting",
+    "fetching": "fetching"
+  },
+  "controls": {
+    "settings": "Settings",
+    "zoom_in": "Zoom in",
+    "zoom_out": "Zoom out"
+  }
+}
