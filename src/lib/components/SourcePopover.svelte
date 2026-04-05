@@ -4,6 +4,7 @@
   import { ChevronUp, ChevronDown, Plus, X, Pencil, Save } from 'lucide-svelte';
   import { sourceStore } from '$lib/stores/ui.svelte';
   import { sources } from '$lib/stores/data.svelte';
+  import { workspace } from '$lib/stores/workspace.svelte';
   import { t } from 'svelte-i18n';
 
   let selectedId = $state<string | null>(null);
@@ -76,10 +77,12 @@
     editValue = currentName;
   }
 
-  function commitRename() {
+  async function commitRename() {
     if (editingId === null) return;
-    sources.rename(editingId, editValue);
+    const pendingId = editingId;
+    const pendingValue = editValue;
     editingId = null;
+    await workspace.renameSource(pendingId, pendingValue);
   }
 
   function cancelRename() {
@@ -91,14 +94,17 @@
     else if (e.key === 'Escape') { e.preventDefault(); cancelRename(); }
   }
 
-  function addSource() {
-    const id = sources.add();
-    if (id) selectedId = id;
+  async function addSource() {
+    if (sources.isFull) return;
+    await workspace.promptImportSource();
+    const latest = sources.items.at(-1);
+    if (latest) selectedId = latest.id;
   }
 
-  function deleteSource() {
+  async function deleteSource() {
     if (selectedId === null) return;
-    sources.remove(selectedId);
+    const pendingId = selectedId;
+    await workspace.removeSource(pendingId);
     selectedId = null;
     colorEditingId = null;
   }

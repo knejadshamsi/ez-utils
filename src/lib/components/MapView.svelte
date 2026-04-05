@@ -3,7 +3,8 @@
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
   import { t } from 'svelte-i18n';
-  import { settings, status, exportStore, sourceStore, THEMES } from '$lib/stores/ui.svelte';
+  import { settings, status, exportStore, sourceStore, THEMES, mapViewport } from '$lib/stores/ui.svelte';
+  import { workspace } from '$lib/stores/workspace.svelte';
   import Drawer from '$lib/components/Drawer.svelte';
   import SourcePopover from '$lib/components/SourcePopover.svelte';
 
@@ -14,15 +15,12 @@
 
   // Keep the last busy status visible during slide-out animation
   $effect(() => {
-    if (status.isBusy) {
+    if (status.isVisible) {
       displayStatus = status.current;
     }
   });
 
   // Montreal island center
-  const MONTREAL_CENTER: L.LatLngExpression = [45.5017, -73.5673];
-  const DEFAULT_ZOOM = 12;
-
   // Swap map tiles when theme changes
   $effect(() => {
     const url = THEMES[settings.config.theme].mapTiles;
@@ -30,11 +28,27 @@
     tileLayer.setUrl(url);
   });
 
+  $effect(() => {
+    if (!map) return;
+    const center = map.getCenter();
+    const [lng, lat] = mapViewport.state.center;
+    if (Math.abs(center.lng - lng) < 0.000001 && Math.abs(center.lat - lat) < 0.000001 && map.getZoom() === mapViewport.state.zoom) {
+      return;
+    }
+    map.setView([lat, lng], mapViewport.state.zoom);
+  });
+
   onMount(() => {
     map = L.map(mapContainer, {
       attributionControl: false,
       zoomControl: false,
-    }).setView(MONTREAL_CENTER, DEFAULT_ZOOM);
+    }).setView([mapViewport.state.center[1], mapViewport.state.center[0]], mapViewport.state.zoom);
+
+    map.on('moveend', () => {
+      const center = map.getCenter();
+      mapViewport.set([center.lng, center.lat], map.getZoom());
+      workspace.queueUiPersist();
+    });
 
     // Logo control — top-left
     const LogoControl = L.Control.extend({
@@ -139,8 +153,7 @@
         L.DomEvent.disableClickPropagation(container);
         L.DomEvent.on(btn, 'click', (e) => {
           L.DomEvent.preventDefault(e);
-          // TODO: trigger save logic
-          console.log('Save triggered');
+          void workspace.saveWorkspace();
         });
         return container;
       },
@@ -184,10 +197,14 @@
   <div bind:this={mapContainer} class="w-full h-full"></div>
 
   <!-- Status bar — top center, slides in/out -->
-  <div class="ez-status-wrapper" class:ez-status-visible={status.isBusy}>
+  <div class="ez-status-wrapper" class:ez-status-visible={status.isVisible}>
     <div class="ez-status">
-      <span class="ez-status-spinner"></span>
-      <span class="ez-status-text">{$t(`status.${displayStatus}`)}...</span>
+      {#if status.isBusy}
+        <span class="ez-status-spinner"></span>
+      {/if}
+      <span class="ez-status-text">
+        {$t(`status.${displayStatus}`)}{status.isBusy ? '...' : ''}
+      </span>
     </div>
   </div>
 

@@ -65,6 +65,29 @@
             {/each}
           </div>
         </div>
+
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="text-xs font-medium text-base-content/70">Autosave</label>
+            <input
+              type="checkbox"
+              class="toggle toggle-sm"
+              checked={settings.config.autosaveSettings.enabled}
+              onchange={(e) => settings.setAutosaveEnabled((e.currentTarget as HTMLInputElement).checked)}
+            />
+          </div>
+          <div>
+            <label class="text-xs font-medium text-base-content/70 mb-2 block">Autosave Interval (minutes)</label>
+            <input
+              type="number"
+              min="5"
+              max="1440"
+              class="input input-sm input-bordered w-full"
+              value={settings.config.autosaveSettings.intervalMinutes}
+              onchange={(e) => settings.setAutosaveInterval(Number((e.currentTarget as HTMLInputElement).value))}
+            />
+          </div>
+        </div>
       </div>
     </div>
   </div>

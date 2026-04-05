@@ -9,20 +9,16 @@ import type { Source } from '$lib/components/types';
 // ============================================================
 
 class SourceDataStore {
-  items = $state<Source[]>([
-    { id: '1', name: 'Montreal Network', color: '#3b82f6', opacity: 1, visible: true },
-    { id: '2', name: 'STM Transit', color: '#f59e0b', opacity: 1, visible: true },
-    { id: '3', name: 'Census 2021', color: '#10b981', opacity: 0.6, visible: true },
-  ]);
+  items = $state<Source[]>([]);
 
   readonly maxSources = 5;
 
-  add(): string | null {
-    if (this.items.length >= this.maxSources) return null;
-    const id = crypto.randomUUID();
-    const hue = Math.floor(Math.random() * 360);
-    this.items = [...this.items, { id, name: `Source ${this.items.length + 1}`, color: `hsl(${hue}, 70%, 55%)`, opacity: 1, visible: true }];
-    return id;
+  setItems(items: Source[]) {
+    this.items = [...items];
+  }
+
+  addLocal(source: Source) {
+    this.items = [...this.items, source];
   }
 
   get isFull(): boolean {
@@ -33,7 +29,7 @@ class SourceDataStore {
     this.items = this.items.filter(s => s.id !== id);
   }
 
-  rename(id: string, name: string) {
+  renameLocal(id: string, name: string) {
     const idx = this.items.findIndex(s => s.id === id);
     if (idx >= 0 && name.trim()) {
       this.items[idx].name = name.trim();

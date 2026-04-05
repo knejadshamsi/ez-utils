@@ -15,7 +15,9 @@
   "status": {
     "importing": "importing",
     "exporting": "exporting",
-    "fetching": "fetching"
+    "fetching": "fetching",
+    "saved": "saved",
+    "auto_saved": "auto-saved"
   },
   "sources": {
     "no_sources": "No sources added yet."

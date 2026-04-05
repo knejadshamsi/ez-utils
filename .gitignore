@@ -31,3 +31,6 @@ src-tauri/target/
 !.yarn/releases
 !.yarn/patches
 !.yarn/plugins
+
+# Local-only (not committed)
+docs/

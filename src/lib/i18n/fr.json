@@ -1,30 +1,32 @@
 {
   "settings": {
-    "title": "Paramètres"
+    "title": "Parametres"
   },
   "theme": {
-    "label": "Thème",
+    "label": "Theme",
     "dark": "Sombre",
     "light": "Clair"
   },
   "locale": {
     "label": "Langue",
     "en": "English",
-    "fr": "Français"
+    "fr": "Francais"
   },
   "status": {
     "importing": "importation",
     "exporting": "exportation",
-    "fetching": "récupération"
+    "fetching": "recuperation",
+    "saved": "enregistre",
+    "auto_saved": "enregistre automatiquement"
   },
   "sources": {
-    "no_sources": "Aucune source ajoutée."
+    "no_sources": "Aucune source ajoutee."
   },
   "export": {
     "title": "Exporter",
     "destination": "Destination",
     "export_btn": "Exporter",
     "cancel": "Annuler",
-    "sources": "Sources à exporter"
+    "sources": "Sources a exporter"
   }
 }

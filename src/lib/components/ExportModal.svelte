@@ -3,6 +3,7 @@
   import { X } from 'lucide-svelte';
   import { exportStore } from '$lib/stores/ui.svelte';
   import { sources } from '$lib/stores/data.svelte';
+  import type { Source } from '$lib/components/types';
 
   let exportPath = $state('');
   let selectedSourceIds = $state<Set<string>>(new Set());
@@ -11,7 +12,7 @@
   $effect(() => {
     if (exportStore.open) {
       exportPath = '';
-      selectedSourceIds = new Set(sources.items.filter(s => s.visible).map(s => s.id));
+      selectedSourceIds = new Set(sources.items.filter((s: Source) => s.visible).map((s: Source) => s.id));
     }
   });
 
@@ -41,7 +42,7 @@
 
   function handleExport() {
     // TODO: trigger actual export to chosen path with selected sources
-    const selected = sources.items.filter(s => selectedSourceIds.has(s.id));
+    const selected = sources.items.filter((s: Source) => selectedSourceIds.has(s.id));
     console.log('Export to:', exportPath, 'sources:', selected);
     exportStore.hide();
   }
