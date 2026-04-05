@@ -1,14 +1,6 @@
 {
-  "app": {
-    "name": "EZ-Utils"
-  },
   "settings": {
-    "title": "Settings",
-    "general": "General",
-    "display": "Display",
-    "sources": "Sources",
-    "general_placeholder": "General settings will appear here.",
-    "sources_placeholder": "Data source settings will appear here."
+    "title": "Settings"
   },
   "theme": {
     "label": "Theme",
@@ -25,9 +17,14 @@
     "exporting": "exporting",
     "fetching": "fetching"
   },
-  "controls": {
-    "settings": "Settings",
-    "zoom_in": "Zoom in",
-    "zoom_out": "Zoom out"
+  "sources": {
+    "no_sources": "No sources added yet."
+  },
+  "export": {
+    "title": "Export",
+    "destination": "Destination",
+    "export_btn": "Export",
+    "cancel": "Cancel",
+    "sources": "Sources to export"
   }
 }

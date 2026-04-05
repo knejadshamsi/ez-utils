@@ -3,7 +3,9 @@
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
   import { t } from 'svelte-i18n';
-  import { settings, status, THEMES } from '$lib/stores/ui.svelte';
+  import { settings, status, exportStore, sourceStore, THEMES } from '$lib/stores/ui.svelte';
+  import Drawer from '$lib/components/Drawer.svelte';
+  import SourcePopover from '$lib/components/SourcePopover.svelte';
 
   let mapContainer: HTMLDivElement;
   let map: L.Map;
@@ -20,7 +22,6 @@
   // Montreal island center
   const MONTREAL_CENTER: L.LatLngExpression = [45.5017, -73.5673];
   const DEFAULT_ZOOM = 12;
-
 
   // Swap map tiles when theme changes
   $effect(() => {
@@ -46,6 +47,27 @@
       },
     });
     new LogoControl().addTo(map);
+
+    // Sources button — top-left, right of logo
+    const SourcesControl = L.Control.extend({
+      options: { position: 'topleft' },
+      onAdd() {
+        const container = L.DomUtil.create('div', 'leaflet-control ez-toolbar');
+        const btn = L.DomUtil.create('a', 'ez-toolbar-btn ez-source-btn', container);
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>`;
+        btn.title = 'Sources';
+        btn.href = '#';
+        btn.role = 'button';
+        btn.setAttribute('aria-label', 'Sources');
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.on(btn, 'click', (e) => {
+          L.DomEvent.preventDefault(e);
+          sourceStore.togglePopover();
+        });
+        return container;
+      },
+    });
+    new SourcesControl().addTo(map);
 
     // Zoom control: [-] [+] — horizontal bar, top-right
     const ZoomControl = L.Control.extend({
@@ -103,6 +125,49 @@
     });
     new SettingsControl().addTo(map);
 
+    // Save button — top-right, after settings
+    const SaveControl = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd() {
+        const container = L.DomUtil.create('div', 'leaflet-control ez-toolbar');
+        const btn = L.DomUtil.create('a', 'ez-toolbar-btn', container);
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>`;
+        btn.title = 'Save';
+        btn.href = '#';
+        btn.role = 'button';
+        btn.setAttribute('aria-label', 'Save');
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.on(btn, 'click', (e) => {
+          L.DomEvent.preventDefault(e);
+          // TODO: trigger save logic
+          console.log('Save triggered');
+        });
+        return container;
+      },
+    });
+    new SaveControl().addTo(map);
+
+    // Export button — top-right, after save
+    const ExportControl = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd() {
+        const container = L.DomUtil.create('div', 'leaflet-control ez-toolbar');
+        const btn = L.DomUtil.create('a', 'ez-toolbar-btn', container);
+        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8"/><path d="m12 8 4 4-4 4"/></svg>`;
+        btn.title = 'Export';
+        btn.href = '#';
+        btn.role = 'button';
+        btn.setAttribute('aria-label', 'Export');
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.on(btn, 'click', (e) => {
+          L.DomEvent.preventDefault(e);
+          exportStore.show();
+        });
+        return container;
+      },
+    });
+    new ExportControl().addTo(map);
+
     // Tile layer — uses current theme
     tileLayer = L.tileLayer(THEMES[settings.config.theme].mapTiles, {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
@@ -115,7 +180,7 @@
   });
 </script>
 
-<div class="relative w-full h-full">
+<div class="relative w-full h-full overflow-hidden">
   <div bind:this={mapContainer} class="w-full h-full"></div>
 
   <!-- Status bar — top center, slides in/out -->
@@ -126,6 +191,23 @@
     </div>
   </div>
 
+  <!-- Source popover -->
+  <SourcePopover />
+
+  <!-- Drawers -->
+  <Drawer id="primary" side="left" width={280}>
+    <div class="p-4">
+      <h3 class="text-sm font-semibold text-base-content mb-2">Primary Drawer</h3>
+      <p class="text-xs text-base-content/50">Domain editor content goes here.</p>
+    </div>
+  </Drawer>
+
+  <Drawer id="secondary" side="right" width={280}>
+    <div class="p-4">
+      <h3 class="text-sm font-semibold text-base-content mb-2">Secondary Drawer</h3>
+      <p class="text-xs text-base-content/50">Element details go here.</p>
+    </div>
+  </Drawer>
 </div>
 
 <style>
@@ -144,6 +226,19 @@
     pointer-events: none;
     user-select: none;
     box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+  }
+
+  /* ── Make top-left controls horizontal ── */
+  :global(.leaflet-top.leaflet-left) {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 6px;
+    padding-top: 10px;
+    padding-left: 10px;
+  }
+  :global(.leaflet-top.leaflet-left .leaflet-control) {
+    margin: 0 !important;
   }
 
   /* ── Make top-right controls horizontal ── */
@@ -229,5 +324,4 @@
   @keyframes ez-spin {
     to { transform: rotate(360deg); }
   }
-
 </style>

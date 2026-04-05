@@ -2,14 +2,8 @@
 // Types
 // ============================================================
 
-/** The main view the user is on */
-export type ViewState = 'welcome' | 'population' | 'network' | 'pt';
-
 /** What the app is currently doing */
 export type StatusState = 'idle' | 'importing' | 'exporting' | 'fetching';
-
-/** Settings tabs */
-export type SettingsTab = 'general' | 'sources' | 'display';
 
 /** Available themes */
 export type ThemeName = 'dark' | 'light';
@@ -19,14 +13,12 @@ export type LocaleName = 'en' | 'fr';
 
 /** Theme definition — extensible for future colors */
 export interface ThemeDefinition {
-  label: string;
   mapTiles: string;
   // Add future theme-specific values here (e.g. marker colors, layer tints)
 }
 
 /** Settings configuration */
 export interface SettingsConfig {
-  activeTab: SettingsTab;
   theme: ThemeName;
   locale: LocaleName;
 }
@@ -37,11 +29,9 @@ export interface SettingsConfig {
 
 export const THEMES: Record<ThemeName, ThemeDefinition> = {
   dark: {
-    label: 'Dark',
     mapTiles: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
   },
   light: {
-    label: 'Light',
     mapTiles: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
   },
 };
@@ -52,7 +42,6 @@ export const LOCALES: Record<LocaleName, string> = {
 };
 
 const DEFAULT_SETTINGS: SettingsConfig = {
-  activeTab: 'general',
   theme: 'dark',
   locale: 'en',
 };
@@ -60,15 +49,6 @@ const DEFAULT_SETTINGS: SettingsConfig = {
 // ============================================================
 // Stores
 // ============================================================
-
-/** Controls which view is rendered */
-class UIState {
-  view = $state<ViewState>('welcome');
-
-  setView(view: ViewState) {
-    this.view = view;
-  }
-}
 
 /** Controls what action the app is performing */
 class StatusStore {
@@ -83,6 +63,32 @@ class StatusStore {
   }
 }
 
+/** Export modal state */
+class ExportStore {
+  open = $state<boolean>(false);
+
+  show() {
+    this.open = true;
+  }
+
+  hide() {
+    this.open = false;
+  }
+}
+
+/** Source popover state */
+class SourceStore {
+  popoverOpen = $state<boolean>(false);
+
+  togglePopover() {
+    this.popoverOpen = !this.popoverOpen;
+  }
+
+  hidePopover() {
+    this.popoverOpen = false;
+  }
+}
+
 /** Settings — includes theme, tabs, future config */
 class SettingsStore {
   open = $state<boolean>(false);
@@ -92,16 +98,8 @@ class SettingsStore {
     this.open = !this.open;
   }
 
-  show() {
-    this.open = true;
-  }
-
   hide() {
     this.open = false;
-  }
-
-  setTab(tab: SettingsTab) {
-    this.config.activeTab = tab;
   }
 
   setTheme(theme: ThemeName) {
@@ -112,15 +110,23 @@ class SettingsStore {
   setLocale(locale: LocaleName) {
     this.config.locale = locale;
   }
+}
 
-  /** Current theme definition */
-  get theme(): ThemeDefinition {
-    return THEMES[this.config.theme];
+/** Manages drawer open/close state */
+class DrawerStore {
+  private openSet = $state<Set<string>>(new Set());
+
+  isOpen(id: string): boolean {
+    return this.openSet.has(id);
   }
 
-  reset() {
-    this.config = { ...DEFAULT_SETTINGS };
-    document.documentElement.setAttribute('data-theme', DEFAULT_SETTINGS.theme);
+  toggle(id: string) {
+    if (this.openSet.has(id)) {
+      this.openSet.delete(id);
+    } else {
+      this.openSet.add(id);
+    }
+    this.openSet = new Set(this.openSet);
   }
 }
 
@@ -128,6 +134,8 @@ class SettingsStore {
 // Singletons
 // ============================================================
 
-export const ui = new UIState();
 export const status = new StatusStore();
 export const settings = new SettingsStore();
+export const drawers = new DrawerStore();
+export const exportStore = new ExportStore();
+export const sourceStore = new SourceStore();
