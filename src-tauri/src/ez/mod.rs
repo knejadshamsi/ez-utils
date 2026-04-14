@@ -6,8 +6,9 @@ use std::{ffi::OsStr, path::PathBuf};
 
 use tauri::State;
 
-use crate::network::{import_network, CrsConfig as NetworkCrsConfig};
-use crate::population::{import_population, CrsConfig};
+use crate::network::import_network;
+use crate::population::import_population;
+use crate::projection::CrsConfig;
 use crate::transit::import_transit;
 
 pub use self::types::SessionManager;
@@ -27,6 +28,12 @@ use self::{
         Session, SourceKind, StatePayload, UiState,
     },
 };
+
+pub(crate) fn current_crs(manager: &SessionManager) -> Result<CrsConfig, EzError> {
+    let guard = manager.session.lock().map_err(|_| EzError::SessionBusy)?;
+    let session = guard.as_ref().ok_or(EzError::NoActiveSession)?;
+    Ok(session.ui_state.settings.crs.clone())
+}
 
 fn prune_stale_transit_links(work_dir: &std::path::Path, ui_state: &mut UiState) -> bool {
     let network_source_names: std::collections::HashSet<String> = ui_state
@@ -70,6 +77,7 @@ pub fn validate_xml(file_path: String) -> Result<SourceKind, EzError> {
 pub async fn new_from_xml(
     xml_path: String,
     ez_path: String,
+    crs: Option<CrsConfig>,
     manager: State<'_, SessionManager>,
 ) -> Result<NewSessionPayload, EzError> {
     let xml_path = PathBuf::from(xml_path);
@@ -93,7 +101,10 @@ pub async fn new_from_xml(
         message: format!("Failed to create working directory: {err}"),
     })?;
 
-    let ui_state = UiState::default();
+    let mut ui_state = UiState::default();
+    if let Some(chosen_crs) = crs {
+        ui_state.settings.crs = chosen_crs;
+    }
     write_ui_state(&work_dir, &ui_state)?;
 
     let file_stem = xml_path
@@ -105,18 +116,19 @@ pub async fn new_from_xml(
     let existing_names = existing_source_names_from_disk(&work_dir);
     let name = validate_source_name(file_stem, existing_names.into_iter())?;
 
+    let session_crs = ui_state.settings.crs.clone();
     let mut network_metadata = None;
     let mut transit_metadata = None;
     let import_result = match kind {
         SourceKind::Network => {
-            import_network(&work_dir, &xml_path, &name, NetworkCrsConfig::MontrealMtm8)
+            import_network(&work_dir, &xml_path, &name, &session_crs)
                 .map(|meta| { network_metadata = Some(meta); })
         }
         SourceKind::Population => {
-            import_population(&work_dir, &xml_path, &name, CrsConfig::MontrealMtm8)
+            import_population(&work_dir, &xml_path, &name, &session_crs)
         }
         SourceKind::Transit => {
-            import_transit(&work_dir, &xml_path, &name, NetworkCrsConfig::MontrealMtm8)
+            import_transit(&work_dir, &xml_path, &name, &session_crs)
                 .map(|meta| { transit_metadata = Some(meta); })
         }
     };
@@ -284,6 +296,7 @@ pub async fn import_source(
         })?;
 
     let name = validate_source_name(file_stem, existing_names.into_iter())?;
+    let session_crs = session.ui_state.settings.crs.clone();
     let mut network_metadata = None;
     let mut transit_metadata = None;
     match kind {
@@ -292,7 +305,7 @@ pub async fn import_source(
                 &session.work_dir,
                 &file_path,
                 &name,
-                NetworkCrsConfig::MontrealMtm8,
+                &session_crs,
             )?;
             network_metadata = Some(meta);
         }
@@ -301,7 +314,7 @@ pub async fn import_source(
                 &session.work_dir,
                 &file_path,
                 &name,
-                CrsConfig::MontrealMtm8,
+                &session_crs,
             )?;
         }
         SourceKind::Transit => {
@@ -309,7 +322,7 @@ pub async fn import_source(
                 &session.work_dir,
                 &file_path,
                 &name,
-                NetworkCrsConfig::MontrealMtm8,
+                &session_crs,
             )?;
             transit_metadata = Some(meta);
         }

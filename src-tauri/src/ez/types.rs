@@ -2,6 +2,8 @@ use std::{path::PathBuf, sync::Mutex};
 
 use serde::{Deserialize, Serialize};
 
+use crate::projection::CrsConfig;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NetworkMetadata {
@@ -80,6 +82,8 @@ pub struct Settings {
     pub locale: String,
     #[serde(default)]
     pub autosave_settings: AutosaveSettings,
+    #[serde(default)]
+    pub crs: CrsConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,6 +113,7 @@ impl Default for UiState {
                 theme: "dark".into(),
                 locale: "en".into(),
                 autosave_settings: AutosaveSettings::default(),
+                crs: CrsConfig::default(),
             },
             source_popover_open: false,
             open_drawers: Vec::new(),
@@ -185,6 +190,7 @@ pub enum EzError {
     TransitDuplicateStopFacilityId { stop_id: String },
     TransitStopFacilityIdInvalid { message: String },
     TransitProfileStopInvalid { message: String },
+    CrsLockedWithSources,
     Io { message: String },
 }
 

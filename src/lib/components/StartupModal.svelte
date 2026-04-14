@@ -1,12 +1,22 @@
 <script lang="ts">
-  import { FileText, FolderOpen } from 'lucide-svelte';
+  import { FileText, FolderOpen, Settings as SettingsIcon } from 'lucide-svelte';
   import { ez } from '$lib/stores/ez.svelte';
+  import { settings } from '$lib/stores/ui.svelte';
 </script>
 
 {#if !ez.active}
   <div class="fixed inset-0 z-[2500] flex items-center justify-center bg-black/70">
     <div class="w-[420px] rounded-xl bg-base-100 p-6 text-base-content shadow-2xl">
-      <h1 class="mb-2 text-xl font-semibold">EZ-Utils</h1>
+      <div class="mb-2 flex items-center justify-between">
+        <h1 class="text-xl font-semibold">EZ-Utils</h1>
+        <button
+          class="btn btn-ghost btn-sm btn-square"
+          onclick={() => settings.toggle()}
+          aria-label="Settings"
+        >
+          <SettingsIcon size={16} />
+        </button>
+      </div>
       <p class="mb-5 text-sm text-base-content/70">
         Open an existing .ez file or start a new one from a MATSim XML file.
       </p>

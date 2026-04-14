@@ -257,6 +257,7 @@ class EzStore {
       const payload = await invoke<NewSessionPayload>('new_from_xml', {
         xmlPath,
         ezPath: ezPath.endsWith('.ez') ? ezPath : `${ezPath}.ez`,
+        crs: settings.config.crs,
       });
       this.applyState(payload.state);
       const hue = Math.floor(Math.random() * 360);
