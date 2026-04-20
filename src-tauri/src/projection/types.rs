@@ -43,4 +43,5 @@ pub struct CrsInfo {
     pub kind: CrsConfig,
     pub label: String,
     pub center: [f64; 2],
+    pub proj_string: String,
 }

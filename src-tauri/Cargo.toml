@@ -19,7 +19,10 @@ tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
+quick-xml = "0.39.2"
+proj4rs = "0.1.10"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
+rand = "0.9"
 
 [profile.release]
 strip = true

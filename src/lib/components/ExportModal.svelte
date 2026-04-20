@@ -1,18 +1,28 @@
 <script lang="ts">
   import { t } from 'svelte-i18n';
   import { X } from 'lucide-svelte';
-  import { exportStore } from '$lib/stores/ui.svelte';
+  import { invoke } from '@tauri-apps/api/core';
+  import { save } from '@tauri-apps/plugin-dialog';
+  import { exportStore, status } from '$lib/stores/ui.svelte';
   import { sources } from '$lib/stores/data.svelte';
   import type { Source } from '$lib/components/types';
 
   let exportPath = $state('');
   let selectedSourceIds = $state<Set<string>>(new Set());
+  let exportError = $state<string | null>(null);
+
+  let exportableSources = $derived(
+    sources.items.filter((s: Source) => s.kind === 'population' || s.kind === 'network')
+  );
 
   // Reset state when modal opens
   $effect(() => {
     if (exportStore.open) {
       exportPath = '';
-      selectedSourceIds = new Set(sources.items.filter((s: Source) => s.visible).map((s: Source) => s.id));
+      exportError = null;
+      selectedSourceIds = new Set(
+        exportableSources.filter((s: Source) => s.visible).map((s: Source) => s.id)
+      );
     }
   });
 
@@ -35,16 +45,44 @@
     if (e.key === 'Escape') exportStore.hide();
   }
 
-  function handleBrowse() {
-    // TODO: open Tauri native directory picker
-    console.log('Browse for export directory');
+  async function handleBrowse() {
+    const sourceName = exportableSources.find(s => selectedSourceIds.has(s.id))?.name || 'population';
+    const path = await save({
+      title: 'Export Population XML',
+      defaultPath: `${sourceName}.xml`,
+      filters: [{ name: 'MATSim XML', extensions: ['xml'] }],
+    });
+    if (typeof path === 'string') {
+      exportPath = path;
+    }
   }
 
-  function handleExport() {
-    // TODO: trigger actual export to chosen path with selected sources
-    const selected = sources.items.filter((s: Source) => selectedSourceIds.has(s.id));
-    console.log('Export to:', exportPath, 'sources:', selected);
-    exportStore.hide();
+  async function handleExport() {
+    const selected = exportableSources.filter((s: Source) => selectedSourceIds.has(s.id));
+    if (selected.length === 0 || !exportPath.trim()) return;
+
+    exportError = null;
+    status.setOperation('exporting');
+    try {
+      for (const source of selected) {
+        const command =
+          source.kind === 'network'
+            ? 'export_network'
+            : source.kind === 'transit'
+              ? 'export_transit'
+              : 'export_population';
+        await invoke(command, {
+          sourceName: source.name,
+          outputPath: exportPath,
+        });
+      }
+      exportStore.hide();
+    } catch (err) {
+      const e = err as { message?: string };
+      exportError = typeof err === 'string' ? err : e.message || 'Export failed.';
+    } finally {
+      status.setOperation(null);
+    }
   }
 </script>
 
@@ -64,6 +102,7 @@
 
       <!-- Body -->
       <div class="px-4 pb-2 space-y-4">
+        <p class="text-xs text-base-content/60">{$t('export.save_hint')}</p>
         <!-- Output path -->
         <div>
           <label class="text-xs font-medium text-base-content/70 mb-2 block">{$t('export.destination')}</label>
@@ -76,11 +115,11 @@
         <!-- Sources to export -->
         <div>
           <label class="text-xs font-medium text-base-content/70 mb-2 block">{$t('export.sources')}</label>
-          {#if sources.items.length === 0}
+          {#if exportableSources.length === 0}
             <p class="text-xs text-base-content/40">{$t('sources.no_sources')}</p>
           {:else}
             <div class="space-y-1">
-              {#each sources.items as source (source.id)}
+              {#each exportableSources as source (source.id)}
                 <button
                   class="flex items-center gap-2 py-1 w-full text-left cursor-pointer"
                   onclick={() => toggleSource(source.id)}
@@ -98,6 +137,11 @@
           {/if}
         </div>
       </div>
+
+      <!-- Error -->
+      {#if exportError}
+        <p class="text-xs text-error px-4 pb-2">{exportError}</p>
+      {/if}
 
       <!-- Footer -->
       <div class="flex justify-end gap-2 px-4 py-3">

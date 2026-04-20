@@ -1,11 +1,14 @@
 <script lang="ts">
   import { drawers } from '$lib/stores/ui.svelte';
+  import { fly } from 'svelte/transition';
+  import { cubicOut } from 'svelte/easing';
   import type { Snippet } from 'svelte';
 
   interface Props {
     id: string;
     side?: 'left' | 'right';
     width?: number;
+    alwaysOpen?: boolean;
     children: Snippet;
   }
 
@@ -13,16 +16,21 @@
     id,
     side = 'left',
     width = 360,
+    alwaysOpen = false,
     children,
   }: Props = $props();
 
-  let isOpen = $derived(drawers.isOpen(id));
+  let isOpen = $derived(alwaysOpen || drawers.isOpen(id));
+
+  let flyX = $derived(side === 'left' ? -(width + 30) : width + 30);
 </script>
 
 <div
   class="ez-drawer ez-drawer-{side}"
   class:open={isOpen}
   style:width="{width}px"
+  in:fly={{ x: flyX, duration: 280, easing: cubicOut }}
+  out:fly={{ x: flyX, duration: 220, easing: cubicOut }}
 >
   <div class="ez-drawer-inner">
     {@render children()}

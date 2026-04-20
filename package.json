@@ -28,6 +28,7 @@
     "daisyui": "^5.5.19",
     "leaflet": "^1.9.4",
     "lucide-svelte": "^1.0.1",
+    "proj4": "^2.20.8",
     "svelte-awesome-color-picker": "^4.1.0",
     "svelte-i18n": "^4.0.1",
     "tailwindcss": "^4.2.2"

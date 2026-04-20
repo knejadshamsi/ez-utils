@@ -1,9 +1,59 @@
+import { invoke } from '@tauri-apps/api/core';
+
+import type { CrsConfig, CrsInfo } from '$lib/components/types';
+import { sources } from '$lib/stores/data.svelte';
+import { network } from '$lib/stores/network.svelte';
+import { population } from '$lib/stores/population.svelte';
+import { transitStops } from '$lib/stores/transit.svelte';
+
+let crsPresetCache: Record<string, string> | null = null;
+
+async function ensureCrsPresetCache(): Promise<Record<string, string>> {
+  if (crsPresetCache !== null) return crsPresetCache;
+  const list = await invoke<CrsInfo[]>('list_crs_presets');
+  const cache: Record<string, string> = {};
+  for (const info of list) {
+    if (info.kind.kind !== 'custom') {
+      cache[info.kind.kind] = info.projString;
+    }
+  }
+  crsPresetCache = cache;
+  return cache;
+}
+
+export async function currentProjString(): Promise<string> {
+  const crs = settings.config.crs;
+  if (crs.kind === 'custom') return crs.projString;
+  const cache = await ensureCrsPresetCache();
+  return cache[crs.kind] ?? '';
+}
+
 // ============================================================
 // Types
 // ============================================================
 
 /** What the app is currently doing */
-export type StatusState = 'idle' | 'importing' | 'exporting' | 'fetching' | 'saved' | 'auto_saved';
+export type StatusState =
+  | 'idle'
+  | 'unpacking'
+  | 'loading'
+  | 'importing'
+  | 'exporting'
+  | 'fetching'
+  | 'saving'
+  | 'saved'
+  | 'auto_saved'
+  | 'deleted'
+  | 'editing'
+  | 'network_below_zoom'
+  | 'network_settling'
+  | 'network_add_node'
+  | 'network_add_link_from'
+  | 'network_add_link_to'
+  | 'population_settling'
+  | 'population_add_person'
+  | 'population_add_activity'
+  | 'transit_settling';
 
 /** Available themes */
 export type ThemeName = 'dark' | 'light';
@@ -22,6 +72,7 @@ export interface SettingsConfig {
   theme: ThemeName;
   locale: LocaleName;
   autosaveSettings: AutosaveSettings;
+  crs: CrsConfig;
 }
 
 export interface MapViewportState {
@@ -59,6 +110,7 @@ const DEFAULT_SETTINGS: SettingsConfig = {
     enabled: false,
     intervalMinutes: 5,
   },
+  crs: { kind: 'montreal_mtm8' },
 };
 
 const DEFAULT_MAP_VIEWPORT: MapViewportState = {
@@ -72,25 +124,53 @@ const DEFAULT_MAP_VIEWPORT: MapViewportState = {
 
 /** Controls what action the app is performing */
 class StatusStore {
-  current = $state<StatusState>('idle');
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  operationStatus = $state<StatusState | null>(null);
+  transientStatus = $state<StatusState | null>(null);
+  private transientTimer: ReturnType<typeof setTimeout> | null = null;
 
-  set(status: StatusState) {
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
+  get derivedStatus(): StatusState {
+    if (sources.activeKind === 'network') {
+      if (network.mapAction === 'add_node') return 'network_add_node';
+      if (network.mapAction === 'add_link_from') return 'network_add_link_from';
+      if (network.mapAction === 'add_link_to') return 'network_add_link_to';
+      if (network.belowZoom) return 'network_below_zoom';
+      if (network.settling) return 'network_settling';
+      if (network.loading) return 'fetching';
     }
-    this.current = status;
-    if (status === 'saved' || status === 'auto_saved') {
-      this.timer = setTimeout(() => {
-        this.current = 'idle';
-        this.timer = null;
-      }, 2000);
+    if (sources.activeKind === 'population') {
+      if (population.mapAction === 'add_person') return 'population_add_person';
+      if (population.mapAction === 'add_activity') return 'population_add_activity';
+      if (population.editLocations) return 'editing';
+      if (population.settling) return 'population_settling';
+      if (population.loading) return 'fetching';
     }
+    if (sources.activeKind === 'transit') {
+      if (transitStops.settling) return 'transit_settling';
+      if (transitStops.loading) return 'fetching';
+    }
+    return 'idle';
+  }
+
+  get current(): StatusState {
+    return this.operationStatus ?? this.transientStatus ?? this.derivedStatus;
+  }
+
+  setOperation(status: StatusState | null) {
+    this.operationStatus = status;
+  }
+
+  flash(status: 'saved' | 'auto_saved' | 'deleted') {
+    if (this.transientTimer) clearTimeout(this.transientTimer);
+    this.transientStatus = status;
+    this.transientTimer = setTimeout(() => {
+      this.transientStatus = null;
+      this.transientTimer = null;
+    }, 2000);
   }
 
   get isBusy(): boolean {
-    return this.current === 'importing' || this.current === 'exporting' || this.current === 'fetching';
+    const s = this.current;
+    return s === 'unpacking' || s === 'loading' || s === 'importing' || s === 'exporting' || s === 'fetching' || s === 'saving';
   }
 
   get isVisible(): boolean {
@@ -114,6 +194,8 @@ class ExportStore {
 /** Source popover state */
 class SourceStore {
   popoverOpen = $state<boolean>(false);
+  /** When true, switching the active source first wipes the previous source's map data. */
+  wipeOnSwitch = $state<boolean>(true);
 
   togglePopover() {
     this.popoverOpen = !this.popoverOpen;
@@ -121,6 +203,10 @@ class SourceStore {
 
   hidePopover() {
     this.popoverOpen = false;
+  }
+
+  toggleWipeOnSwitch() {
+    this.wipeOnSwitch = !this.wipeOnSwitch;
   }
 
   hydrate(open: boolean) {
@@ -158,6 +244,18 @@ class SettingsStore {
     this.config.autosaveSettings.intervalMinutes = Math.min(24 * 60, Math.max(5, Math.round(intervalMinutes)));
   }
 
+  async setCrs(config: CrsConfig): Promise<void> {
+    this.config.crs = config;
+    if (sources.items.length > 0) return;
+    try {
+      const center = await invoke<[number, number]>('set_crs', { config });
+      mapViewport.set(center, 12);
+    } catch {
+      // Backend rejects when no session (welcome screen) or sources exist.
+      // Frontend keeps the value; new_from_xml picks it up on session creation.
+    }
+  }
+
   hydrate(config: SettingsConfig) {
     this.config = {
       ...config,
@@ -168,6 +266,7 @@ class SettingsStore {
           Math.max(5, config.autosaveSettings?.intervalMinutes ?? DEFAULT_SETTINGS.autosaveSettings.intervalMinutes)
         ),
       },
+      crs: config.crs ?? DEFAULT_SETTINGS.crs,
     };
     document.documentElement.setAttribute('data-theme', this.config.theme);
   }
@@ -187,6 +286,18 @@ class DrawerStore {
     } else {
       this.openSet.add(id);
     }
+    this.openSet = new Set(this.openSet);
+  }
+
+  open(id: string) {
+    if (this.openSet.has(id)) return;
+    this.openSet.add(id);
+    this.openSet = new Set(this.openSet);
+  }
+
+  close(id: string) {
+    if (!this.openSet.has(id)) return;
+    this.openSet.delete(id);
     this.openSet = new Set(this.openSet);
   }
 

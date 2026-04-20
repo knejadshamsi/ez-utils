@@ -1,18 +1,17 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import ColorPicker from 'svelte-awesome-color-picker';
-  import { ChevronUp, ChevronDown, Plus, X, Pencil, Save } from 'lucide-svelte';
-  import { sourceStore } from '$lib/stores/ui.svelte';
+  import { ChevronUp, ChevronDown, Plus, X, Pencil, Save, Eraser } from 'lucide-svelte';
+  import { drawers, sourceStore } from '$lib/stores/ui.svelte';
   import { sources } from '$lib/stores/data.svelte';
-  import { workspace } from '$lib/stores/workspace.svelte';
+  import { ez } from '$lib/stores/ez.svelte';
   import { t } from 'svelte-i18n';
 
-  let selectedId = $state<string | null>(null);
   let editingId = $state<string | null>(null);
   let editValue = $state('');
   let colorEditingId = $state<string | null>(null);
-  let hasSelection = $derived(selectedId !== null);
-  let selectedIndex = $derived(selectedId ? sources.indexOf(selectedId) : -1);
+  let hasSelection = $derived(sources.activeId !== null);
+  let selectedIndex = $derived(sources.activeId ? sources.indexOf(sources.activeId) : -1);
 
   function hexToRgba(hex: string, a: number) {
     const r = parseInt(hex.slice(1, 3), 16);
@@ -36,8 +35,12 @@
 
   function selectItem(id: string) {
     if (editingId) return;
-    selectedId = selectedId === id ? null : id;
+    sources.setActive(sources.activeId === id ? null : id);
     if (colorEditingId && colorEditingId !== id) colorEditingId = null;
+    const source = sources.get(id);
+    if (source && sources.activeId === id) {
+      drawers.open('primary');
+    }
   }
 
   let swatchClickTimer: ReturnType<typeof setTimeout> | null = null;
@@ -61,7 +64,7 @@
       // Single click - toggle color picker (only if visible)
       const source = sources.get(id);
       if (source && !source.visible) return;
-      selectedId = id;
+      sources.setActive(id);
       colorEditingId = colorEditingId === id ? null : id;
     }, 250);
   }
@@ -72,7 +75,7 @@
   }
 
   function startRename(id: string, currentName: string) {
-    selectedId = id;
+    sources.setActive(id);
     editingId = id;
     editValue = currentName;
   }
@@ -82,7 +85,7 @@
     const pendingId = editingId;
     const pendingValue = editValue;
     editingId = null;
-    await workspace.renameSource(pendingId, pendingValue);
+    await ez.renameSource(pendingId, pendingValue);
   }
 
   function cancelRename() {
@@ -96,16 +99,16 @@
 
   async function addSource() {
     if (sources.isFull) return;
-    await workspace.promptImportSource();
+    await ez.promptImportSource();
     const latest = sources.items.at(-1);
-    if (latest) selectedId = latest.id;
+    if (latest) sources.setActive(latest.id);
   }
 
   async function deleteSource() {
-    if (selectedId === null) return;
-    const pendingId = selectedId;
-    await workspace.removeSource(pendingId);
-    selectedId = null;
+    if (sources.activeId === null) return;
+    const pendingId = sources.activeId;
+    await ez.removeSource(pendingId);
+    sources.setActive(null);
     colorEditingId = null;
   }
 
@@ -126,6 +129,14 @@
   <div class="ez-source-popover">
     <!-- Toolbar -->
     <div class="ez-source-toolbar">
+      <button
+        class="ez-source-toolbar-btn"
+        class:toggle-on={sourceStore.wipeOnSwitch}
+        onclick={() => sourceStore.toggleWipeOnSwitch()}
+        title={sourceStore.wipeOnSwitch ? 'Wipe previous source on switch (ON)' : 'Keep previous source on switch (OFF)'}
+      >
+        <Eraser size={13} />
+      </button>
       <button class="ez-source-toolbar-btn" style="margin-left: auto;" onclick={moveUp} disabled={!hasSelection || selectedIndex <= 0} title="Move up">
         <ChevronUp size={13} />
       </button>
@@ -142,7 +153,7 @@
       {#each sources.items as source (source.id)}
         <button
           class="ez-source-item"
-          class:selected={source.id === selectedId}
+          class:selected={source.id === sources.activeId}
           class:hidden-source={!source.visible}
           style:opacity={source.opacity}
           onclick={() => selectItem(source.id)}
@@ -169,7 +180,7 @@
           {:else}
             <span class="ez-source-name">{source.name}</span>
           {/if}
-          {#if source.id === selectedId}
+          {#if source.id === sources.activeId}
             <span class="ez-source-actions">
               {#if editingId === source.id}
                 <button
@@ -269,6 +280,12 @@
   .ez-source-toolbar-btn:disabled {
     opacity: 0.12;
     cursor: default;
+  }
+
+  .ez-source-toolbar-btn.toggle-on {
+    opacity: 1;
+    background: var(--color-base-300);
+    color: var(--color-primary);
   }
 
   .ez-source-list {

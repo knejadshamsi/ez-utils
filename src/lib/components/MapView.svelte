@@ -2,24 +2,28 @@
   import { onMount } from 'svelte';
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
-  import { t } from 'svelte-i18n';
-  import { settings, status, exportStore, sourceStore, THEMES, mapViewport } from '$lib/stores/ui.svelte';
-  import { workspace } from '$lib/stores/workspace.svelte';
-  import Drawer from '$lib/components/Drawer.svelte';
+  import PrimaryDrawer from '$lib/components/drawers/PrimaryDrawer.svelte';
+  import SecondaryDrawer from '$lib/components/drawers/SecondaryDrawer.svelte';
+  import { settings, exportStore, sourceStore, THEMES, mapViewport } from '$lib/stores/ui.svelte';
+  import { population } from '$lib/stores/population.svelte';
+  import { network } from '$lib/stores/network.svelte';
+  import { transit, transitEdit } from '$lib/stores/transit.svelte';
+  import { handleTransitMapClick } from '$lib/stores/transit/profile-stops-actions';
+  import { createNode as createNetworkNode, createLink as createNetworkLink } from '$lib/stores/network-actions';
+  import { ensureNetworkLayers, clearNetworkLayers, type NetworkLayers } from '$lib/components/network/network-map';
+  import { ensureTransitLayers, clearTransitLayers, type TransitLayers } from '$lib/components/transit/transit-map';
+  import NetworkMapLayer from '$lib/components/network/NetworkMapLayer.svelte';
+  import TransitMapLayer from '$lib/components/transit/TransitMapLayer.svelte';
+  import { ez } from '$lib/stores/ez.svelte';
+  import { sources } from '$lib/stores/data.svelte';
   import SourcePopover from '$lib/components/SourcePopover.svelte';
 
+  let networkLayers = $state<NetworkLayers | null>(null);
+  let transitLayers = $state<TransitLayers | null>(null);
+  let map = $state<L.Map | null>(null);
+
   let mapContainer: HTMLDivElement;
-  let map: L.Map;
   let tileLayer: L.TileLayer;
-  let displayStatus = $state('');
-
-  // Keep the last busy status visible during slide-out animation
-  $effect(() => {
-    if (status.isVisible) {
-      displayStatus = status.current;
-    }
-  });
-
   // Montreal island center
   // Swap map tiles when theme changes
   $effect(() => {
@@ -39,192 +43,220 @@
   });
 
   onMount(() => {
-    map = L.map(mapContainer, {
+    const m = L.map(mapContainer, {
       attributionControl: false,
       zoomControl: false,
     }).setView([mapViewport.state.center[1], mapViewport.state.center[0]], mapViewport.state.zoom);
 
-    map.on('moveend', () => {
-      const center = map.getCenter();
-      mapViewport.set([center.lng, center.lat], map.getZoom());
-      workspace.queueUiPersist();
+    m.on('moveend', () => {
+      const center = m.getCenter();
+      mapViewport.set([center.lng, center.lat], m.getZoom());
+      ez.queueUiPersist();
+      const bounds = m.getBounds();
+      const viewportBounds = {
+        west: bounds.getWest(),
+        south: bounds.getSouth(),
+        east: bounds.getEast(),
+        north: bounds.getNorth(),
+      };
+      population.scheduleViewportFetch(viewportBounds);
+      network.scheduleViewportFetch(viewportBounds, m.getZoom());
+      transit.scheduleStopsFetch(viewportBounds);
     });
+
+    m.on('click', (event) => {
+      if (sources.activeKind === 'network') {
+        if (network.mapAction === 'add_node') {
+          const id = network.generateNodeId();
+          void createNetworkNode({ id, lng: event.latlng.lng, lat: event.latlng.lat });
+          network.mapAction = 'idle';
+          return;
+        }
+        if (network.selection) {
+          network.clearSelection();
+          return;
+        }
+      } else if (sources.activeKind === 'population') {
+        void population.handleMapClick(event.latlng.lng, event.latlng.lat);
+      } else if (sources.activeKind === 'transit') {
+        void handleTransitMapClick(event.latlng.lng, event.latlng.lat);
+      }
+    });
+
+    // Escape cancels any active map action.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (sources.activeKind === 'network' && network.mapAction !== 'idle') {
+          network.cancelMapAction();
+        } else if (sources.activeKind === 'population' && population.mapAction !== null) {
+          population.mapAction = null;
+        } else if (sources.activeKind === 'transit' && transitEdit.mapAction !== 'idle') {
+          transitEdit.setMapAction('idle');
+        }
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
 
     // Logo control — top-left
     const LogoControl = L.Control.extend({
       options: { position: 'topleft' },
       onAdd() {
-        const container = L.DomUtil.create('div', 'leaflet-control ez-logo');
-        container.innerHTML = 'EZ-Utils';
-        L.DomEvent.disableClickPropagation(container);
-        return container;
+        const c = L.DomUtil.create('div', 'leaflet-control ez-logo');
+        c.innerHTML = 'EZ-Utils';
+        L.DomEvent.disableClickPropagation(c);
+        return c;
       },
     });
-    new LogoControl().addTo(map);
+    new LogoControl().addTo(m);
 
-    // Sources button — top-left, right of logo
-    const SourcesControl = L.Control.extend({
-      options: { position: 'topleft' },
-      onAdd() {
-        const container = L.DomUtil.create('div', 'leaflet-control ez-toolbar');
-        const btn = L.DomUtil.create('a', 'ez-toolbar-btn ez-source-btn', container);
-        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>`;
-        btn.title = 'Sources';
-        btn.href = '#';
-        btn.role = 'button';
-        btn.setAttribute('aria-label', 'Sources');
-        L.DomEvent.disableClickPropagation(container);
-        L.DomEvent.on(btn, 'click', (e) => {
-          L.DomEvent.preventDefault(e);
-          sourceStore.togglePopover();
-        });
-        return container;
-      },
-    });
-    new SourcesControl().addTo(map);
+    // Single-button toolbar control factory.
+    type Pos = 'topleft' | 'topright';
+    const addToolbarBtn = (pos: Pos, svg: string, title: string, onClick: () => void, extraClass = '') => {
+      const Ctl = L.Control.extend({
+        options: { position: pos },
+        onAdd() {
+          const c = L.DomUtil.create('div', 'leaflet-control ez-toolbar');
+          const b = L.DomUtil.create('a', `ez-toolbar-btn ${extraClass}`.trim(), c);
+          b.innerHTML = svg; b.title = title; b.href = '#'; b.role = 'button'; b.setAttribute('aria-label', title);
+          L.DomEvent.disableClickPropagation(c);
+          L.DomEvent.on(b, 'click', (e) => { L.DomEvent.preventDefault(e); onClick(); });
+          return c;
+        },
+      });
+      new Ctl().addTo(m);
+    };
+    const SVG_ATTRS = `xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
 
-    // Zoom control: [-] [+] — horizontal bar, top-right
+    addToolbarBtn('topleft', `<svg ${SVG_ATTRS}><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>`, 'Sources', () => sourceStore.togglePopover(), 'ez-source-btn');
+
+    // Zoom control: [-] [+] — single horizontal bar, top-right.
     const ZoomControl = L.Control.extend({
       options: { position: 'topright' },
-      onAdd(mapInstance: L.Map) {
-        const container = L.DomUtil.create('div', 'leaflet-control ez-toolbar');
-
-        const zoomOutBtn = L.DomUtil.create('a', 'ez-toolbar-btn', container);
-        zoomOutBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>`;
-        zoomOutBtn.title = 'Zoom out';
-        zoomOutBtn.href = '#';
-        zoomOutBtn.role = 'button';
-        zoomOutBtn.setAttribute('aria-label', 'Zoom out');
-
-        const zoomInBtn = L.DomUtil.create('a', 'ez-toolbar-btn', container);
-        zoomInBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`;
-        zoomInBtn.title = 'Zoom in';
-        zoomInBtn.href = '#';
-        zoomInBtn.role = 'button';
-        zoomInBtn.setAttribute('aria-label', 'Zoom in');
-
-        L.DomEvent.disableClickPropagation(container);
-        L.DomEvent.on(zoomOutBtn, 'click', (e) => {
-          L.DomEvent.preventDefault(e);
-          mapInstance.zoomOut();
-        });
-        L.DomEvent.on(zoomInBtn, 'click', (e) => {
-          L.DomEvent.preventDefault(e);
-          mapInstance.zoomIn();
-        });
-
-        return container;
+      onAdd(m: L.Map) {
+        const c = L.DomUtil.create('div', 'leaflet-control ez-toolbar');
+        const make = (svg: string, title: string, onClick: () => void) => {
+          const b = L.DomUtil.create('a', 'ez-toolbar-btn', c);
+          b.innerHTML = svg; b.title = title; b.href = '#'; b.role = 'button'; b.setAttribute('aria-label', title);
+          L.DomEvent.on(b, 'click', (e) => { L.DomEvent.preventDefault(e); onClick(); });
+        };
+        make(`<svg ${SVG_ATTRS}><path d="M5 12h14"/></svg>`, 'Zoom out', () => m.zoomOut());
+        make(`<svg ${SVG_ATTRS}><path d="M5 12h14"/><path d="M12 5v14"/></svg>`, 'Zoom in', () => m.zoomIn());
+        L.DomEvent.disableClickPropagation(c);
+        return c;
       },
     });
-    new ZoomControl().addTo(map);
+    new ZoomControl().addTo(m);
 
-    // Settings button — separate control, top-right (renders after zoom = right of zoom)
-    const SettingsControl = L.Control.extend({
-      options: { position: 'topright' },
-      onAdd() {
-        const container = L.DomUtil.create('div', 'leaflet-control ez-toolbar');
-        const btn = L.DomUtil.create('a', 'ez-toolbar-btn', container);
-        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`;
-        btn.title = 'Settings';
-        btn.href = '#';
-        btn.role = 'button';
-        btn.setAttribute('aria-label', 'Settings');
-        L.DomEvent.disableClickPropagation(container);
-        L.DomEvent.on(btn, 'click', (e) => {
-          L.DomEvent.preventDefault(e);
-          settings.toggle();
-        });
-        return container;
-      },
-    });
-    new SettingsControl().addTo(map);
-
-    // Save button — top-right, after settings
-    const SaveControl = L.Control.extend({
-      options: { position: 'topright' },
-      onAdd() {
-        const container = L.DomUtil.create('div', 'leaflet-control ez-toolbar');
-        const btn = L.DomUtil.create('a', 'ez-toolbar-btn', container);
-        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>`;
-        btn.title = 'Save';
-        btn.href = '#';
-        btn.role = 'button';
-        btn.setAttribute('aria-label', 'Save');
-        L.DomEvent.disableClickPropagation(container);
-        L.DomEvent.on(btn, 'click', (e) => {
-          L.DomEvent.preventDefault(e);
-          void workspace.saveWorkspace();
-        });
-        return container;
-      },
-    });
-    new SaveControl().addTo(map);
-
-    // Export button — top-right, after save
-    const ExportControl = L.Control.extend({
-      options: { position: 'topright' },
-      onAdd() {
-        const container = L.DomUtil.create('div', 'leaflet-control ez-toolbar');
-        const btn = L.DomUtil.create('a', 'ez-toolbar-btn', container);
-        btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8"/><path d="m12 8 4 4-4 4"/></svg>`;
-        btn.title = 'Export';
-        btn.href = '#';
-        btn.role = 'button';
-        btn.setAttribute('aria-label', 'Export');
-        L.DomEvent.disableClickPropagation(container);
-        L.DomEvent.on(btn, 'click', (e) => {
-          L.DomEvent.preventDefault(e);
-          exportStore.show();
-        });
-        return container;
-      },
-    });
-    new ExportControl().addTo(map);
+    addToolbarBtn('topright', `<svg ${SVG_ATTRS}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`, 'Settings', () => settings.toggle());
+    addToolbarBtn('topright', `<svg ${SVG_ATTRS}><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>`, 'Save', () => void ez.save());
+    addToolbarBtn('topright', `<svg ${SVG_ATTRS}><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8"/><path d="m12 8 4 4-4 4"/></svg>`, 'Export', () => exportStore.show());
 
     // Tile layer — uses current theme
     tileLayer = L.tileLayer(THEMES[settings.config.theme].mapTiles, {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
       maxZoom: 19,
-    }).addTo(map);
+    }).addTo(m);
+    population.populationLayer = L.layerGroup().addTo(m);
+    population.selectedPlanLayer = L.layerGroup().addTo(m);
+    population.map = m;
+    networkLayers = ensureNetworkLayers(m);
+    transitLayers = ensureTransitLayers(m);
+
+    m.on('zoomend', () => {
+      if (population.selected) {
+        population.renderActivePlan();
+      }
+    });
+
+    const bounds = m.getBounds();
+    const initialBounds = {
+      west: bounds.getWest(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      north: bounds.getNorth(),
+    };
+    population.scheduleViewportFetch(initialBounds);
+    network.scheduleViewportFetch(initialBounds, m.getZoom());
+    transit.scheduleStopsFetch(initialBounds);
+
+    map = m;
 
     return () => {
-      map.remove();
+      population.populationLayer = null;
+      population.selectedPlanLayer = null;
+      population.map = null;
+      if (networkLayers) {
+        clearNetworkLayers(networkLayers);
+        networkLayers = null;
+      }
+      if (transitLayers) {
+        clearTransitLayers(transitLayers);
+        transitLayers = null;
+      }
+      map = null;
+      document.removeEventListener('keydown', onKeyDown);
+      m.remove();
     };
   });
+
+  // Wipe map state when the active source changes (governed by sourceStore.wipeOnSwitch).
+  let wipeInitialized = false;
+  let previousActiveId: string | null = null;
+  $effect(() => {
+    const _id = sources.activeId;
+    if (!wipeInitialized) {
+      wipeInitialized = true;
+      previousActiveId = _id;
+      return;
+    }
+    if (_id === previousActiveId) return;
+    previousActiveId = _id;
+    if (sourceStore.wipeOnSwitch) {
+      network.wipe();
+      population.wipe();
+    }
+  });
+
+  // Trigger fetch when switching to a new source type.
+  let previousActiveKind: string | null = null;
+  $effect(() => {
+    const kind = sources.activeKind;
+    if (kind === previousActiveKind) return;
+    previousActiveKind = kind;
+    if (!map) return;
+    const bounds = map.getBounds();
+    const viewport = {
+      west: bounds.getWest(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      north: bounds.getNorth(),
+    };
+    if (kind === 'network') {
+      network.scheduleViewportFetch(viewport, map.getZoom());
+    } else if (kind === 'population') {
+      population.scheduleViewportFetch(viewport);
+    } else if (kind === 'transit') {
+      transit.scheduleStopsFetch(viewport);
+    }
+  });
+
 </script>
 
 <div class="relative w-full h-full overflow-hidden">
   <div bind:this={mapContainer} class="w-full h-full"></div>
 
-  <!-- Status bar — top center, slides in/out -->
-  <div class="ez-status-wrapper" class:ez-status-visible={status.isVisible}>
-    <div class="ez-status">
-      {#if status.isBusy}
-        <span class="ez-status-spinner"></span>
-      {/if}
-      <span class="ez-status-text">
-        {$t(`status.${displayStatus}`)}{status.isBusy ? '...' : ''}
-      </span>
-    </div>
-  </div>
+  {#if map && transitLayers}
+    <TransitMapLayer {map} layers={transitLayers} />
+  {/if}
+  {#if map && networkLayers}
+    <NetworkMapLayer {map} layers={networkLayers} />
+  {/if}
 
   <!-- Source popover -->
   <SourcePopover />
 
-  <!-- Drawers -->
-  <Drawer id="primary" side="left" width={280}>
-    <div class="p-4">
-      <h3 class="text-sm font-semibold text-base-content mb-2">Primary Drawer</h3>
-      <p class="text-xs text-base-content/50">Domain editor content goes here.</p>
-    </div>
-  </Drawer>
-
-  <Drawer id="secondary" side="right" width={280}>
-    <div class="p-4">
-      <h3 class="text-sm font-semibold text-base-content mb-2">Secondary Drawer</h3>
-      <p class="text-xs text-base-content/50">Element details go here.</p>
-    </div>
-  </Drawer>
+  <PrimaryDrawer />
+  <SecondaryDrawer />
 </div>
 
 <style>
@@ -303,42 +335,4 @@
     background: var(--color-base-200) !important;
   }
 
-  /* ── Status bar ── */
-  .ez-status-wrapper {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%) translateY(-200%);
-    z-index: 1000;
-    pointer-events: none;
-    transition: transform 0.3s ease;
-  }
-  .ez-status-visible {
-    transform: translateX(-50%) translateY(10px);
-  }
-
-  .ez-status {
-    display: flex;
-    align-items: center;
-    height: 30px;
-    gap: 6px;
-    background: var(--color-base-100);
-    color: var(--color-base-content);
-    font-size: 0.75rem;
-    padding: 0 12px;
-    border-radius: var(--radius-field);
-    white-space: nowrap;
-    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
-  }
-  .ez-status-spinner {
-    width: 10px;
-    height: 10px;
-    border: 2px solid var(--color-base-300);
-    border-top-color: var(--color-primary);
-    border-radius: 50%;
-    animation: ez-spin 0.6s linear infinite;
-  }
-  @keyframes ez-spin {
-    to { transform: rotate(360deg); }
-  }
 </style>

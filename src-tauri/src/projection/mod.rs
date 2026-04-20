@@ -78,6 +78,7 @@ pub(crate) fn crs_info(config: &CrsConfig) -> CrsInfo {
         kind: config.clone(),
         label: crs_label(config),
         center: crs_center(config),
+        proj_string: crs_proj_string(config).to_string(),
     }
 }
 

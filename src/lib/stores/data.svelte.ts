@@ -2,7 +2,7 @@
 // Domain data stores - sources, population, network, PT
 // ============================================================
 
-import type { Source } from '$lib/components/types';
+import type { Source, SourceKind } from '$lib/components/types';
 
 // ============================================================
 // Sources
@@ -10,8 +10,26 @@ import type { Source } from '$lib/components/types';
 
 class SourceDataStore {
   items = $state<Source[]>([]);
+  activeId = $state<string | null>(null);
 
   readonly maxSources = 5;
+
+  get active(): Source | null {
+    if (!this.activeId) return null;
+    return this.items.find(s => s.id === this.activeId) ?? null;
+  }
+
+  get activeKind(): SourceKind | null {
+    return this.active?.kind ?? null;
+  }
+
+  get activeName(): string | null {
+    return this.active?.name ?? null;
+  }
+
+  setActive(id: string | null) {
+    this.activeId = id;
+  }
 
   setItems(items: Source[]) {
     this.items = [...items];
