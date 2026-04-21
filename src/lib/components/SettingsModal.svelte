@@ -73,8 +73,14 @@
 <svelte:window onkeydown={onKeydown} />
 
 {#if settings.open}
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-  <div class="fixed inset-0 z-[2700] flex items-center justify-center bg-black/50" onclick={onBackdropClick}>
+  <div
+    class="fixed inset-0 z-[2700] flex items-center justify-center bg-black/50"
+    role="button"
+    tabindex="-1"
+    aria-label="Close settings"
+    onclick={onBackdropClick}
+    onkeydown={onKeydown}
+  >
     <div class="bg-base-100 text-base-content rounded-lg shadow-xl w-[360px] max-h-[80vh] flex flex-col">
       <div class="flex items-center justify-between px-4 py-3">
         <h2 class="text-sm font-semibold">{$t('settings.title')}</h2>
@@ -85,7 +91,7 @@
 
       <div class="p-4 overflow-y-auto flex-1 space-y-6">
         <div>
-          <label class="text-xs font-medium text-base-content/70 mb-2 block">{$t('theme.label')}</label>
+          <span class="text-xs font-medium text-base-content/70 mb-2 block">{$t('theme.label')}</span>
           <div class="flex gap-2">
             {#each themeNames as name}
               <button
@@ -101,7 +107,7 @@
         </div>
 
         <div>
-          <label class="text-xs font-medium text-base-content/70 mb-2 block">{$t('locale.label')}</label>
+          <span class="text-xs font-medium text-base-content/70 mb-2 block">{$t('locale.label')}</span>
           <div class="flex gap-2">
             {#each localeNames as name}
               <button
@@ -117,8 +123,9 @@
         </div>
 
         <div>
-          <label class="text-xs font-medium text-base-content/70 mb-2 block">{$t('crs.label')}</label>
+          <label for="crs-select" class="text-xs font-medium text-base-content/70 mb-2 block">{$t('crs.label')}</label>
           <select
+            id="crs-select"
             class="select select-sm select-bordered w-full"
             value={selectedOption}
             disabled={crsLocked}
@@ -136,8 +143,9 @@
           {#if selectedOption === 'custom'}
             <div class="mt-3 space-y-2">
               <div>
-                <label class="text-xs text-base-content/70 mb-1 block">{$t('crs.label_input_label')}</label>
+                <label for="crs-custom-label" class="text-xs text-base-content/70 mb-1 block">{$t('crs.label_input_label')}</label>
                 <input
+                  id="crs-custom-label"
                   type="text"
                   class="input input-sm input-bordered w-full"
                   value={customDraft.label}
@@ -146,8 +154,9 @@
                 />
               </div>
               <div>
-                <label class="text-xs text-base-content/70 mb-1 block">{$t('crs.proj_string_label')}</label>
+                <label for="crs-custom-proj" class="text-xs text-base-content/70 mb-1 block">{$t('crs.proj_string_label')}</label>
                 <textarea
+                  id="crs-custom-proj"
                   class="textarea textarea-sm textarea-bordered w-full font-mono text-xs"
                   rows="3"
                   value={customDraft.projString}
@@ -157,8 +166,9 @@
               </div>
               <div class="flex gap-2">
                 <div class="flex-1">
-                  <label class="text-xs text-base-content/70 mb-1 block">{$t('crs.center_lng_label')}</label>
+                  <label for="crs-custom-lng" class="text-xs text-base-content/70 mb-1 block">{$t('crs.center_lng_label')}</label>
                   <input
+                    id="crs-custom-lng"
                     type="number"
                     step="any"
                     class="input input-sm input-bordered w-full"
@@ -168,8 +178,9 @@
                   />
                 </div>
                 <div class="flex-1">
-                  <label class="text-xs text-base-content/70 mb-1 block">{$t('crs.center_lat_label')}</label>
+                  <label for="crs-custom-lat" class="text-xs text-base-content/70 mb-1 block">{$t('crs.center_lat_label')}</label>
                   <input
+                    id="crs-custom-lat"
                     type="number"
                     step="any"
                     class="input input-sm input-bordered w-full"
@@ -190,8 +201,9 @@
 
         <div class="space-y-3">
           <div class="flex items-center justify-between">
-            <label class="text-xs font-medium text-base-content/70">Autosave</label>
+            <label for="autosave-toggle" class="text-xs font-medium text-base-content/70">Autosave</label>
             <input
+              id="autosave-toggle"
               type="checkbox"
               class="toggle toggle-sm"
               checked={settings.config.autosaveSettings.enabled}
@@ -199,8 +211,9 @@
             />
           </div>
           <div>
-            <label class="text-xs font-medium text-base-content/70 mb-2 block">Autosave Interval (minutes)</label>
+            <label for="autosave-interval" class="text-xs font-medium text-base-content/70 mb-2 block">Autosave Interval (minutes)</label>
             <input
+              id="autosave-interval"
               type="number"
               min="5"
               max="1440"

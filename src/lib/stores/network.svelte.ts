@@ -99,9 +99,9 @@ class NetworkStore {
   linkAttrRows = $state<AttributeRow[]>([]);
   fromAttrRows = $state<AttributeRow[]>([]);
   toAttrRows = $state<AttributeRow[]>([]);
-  originalLinkAttributesBlob = $state<string>('');
-  originalFromNodeAttributesBlob = $state<string>('');
-  originalToNodeAttributesBlob = $state<string>('');
+  originalLinkAttributesBlob = $state<string | null>(null);
+  originalFromNodeAttributesBlob = $state<string | null>(null);
+  originalToNodeAttributesBlob = $state<string | null>(null);
 
   // Switch-while-dirty prompt (mirror of population's switchPromptOpen).
   switchPromptOpen = $state(false);
@@ -502,9 +502,9 @@ class NetworkStore {
     this.linkAttrRows = [];
     this.fromAttrRows = [];
     this.toAttrRows = [];
-    this.originalLinkAttributesBlob = '';
-    this.originalFromNodeAttributesBlob = '';
-    this.originalToNodeAttributesBlob = '';
+    this.originalLinkAttributesBlob = null;
+    this.originalFromNodeAttributesBlob = null;
+    this.originalToNodeAttributesBlob = null;
   }
 
   private formatError(err: unknown): string {

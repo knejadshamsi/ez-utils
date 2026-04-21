@@ -37,29 +37,30 @@
 </script>
 
 <section class="transit-list-section">
-  <header class="transit-list-header">
+  <header class="section-toolbar">
     <h3>{$t('transit.stops_heading')}</h3>
-    <button
-      class="transit-icon-btn"
-      class:active={transitStops.searchOpen}
-      onclick={() => transitStops.toggleSearch()}
-      title={transitStops.searchOpen ? $t('transit.close_stop_search') : $t('transit.search_stops')}
-      aria-label={transitStops.searchOpen ? $t('transit.close_stop_search') : $t('transit.search_stops')}
-    >
-      {#if transitStops.searchOpen}
-        <X size={14} />
-      {:else}
-        <Search size={14} />
-      {/if}
-    </button>
+    <div class="section-toolbar-actions">
+      <button
+        class="toolbar-btn"
+        class:active={transitStops.searchOpen}
+        onclick={() => transitStops.toggleSearch()}
+        title={transitStops.searchOpen ? $t('transit.close_stop_search') : $t('transit.search_stops')}
+        aria-label={transitStops.searchOpen ? $t('transit.close_stop_search') : $t('transit.search_stops')}
+      >
+        {#if transitStops.searchOpen}
+          <X size={14} />
+        {:else}
+          <Search size={14} />
+        {/if}
+      </button>
+    </div>
   </header>
 
   {#if transitStops.searchOpen}
-    <div class="transit-search-row">
+    <div class="search-row">
       <!-- svelte-ignore a11y_autofocus -->
       <input
         type="text"
-        class="transit-search-input"
         placeholder={$t('transit.search_stop_placeholder')}
         value={transitStops.searchQuery}
         oninput={(e) => transitStops.setSearchQuery((e.target as HTMLInputElement).value)}
@@ -142,69 +143,6 @@
     overflow: hidden;
   }
 
-  .transit-list-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 16px;
-    background: var(--color-base-200);
-    border-bottom: 1px solid var(--color-base-300);
-  }
-
-  .transit-list-header h3 {
-    margin: 0;
-    font-size: 0.78rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-  }
-
-  .transit-icon-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 4px;
-    border: none;
-    background: none;
-    color: var(--color-base-content);
-    opacity: 0.6;
-    cursor: pointer;
-    transition: opacity 0.1s, background 0.1s;
-  }
-
-  .transit-icon-btn:hover {
-    opacity: 1;
-    background: var(--color-base-300);
-  }
-
-  .transit-icon-btn.active {
-    opacity: 1;
-    background: var(--color-base-300);
-    color: var(--color-primary);
-  }
-
-  .transit-search-row {
-    padding: 6px 10px;
-    background: var(--color-base-100);
-    border-bottom: 1px solid var(--color-base-300);
-  }
-
-  .transit-search-input {
-    width: 100%;
-    padding: 4px 8px;
-    font-size: 0.78rem;
-    background: var(--color-base-200);
-    color: var(--color-base-content);
-    border: 1px solid var(--color-base-300);
-    border-radius: 4px;
-    outline: none;
-  }
-
-  .transit-search-input:focus {
-    border-color: var(--color-primary);
-  }
-
   .transit-list {
     flex: 1 1 auto;
     min-height: 0;
@@ -226,25 +164,6 @@
     gap: 3px;
     opacity: 0.75;
     flex-shrink: 0;
-  }
-
-  .transit-line-name {
-    flex: 1;
-    min-width: 0;
-    font-size: 0.88rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .transit-line-count {
-    flex-shrink: 0;
-    padding: 2px 8px;
-    border-radius: 10px;
-    background: var(--color-base-200);
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: oklch(var(--bc) / 0.7);
   }
 
   .transit-stop-wrapper {

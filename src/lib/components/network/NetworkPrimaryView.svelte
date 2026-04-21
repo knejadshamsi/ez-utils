@@ -7,7 +7,7 @@
 </script>
 
 <div class="network-panel">
-  <header class="network-panel-header">
+  <header class="panel-header">
     <h2>{sources.activeName ?? $t('network.no_active_source')}</h2>
   </header>
 
@@ -27,20 +27,6 @@
     display: flex;
     flex-direction: column;
     color: var(--color-base-content);
-  }
-  .network-panel-header {
-    padding: 16px;
-    border-bottom: 1px solid var(--color-base-300);
-  }
-  .network-panel-header h2 {
-    margin: 0;
-    font-size: 0.95rem;
-    font-weight: 700;
-  }
-  .network-panel-header p {
-    margin: 4px 0 0;
-    font-size: 0.75rem;
-    opacity: 0.7;
   }
   .network-panel-body {
     flex: 1;

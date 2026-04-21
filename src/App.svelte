@@ -39,7 +39,7 @@
 
     settings.config.theme;
     settings.config.locale;
-    settings.config.networkFocusMode;
+    settings.config.crs;
     sourceStore.popoverOpen;
     mapViewport.state.center;
     mapViewport.state.zoom;

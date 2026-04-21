@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import L from 'leaflet';
 
 import {
   buildLocalPlanDraft,
@@ -58,6 +59,7 @@ export async function loadPerson(store: PopulationStore, selection: PopulationSe
     hydratePerson(store, payload, selection, projString);
     store.populationLayer?.clearLayers();
     store.renderActivePlan();
+    flyToActivePlan(store);
   } catch (error) {
     store.error = formatError(error);
     store.person = null;
@@ -281,6 +283,19 @@ export async function discardThenSwitch(store: PopulationStore) {
     await loadPerson(store, target);
   } else {
     store.closeSecondary();
+  }
+}
+
+function flyToActivePlan(store: PopulationStore) {
+  const plan = store.activePlan;
+  if (!plan || !store.map) return;
+  const coords = plan.activities
+    .filter((a) => a.lng != null && a.lat != null)
+    .map((a) => [a.lat as number, a.lng as number] as [number, number]);
+  if (coords.length === 1) {
+    store.map.flyTo(coords[0], Math.max(store.map.getZoom(), 16), { duration: 0.6 });
+  } else if (coords.length > 1) {
+    store.map.flyToBounds(L.latLngBounds(coords), { padding: [50, 50], maxZoom: 17, duration: 0.6 });
   }
 }
 

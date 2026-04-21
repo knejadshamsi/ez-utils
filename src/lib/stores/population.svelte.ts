@@ -95,7 +95,7 @@ export class PopulationStore {
   }
 
   get totalPages(): number {
-    return Math.max(1, Math.ceil(this.totalRows / POPULATION_PAGE_SIZE));
+    return Math.max(1, Math.ceil(this.totalPeople / POPULATION_PAGE_SIZE));
   }
 
   get hasUnsavedChanges(): boolean {
@@ -520,7 +520,6 @@ export class PopulationStore {
     this.totalPeople = 0;
     this.populationLayer?.clearLayers();
     this.selectedPlanLayer?.clearLayers();
-    drawers.close('primary');
     drawers.close('secondary');
   }
 

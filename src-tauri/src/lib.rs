@@ -36,6 +36,7 @@ use ez::{
     rename_source, save_ez, save_ui_state, unpack_ez, validate_xml, SessionManager,
 };
 use projection::{list_crs_presets, set_crs};
+use utils::check_paths_exist;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -116,7 +117,8 @@ pub fn run() {
             delete_transit_transfer_cmd,
             export_transit,
             list_crs_presets,
-            set_crs
+            set_crs,
+            check_paths_exist
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

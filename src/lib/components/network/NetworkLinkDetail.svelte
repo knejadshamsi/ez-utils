@@ -170,14 +170,8 @@
     gap: 8px;
     margin-top: 8px;
   }
-  .network-section-header h3,
-  .network-section-header h4 {
+  .network-section-header h3 {
     margin: 0;
     font-size: 0.9rem;
-  }
-  .network-section-header h4 {
-    font-size: 0.8rem;
-    font-weight: 600;
-    opacity: 0.8;
   }
 </style>

@@ -151,41 +151,47 @@
     <!-- Source list -->
     <div class="ez-source-list">
       {#each sources.items as source (source.id)}
-        <button
-          class="ez-source-item"
+        <div
+          class="ez-source-row"
           class:selected={source.id === sources.activeId}
           class:hidden-source={!source.visible}
           style:opacity={source.opacity}
-          onclick={() => selectItem(source.id)}
         >
-          <span
-            class="ez-source-color"
-            style:background={source.color}
-            onclick={(e) => onSwatchClick(source.id, e)}
-            role="button"
-            tabindex="-1"
-            title="Click: color picker / Double-click: toggle visibility"
-          ></span>
-          {#if editingId === source.id}
-            <!-- svelte-ignore a11y_autofocus -->
-            <input
-              class="ez-source-rename-input"
-              type="text"
-              bind:value={editValue}
-              onkeydown={onRenameKeydown}
-              onblur={commitRename}
-              autofocus
-              onclick={(e) => e.stopPropagation()}
-            />
-          {:else}
-            <span class="ez-source-name">{source.name}</span>
-          {/if}
+          <button
+            class="ez-source-item"
+            onclick={() => selectItem(source.id)}
+          >
+            <span
+              class="ez-source-color"
+              style:background={source.color}
+              onclick={(e) => onSwatchClick(source.id, e)}
+              onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSwatchClick(source.id, e as unknown as MouseEvent); }}
+              role="button"
+              tabindex="-1"
+              title="Click: color picker / Double-click: toggle visibility"
+              aria-label="Color swatch"
+            ></span>
+            {#if editingId === source.id}
+              <!-- svelte-ignore a11y_autofocus -->
+              <input
+                class="ez-source-rename-input"
+                type="text"
+                bind:value={editValue}
+                onkeydown={onRenameKeydown}
+                onblur={commitRename}
+                autofocus
+                onclick={(e) => e.stopPropagation()}
+              />
+            {:else}
+              <span class="ez-source-name">{source.name}</span>
+            {/if}
+          </button>
           {#if source.id === sources.activeId}
             <span class="ez-source-actions">
               {#if editingId === source.id}
                 <button
                   class="ez-source-item-action"
-                  onclick={(e) => { e.stopPropagation(); commitRename(); }}
+                  onclick={() => commitRename()}
                   title="Save name"
                 >
                   <Save size={10} />
@@ -193,7 +199,7 @@
               {:else}
                 <button
                   class="ez-source-item-action"
-                  onclick={(e) => { e.stopPropagation(); startRename(source.id, source.name); }}
+                  onclick={() => startRename(source.id, source.name)}
                   disabled={!source.visible}
                   title="Rename source"
                 >
@@ -202,17 +208,22 @@
               {/if}
               <button
                 class="ez-source-item-action"
-                onclick={(e) => { e.stopPropagation(); deleteSource(); }}
+                onclick={() => deleteSource()}
                 title="Delete source"
               >
                 <X size={10} />
               </button>
             </span>
           {/if}
-        </button>
+        </div>
 
         {#if colorEditingId === source.id}
-          <div class="ez-color-picker-popover" onclick={(e) => e.stopPropagation()}>
+          <div
+            class="ez-color-picker-popover"
+            onclick={(e) => e.stopPropagation()}
+            onkeydown={(e) => e.stopPropagation()}
+            role="presentation"
+          >
             <ColorPicker
               isDialog={false}
               isAlpha={true}
@@ -296,32 +307,39 @@
     background: var(--color-base-100);
   }
 
+  .ez-source-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    transition: background 0.1s;
+  }
+
+  .ez-source-row:hover {
+    background: var(--color-base-200);
+  }
+
+  .ez-source-row.selected {
+    background: var(--color-base-300);
+    box-shadow: inset 2px 0 0 var(--color-primary);
+  }
+
+  .ez-source-row.hidden-source {
+    text-decoration: line-through;
+    opacity: 0.4 !important;
+  }
+
   .ez-source-item {
     display: flex;
     align-items: center;
     gap: 8px;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     padding: 6px 10px;
     background: none;
     border: none;
     color: var(--color-base-content);
     cursor: pointer;
     text-align: left;
-    transition: background 0.1s;
-  }
-
-  .ez-source-item:hover {
-    background: var(--color-base-200);
-  }
-
-  .ez-source-item.selected {
-    background: var(--color-base-300);
-    box-shadow: inset 2px 0 0 var(--color-primary);
-  }
-
-  .ez-source-item.hidden-source {
-    text-decoration: line-through;
-    opacity: 0.4 !important;
   }
 
   .ez-source-color {

@@ -43,7 +43,7 @@
           }
           return;
         }
-        network.filterByNode(nodeId);
+        void network.selectNode(nodeId);
       },
       (linkId) => void network.selectLink(linkId),
     );

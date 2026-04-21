@@ -55,6 +55,7 @@ export function renderSelectedPlan(
       indices.forEach((actIndex, posInGroup) => {
         if (posInGroup === 0) return;
         const activity = activePlan.activities[actIndex];
+        if (activity.lng == null || activity.lat == null) return;
         const center = map.project([activity.lat, activity.lng], zoom);
         const angle = ((posInGroup - 1) / (indices.length - 1)) * 2 * Math.PI;
         const offsetPoint = L.point(center.x + Math.cos(angle) * offsetRadius, center.y + Math.sin(angle) * offsetRadius);
@@ -68,10 +69,12 @@ export function renderSelectedPlan(
   }
 
   const latLngs: L.LatLngExpression[] = [];
-  const iconMarkers: L.Marker[] = [];
+  const iconMarkers = new Map<number, L.Marker>();
+  const visibleIndexByActivity = new Map<number, number>();
   activePlan.activities.forEach((activity, index) => {
     if (activity.lng == null || activity.lat == null) return;
     latLngs.push([activity.lat, activity.lng]);
+    visibleIndexByActivity.set(index, latLngs.length - 1);
     const offset = offsets.get(index);
     const displayLat = activity.lat + (offset?.dlat ?? 0);
     const displayLng = activity.lng + (offset?.dlng ?? 0);
@@ -85,7 +88,7 @@ export function renderSelectedPlan(
     });
     const marker = L.marker([displayLat, displayLng], { icon, interactive: false });
     marker.addTo(selectedPlanLayer);
-    iconMarkers.push(marker);
+    iconMarkers.set(index, marker);
   });
 
   const polyline = latLngs.length > 1
@@ -101,11 +104,14 @@ export function renderSelectedPlan(
       });
       draggable.on('drag', (event) => {
         const pos = event.target.getLatLng();
-        iconMarkers[index]?.setLatLng(pos);
+        iconMarkers.get(index)?.setLatLng(pos);
         if (polyline) {
-          const lls = polyline.getLatLngs() as L.LatLng[];
-          lls[index] = pos;
-          polyline.setLatLngs(lls);
+          const visibleIndex = visibleIndexByActivity.get(index);
+          if (visibleIndex !== undefined) {
+            const lls = polyline.getLatLngs() as L.LatLng[];
+            lls[visibleIndex] = pos;
+            polyline.setLatLngs(lls);
+          }
         }
       });
       draggable.on('dragend', (event) => {

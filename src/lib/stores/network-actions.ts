@@ -124,7 +124,6 @@ export async function deleteNode(nodeId: string) {
     network.links = network.links.filter(l => !removed.has(l.id));
     network.nodes = network.nodes.filter(n => n.id !== nodeId);
     if (network.selectedLinkId && removed.has(network.selectedLinkId)) network.closeSecondary();
-    if (network.filterNodeId === nodeId) network.clearNodeFilter();
   } catch (err) {
     network.error = formatError(err);
   }
@@ -206,7 +205,6 @@ export async function createNode(input: CreateNodeInput) {
   try {
     await invoke('create_node', { sourceName: network.activeSourceName, input });
     await network.fetchCurrentViewport();
-    network.filterByNode(input.id);
   } catch (err) {
     network.error = formatError(err);
   }

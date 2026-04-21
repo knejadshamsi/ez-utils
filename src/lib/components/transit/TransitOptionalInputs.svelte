@@ -157,7 +157,13 @@
       </button>
 
       {#if networkDropdownOpen}
-        <div class="transit-network-dropdown" onclick={(e) => e.stopPropagation()} role="listbox" tabindex="-1">
+        <div
+          class="transit-network-dropdown"
+          onclick={(e) => e.stopPropagation()}
+          onkeydown={(e) => e.stopPropagation()}
+          role="listbox"
+          tabindex="-1"
+        >
           {#if networkSources.length === 0}
             <div class="transit-network-empty">{$t('transit.network_empty_hint')}</div>
           {:else}

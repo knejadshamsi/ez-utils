@@ -221,15 +221,6 @@
 
   .transit-stop-detail-muted.transit-error { color: #b91c1c; }
 
-  .transit-stop-transfer-dir {
-    flex-shrink: 0;
-    font-size: 0.68rem;
-    color: oklch(var(--bc) / 0.6);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-weight: 600;
-  }
-
   .transit-line-modes {
     display: flex;
     align-items: center;

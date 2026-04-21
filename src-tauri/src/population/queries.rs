@@ -27,11 +27,18 @@ pub fn query_population_bbox(
 
     let mut rows_stmt = connection
         .prepare(
-            "SELECT person_id, plan_id, plan_index, activity_index, lng, lat
-             FROM plan_activity_coords
-             WHERE lng >= ?1 AND lng <= ?2 AND lat >= ?3 AND lat <= ?4
-             ORDER BY person_id ASC, plan_index ASC, activity_index ASC
-             LIMIT ?5 OFFSET ?6",
+            "WITH paged_persons AS (
+                SELECT DISTINCT person_id
+                FROM plan_activity_coords
+                WHERE lng >= ?1 AND lng <= ?2 AND lat >= ?3 AND lat <= ?4
+                ORDER BY person_id ASC
+                LIMIT ?5 OFFSET ?6
+             )
+             SELECT c.person_id, c.plan_id, c.plan_index, c.activity_index, c.lng, c.lat
+             FROM plan_activity_coords c
+             INNER JOIN paged_persons p ON c.person_id = p.person_id
+             WHERE c.lng >= ?1 AND c.lng <= ?2 AND c.lat >= ?3 AND c.lat <= ?4
+             ORDER BY c.person_id ASC, c.plan_index ASC, c.activity_index ASC",
         )
         .map_err(sqlite_err)?;
 
@@ -96,11 +103,18 @@ pub fn search_population(
     let op = if exact { "=" } else { "LIKE" };
 
     let rows_sql = format!(
-        "SELECT c.person_id, c.plan_id, c.plan_index, c.activity_index, c.lng, c.lat
+        "WITH paged_persons AS (
+            SELECT DISTINCT person_id
+            FROM plan_activity_coords
+            WHERE person_id {0} ?1
+            ORDER BY person_id ASC
+            LIMIT ?2 OFFSET ?3
+         )
+         SELECT c.person_id, c.plan_id, c.plan_index, c.activity_index, c.lng, c.lat
          FROM plan_activity_coords c
-         WHERE c.person_id {} ?1
-         ORDER BY c.person_id ASC, c.plan_index ASC, c.activity_index ASC
-         LIMIT ?2 OFFSET ?3",
+         INNER JOIN paged_persons p ON c.person_id = p.person_id
+         WHERE c.person_id {0} ?1
+         ORDER BY c.person_id ASC, c.plan_index ASC, c.activity_index ASC",
         op
     );
     let mut rows_stmt = connection.prepare(&rows_sql).map_err(sqlite_err)?;

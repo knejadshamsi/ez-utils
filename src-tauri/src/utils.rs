@@ -11,3 +11,11 @@ pub fn xml_escape(value: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
 }
+
+#[tauri::command]
+pub fn check_paths_exist(paths: Vec<String>) -> Vec<String> {
+    paths
+        .into_iter()
+        .filter(|p| std::path::Path::new(p).exists())
+        .collect()
+}

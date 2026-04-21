@@ -9,7 +9,7 @@
 </script>
 
 <div class="transit-panel">
-  <header class="transit-panel-header">
+  <header class="panel-header">
     <h2>{sources.activeName ?? $t('transit.no_active_source')}</h2>
   </header>
 
@@ -46,17 +46,6 @@
     display: flex;
     flex-direction: column;
     color: var(--color-base-content);
-  }
-
-  .transit-panel-header {
-    padding: 16px;
-    border-bottom: 1px solid var(--color-base-300);
-  }
-
-  .transit-panel-header h2 {
-    margin: 0;
-    font-size: 0.95rem;
-    font-weight: 700;
   }
 
   .transit-primary-tab-bar {

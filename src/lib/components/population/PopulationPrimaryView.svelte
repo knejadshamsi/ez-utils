@@ -1,123 +1,107 @@
 <script lang="ts">
-  import { ChevronLeft, ChevronRight, Pencil, Search, Trash2, User, UserPlus } from 'lucide-svelte';
+  import { ChevronLeft, ChevronRight, Search, Trash2, User, UserPlus } from 'lucide-svelte';
   import { population } from '$lib/stores/population.svelte';
   import { sources } from '$lib/stores/data.svelte';
-
-  function beginRenameSource() {
-    // Placeholder until the primary drawer is wired into the shared source rename flow.
-  }
 </script>
 
 <div class="population-panel">
-  <header class="population-panel-header">
-    <div class="population-primary-header">
-      <div class="population-primary-source-row">
-        <h2>{sources.activeName ?? 'No active source'}</h2>
+  <header class="panel-header">
+    <h2>{sources.activeName ?? 'No active source'}</h2>
+  </header>
+
+  {#if population.error}
+    <p class="list-error">{population.error}</p>
+  {/if}
+
+  <section class="drawer-section">
+    <div class="section-toolbar">
+      <h3>Persons</h3>
+      <div class="section-toolbar-actions">
         <button
-          class="population-button population-icon-button"
-          title="Rename source"
-          aria-label="Rename source"
-          onclick={() => beginRenameSource()}
-        >
-          <Pencil size={14} />
-        </button>
-      </div>
-      <p>type: population</p>
-      <div class="population-primary-list-row">
-        <h3>Person List</h3>
-        <button
-          class="population-button population-icon-button"
-          class:population-button-primary={population.searchOpen}
-          disabled={false}
+          class="toolbar-btn"
+          class:active={population.searchOpen}
           onclick={() => population.toggleSearch()}
           title={population.searchOpen ? 'Close search' : 'Search persons'}
           aria-label={population.searchOpen ? 'Close search' : 'Search persons'}
         >
-          <Search size={16} />
+          <Search size={14} />
         </button>
         <button
-          class="population-button population-icon-button population-button-primary"
+          class="toolbar-btn"
+          class:active={population.mapAction === 'add_person'}
           disabled={population.mapAction === 'add_person'}
           onclick={() => population.beginAddPerson()}
           title={population.mapAction === 'add_person' ? 'Click map to place person...' : 'Add person'}
           aria-label={population.mapAction === 'add_person' ? 'Click map to place person' : 'Add person'}
         >
-          <UserPlus size={16} />
+          <UserPlus size={14} />
         </button>
       </div>
-      {#if population.searchOpen}
-        <div class="population-search-row">
-          <input
-            class="population-search-input"
-            type="text"
-            placeholder="Search person ID..."
-            value={population.searchQuery}
-            oninput={(e) => population.setSearchQuery(e.currentTarget.value)}
-            onkeydown={(e) => {
-              if (e.key === 'Enter') {
-                void population.executeSearch();
-              }
-              if (e.key === 'Escape') {
-                population.toggleSearch();
-              }
-            }}
-          />
-          <button
-            class="population-button population-search-toggle"
-            onclick={() => population.toggleSearchExact()}
-            title={population.searchExact ? 'Switch to partial match' : 'Switch to exact match'}
-          >
-            {population.searchExact ? 'Exact' : 'Partial'}
-          </button>
-        </div>
-      {/if}
     </div>
-  </header>
 
-  {#if population.error}
-    <p class="population-error">{population.error}</p>
-  {/if}
+    {#if population.searchOpen}
+      <div class="search-row">
+        <input
+          type="text"
+          placeholder="Search person ID..."
+          value={population.searchQuery}
+          oninput={(e) => population.setSearchQuery(e.currentTarget.value)}
+          onkeydown={(e) => {
+            if (e.key === 'Enter') {
+              void population.executeSearch();
+            }
+            if (e.key === 'Escape') {
+              population.toggleSearch();
+            }
+          }}
+        />
+        <button
+          onclick={() => population.toggleSearchExact()}
+          title={population.searchExact ? 'Switch to partial match' : 'Switch to exact match'}
+        >
+          {population.searchExact ? 'Exact' : 'Partial'}
+        </button>
+      </div>
+    {/if}
 
-  <div class="population-list">
+  <div class="list-container">
     {#if population.searchLoading}
-      <p class="population-empty">loading search results...</p>
+      <p class="list-empty">loading search results...</p>
     {/if}
     {#each population.people as person}
       {@const isSelected = population.selected?.personId === person.personId && population.selected?.sourceName === person.sourceName}
-      <div class="population-row-shell group" class:population-row-selected={isSelected}>
+      <div class="list-row group" class:list-row-selected={isSelected}>
         <button
-          class="population-list-row population-row-main"
+          class="list-row-main"
           onclick={() =>
             void population.selectPerson({
               sourceName: person.sourceName,
               personId: person.personId,
             })}
         >
-          <span class="population-row-label">
+          <span class="list-row-label">
             {#if person.personId === '__new__'}
               <span class="population-unsaved-dot"></span>
             {/if}
             <User size={14} />
-            <span class="population-row-id">{person.personId}</span>
-          </span>
-          <span class="population-row-meta opacity-0 group-hover:opacity-100">
-            {person.pointCount >= 100 ? '99+ activities' : person.pointCount === 1 ? '1 activity' : `${person.pointCount} activities`}
+            <span class="list-row-id">{person.personId}</span>
           </span>
         </button>
-        <button
-          class="population-row-delete population-button population-icon-button opacity-0 group-hover:opacity-100"
-          onclick={(event) => {
-            event.stopPropagation();
-            population.requestDeletePerson({
-              sourceName: person.sourceName,
-              personId: person.personId,
-            });
-          }}
-          title="Delete person"
-          aria-label={`Delete person ${person.personId}`}
-        >
-          <Trash2 size={14} />
-        </button>
+        <div class="list-row-actions opacity-0 group-hover:opacity-100">
+          <button
+            onclick={(event) => {
+              event.stopPropagation();
+              population.requestDeletePerson({
+                sourceName: person.sourceName,
+                personId: person.personId,
+              });
+            }}
+            title="Delete person"
+            aria-label={`Delete person ${person.personId}`}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
     {/each}
   </div>
@@ -141,8 +125,7 @@
       <ChevronRight size={16} />
     </button>
   </div>
-
-
+  </section>
 </div>
 
 <style>
@@ -153,7 +136,6 @@
     color: var(--color-base-content);
   }
 
-  :global(.population-panel-header),
   :global(.population-detail-header),
   :global(.population-section-header) {
     display: flex;
@@ -162,13 +144,11 @@
     gap: 12px;
   }
 
-  :global(.population-panel-header),
   :global(.population-detail-header) {
     padding: 16px;
     border-bottom: 1px solid var(--color-base-300);
   }
 
-  :global(.population-panel-header h2),
   :global(.population-detail-header h2),
   :global(.population-section-header h3) {
     margin: 0;
@@ -176,139 +156,15 @@
     font-weight: 700;
   }
 
-  :global(.population-panel-header p),
   :global(.population-detail-header p) {
     margin: 4px 0 0;
     font-size: 0.75rem;
     opacity: 0.7;
   }
 
-  .population-primary-header {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .population-primary-source-row,
-  .population-primary-list-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .population-primary-list-row h3 {
-    margin: 0;
-    font-size: 0.85rem;
-    font-weight: 700;
-  }
-
-  .population-primary-list-row .population-icon-button:first-of-type {
-    margin-left: auto;
-  }
-
-  .population-search-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .population-search-input {
-    flex: 1;
-    min-width: 0;
-    padding: 6px 10px;
-    border: 1px solid var(--color-base-300);
-    border-radius: 8px;
-    background: var(--color-base-100);
-    color: var(--color-base-content);
-    font-size: 0.8rem;
-  }
-
-  .population-search-toggle {
-    flex-shrink: 0;
-    font-size: 0.75rem;
-    padding: 6px 10px;
-  }
-
-  :global(.population-list) {
-    flex: 1;
-    overflow: auto;
-    padding: 12px;
-  }
-
-  :global(.population-list-row),
-  :global(.population-plan-button) {
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 12px;
-    border: 1px solid color-mix(in srgb, var(--color-base-content) 20%, transparent);
-    border-radius: 8px;
-    background: var(--color-base-100);
-    text-align: left;
-  }
-
-  :global(.population-list-row + .population-list-row),
-  :global(.population-plan-button + .population-plan-button) {
-    margin-top: 8px;
-  }
-
-  :global(.population-row-shell) {
-    position: relative;
-    margin-top: 8px;
-  }
-
-  :global(.population-row-shell:first-child) {
-    margin-top: 0;
-  }
-
-  :global(.population-row-main) {
-    padding-right: 72px;
-  }
-
-  .population-row-label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .population-row-meta {
-    transition: opacity 0.15s ease;
-  }
-
-  :global(.population-row-delete) {
-    position: absolute;
-    top: 50%;
-    right: 8px;
-    transform: translateY(-50%);
-    transition: opacity 0.15s ease;
-  }
-
-  :global(.population-row-selected .population-list-row) {
-    border-color: var(--color-primary);
-    background: color-mix(in srgb, var(--color-primary) 14%, var(--color-base-100));
-  }
-
-  :global(.population-row-selected .population-row-meta),
-  :global(.population-row-selected .population-row-delete) {
-    opacity: 1;
-  }
-
   :global(.population-plan-active) {
     border-color: var(--color-primary);
     background: color-mix(in srgb, var(--color-primary) 12%, var(--color-base-100));
-  }
-
-  :global(.population-empty),
-  :global(.population-error) {
-    padding: 16px;
-    font-size: 0.85rem;
-  }
-
-  :global(.population-error) {
-    color: #b91c1c;
   }
 
   :global(.population-pagination) {
@@ -602,7 +458,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 160px;
+    min-width: 0;
+    flex: 1;
   }
 
   :global(.population-plan-row .population-select),

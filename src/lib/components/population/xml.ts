@@ -147,8 +147,13 @@ export function createNewLeg(index: number): EditableLeg {
 }
 
 function projectActivityCoords(node: Element, projString: string): { lng: number | null; lat: number | null } {
-  const x = Number(node.getAttribute('x'));
-  const y = Number(node.getAttribute('y'));
+  const xAttr = node.getAttribute('x');
+  const yAttr = node.getAttribute('y');
+  if (xAttr === null || yAttr === null) {
+    return { lng: null, lat: null };
+  }
+  const x = Number(xAttr);
+  const y = Number(yAttr);
   if (!Number.isFinite(x) || !Number.isFinite(y)) {
     return { lng: null, lat: null };
   }
